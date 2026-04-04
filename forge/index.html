@@ -310,6 +310,36 @@
 
   .prop-input:focus { border-color: var(--accent); }
 
+  /* ─── Materials ─── */
+  .prop-select {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: var(--text-primary);
+    font-family: 'Outfit', sans-serif;
+    font-size: 11px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .prop-select:hover { border-color: var(--border-focus); }
+  .prop-select:focus { border-color: var(--accent); }
+
+  .prop-select option {
+    background: var(--bg-input);
+    color: var(--text-primary);
+  }
+
+  .material-preview {
+    width: 100%;
+    height: 48px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+
   /* ─── Status Bar ─── */
   .forge-statusbar {
     display: flex;
@@ -441,6 +471,237 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 let scene, camera, renderer;
+let selectedObject = null;
+let objects = [];
+
+// Material definitions with colors and properties
+const materials = {
+  MatWoodenPlanks: { color: 0x8B6F47, roughness: 0.7, metalness: 0, name: 'Wooden Planks' },
+  MatStoneBricks: { color: 0x8B8680, roughness: 0.8, metalness: 0, name: 'Stone Bricks' },
+  MatGrassDirt: { color: 0x4A3E2F, roughness: 0.9, metalness: 0, name: 'Grass & Dirt' },
+  MatRedBricks: { color: 0xA04040, roughness: 0.75, metalness: 0, name: 'Red Bricks' },
+  MatAsphalt: { color: 0x2A2A2A, roughness: 0.85, metalness: 0.1, name: 'Asphalt' },
+  MatPavement: { color: 0x707070, roughness: 0.8, metalness: 0, name: 'Pavement' },
+  MatRustedMetal: { color: 0x8B4513, roughness: 0.6, metalness: 0.8, name: 'Rusted Metal' },
+  MatFabric: { color: 0x4A4A6A, roughness: 0.9, metalness: 0, name: 'Fabric' },
+  MatWater: { color: 0x1E90FF, roughness: 0.1, metalness: 0.3, name: 'Water' }
+};
+
+// Create canvas texture for materials
+function createMaterialTexture(materialKey) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  const mat = materials[materialKey];
+  const hexColor = mat.color.toString(16).padStart(6, '0');
+  ctx.fillStyle = '#' + hexColor;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Add texture patterns
+  switch(materialKey) {
+    case 'MatWoodenPlanks':
+      ctx.strokeStyle = '#6B5535';
+      for(let i = 0; i < 10; i++) {
+        ctx.beginPath();
+        ctx.moveTo(0, i * 25);
+        ctx.lineTo(256, i * 25);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      break;
+    case 'MatStoneBricks':
+      ctx.strokeStyle = '#5A5450';
+      for(let x = 0; x < 256; x += 64) {
+        ctx.strokeRect(x, 0, 64, 128);
+        ctx.strokeRect(x + 32, 128, 64, 128);
+      }
+      break;
+    case 'MatRedBricks':
+      ctx.strokeStyle = '#7A2020';
+      for(let y = 0; y < 256; y += 50) {
+        for(let x = 0; x < 256; x += 60) {
+          ctx.strokeRect(x + (y/50 % 2) * 30, y, 58, 48);
+        }
+      }
+      break;
+    case 'MatAsphalt':
+      ctx.fillStyle = 'rgba(100, 100, 100, 0.3)';
+      for(let i = 0; i < 50; i++) {
+        ctx.fillRect(Math.random() * 256, Math.random() * 256, 10, 10);
+      }
+      break;
+    case 'MatRustedMetal':
+      ctx.fillStyle = 'rgba(139, 69, 19, 0.4)';
+      for(let i = 0; i < 100; i++) {
+        ctx.fillRect(Math.random() * 256, Math.random() * 256, 5, 5);
+      }
+      break;
+    case 'MatFabric':
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+      ctx.lineWidth = 1;
+      for(let i = 0; i < 256; i += 2) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, 256);
+        ctx.stroke();
+      }
+      break;
+    case 'MatGrassDirt':
+      ctx.fillStyle = 'rgba(0, 100, 0, 0.3)';
+      for(let i = 0; i < 30; i++) {
+        ctx.fillRect(Math.random() * 256, Math.random() * 256, 20, 20);
+      }
+      break;
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  return texture;
+}
+
+function createMaterialPreview(materialKey) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 200;
+  canvas.height = 48;
+  const ctx = canvas.getContext('2d');
+
+  const mat = materials[materialKey];
+  const hexColor = mat.color.toString(16).padStart(6, '0');
+  ctx.fillStyle = '#' + hexColor;
+  ctx.fillRect(0, 0, 200, 48);
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '11px "JetBrains Mono"';
+  ctx.fillText(mat.name, 8, 30);
+
+  return canvas;
+}
+
+function createThreeMaterial(materialKey) {
+  const mat = materials[materialKey];
+  const texture = createMaterialTexture(materialKey);
+
+  return new THREE.MeshStandardMaterial({
+    map: texture,
+    color: mat.color,
+    roughness: mat.roughness,
+    metalness: mat.metalness,
+    side: THREE.DoubleSide
+  });
+}
+
+function updatePropertiesPanel() {
+  const propsContent = document.getElementById('propsContent');
+
+  if (!selectedObject) {
+    propsContent.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px">
+      Select an object to view properties.
+    </div>`;
+    return;
+  }
+
+  const pos = selectedObject.position;
+  const rot = selectedObject.rotation;
+  const scale = selectedObject.scale;
+  const currentMaterial = selectedObject.userData.material || 'MatStoneBricks';
+
+  let materialOptions = Object.keys(materials).map(key =>
+    `<option value="${key}" ${key === currentMaterial ? 'selected' : ''}>${materials[key].name}</option>`
+  ).join('');
+
+  propsContent.innerHTML = `
+    <div class="prop-section">
+      <div class="prop-section-header">Transform</div>
+      <div class="prop-fields">
+        <div class="prop-row">
+          <label class="prop-label">X</label>
+          <input class="prop-input" type="number" step="0.1" value="${pos.x.toFixed(2)}" data-prop="posX">
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Y</label>
+          <input class="prop-input" type="number" step="0.1" value="${pos.y.toFixed(2)}" data-prop="posY">
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Z</label>
+          <input class="prop-input" type="number" step="0.1" value="${pos.z.toFixed(2)}" data-prop="posZ">
+        </div>
+      </div>
+    </div>
+
+    <div class="prop-section">
+      <div class="prop-section-header">Rotation</div>
+      <div class="prop-fields">
+        <div class="prop-row">
+          <label class="prop-label">X</label>
+          <input class="prop-input" type="number" step="0.1" value="${(rot.x * 180 / Math.PI).toFixed(2)}" data-prop="rotX">
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Y</label>
+          <input class="prop-input" type="number" step="0.1" value="${(rot.y * 180 / Math.PI).toFixed(2)}" data-prop="rotY">
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Z</label>
+          <input class="prop-input" type="number" step="0.1" value="${(rot.z * 180 / Math.PI).toFixed(2)}" data-prop="rotZ">
+        </div>
+      </div>
+    </div>
+
+    <div class="prop-section">
+      <div class="prop-section-header">Scale</div>
+      <div class="prop-fields">
+        <div class="prop-row">
+          <label class="prop-label">X</label>
+          <input class="prop-input" type="number" step="0.1" value="${scale.x.toFixed(2)}" data-prop="scaleX">
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Y</label>
+          <input class="prop-input" type="number" step="0.1" value="${scale.y.toFixed(2)}" data-prop="scaleY">
+        </div>
+        <div class="prop-row">
+          <label class="prop-label">Z</label>
+          <input class="prop-input" type="number" step="0.1" value="${scale.z.toFixed(2)}" data-prop="scaleZ">
+        </div>
+      </div>
+    </div>
+
+    <div class="prop-section">
+      <div class="prop-section-header">Material</div>
+      <div class="prop-fields">
+        <div class="material-preview" id="matPreview" style="background: #${materials[currentMaterial].color.toString(16).padStart(6, '0')}"></div>
+        <div class="prop-row" style="grid-template-columns: 1fr;">
+          <select class="prop-select" id="matSelect">${materialOptions}</select>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Add event listeners
+  document.querySelectorAll('.prop-input[data-prop]').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const prop = e.target.dataset.prop;
+      const value = parseFloat(e.target.value);
+
+      if (prop.startsWith('pos')) {
+        selectedObject.position[prop[3].toLowerCase()] = value;
+      } else if (prop.startsWith('rot')) {
+        selectedObject.rotation[prop[3].toLowerCase()] = value * Math.PI / 180;
+      } else if (prop.startsWith('scale')) {
+        selectedObject.scale[prop[5].toLowerCase()] = value;
+      }
+    });
+  });
+
+  const matSelect = document.getElementById('matSelect');
+  matSelect?.addEventListener('change', (e) => {
+    const matKey = e.target.value;
+    selectedObject.userData.material = matKey;
+    selectedObject.material = createThreeMaterial(matKey);
+    document.getElementById('matPreview').style.background = '#' + materials[matKey].color.toString(16).padStart(6, '0');
+  });
+}
 
 function initEditor() {
   const canvas = document.getElementById('forgeCanvas');
@@ -472,12 +733,45 @@ function initEditor() {
   dirLight.castShadow = true;
   scene.add(dirLight);
 
-  // Sample ground
+  // Sample ground with stone brick material
   const groundGeo = new THREE.BoxGeometry(40, 0.2, 40);
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a2a3e });
+  const groundMat = createThreeMaterial('MatStoneBricks');
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.position.y = -0.1;
+  ground.userData.material = 'MatStoneBricks';
   scene.add(ground);
+  objects.push(ground);
+
+  // Add initial cube
+  const cubeGeo = new THREE.BoxGeometry(2, 2, 2);
+  const cubeMat = createThreeMaterial('MatWoodenPlanks');
+  const cube = new THREE.Mesh(cubeGeo, cubeMat);
+  cube.position.set(0, 1, 0);
+  cube.userData.material = 'MatWoodenPlanks';
+  scene.add(cube);
+  objects.push(cube);
+
+  // Raycasting for selection
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+  canvas.addEventListener('click', (e) => {
+    mouse.x = (e.clientX - vp.getBoundingClientRect().left) / vp.clientWidth * 2 - 1;
+    mouse.y = -((e.clientY - vp.getBoundingClientRect().top) / vp.clientHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(objects);
+
+    if (intersects.length > 0) {
+      // Deselect previous
+      if (selectedObject) {
+        selectedObject.children[0]?.geometry.dispose();
+      }
+
+      selectedObject = intersects[0].object;
+      updatePropertiesPanel();
+    }
+  });
 
   // Render loop
   function loop() {
@@ -492,6 +786,8 @@ function initEditor() {
     camera.updateProjectionMatrix();
     renderer.setSize(vp.clientWidth, vp.clientHeight);
   });
+
+  updatePropertiesPanel();
 }
 
 setTimeout(() => {
