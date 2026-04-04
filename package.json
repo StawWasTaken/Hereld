@@ -1,0 +1,28 @@
+{
+  "name": "fortized",
+  "version": "1.0.0",
+  "description": "Fortized is a modern gaming chat-app.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "desktop": "electron electron-main.js",
+    "desktop:dev": "node server.js & electron electron-main.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:62905/git/StawWasTaken/Fortized"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.99.1",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

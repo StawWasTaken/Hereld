@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orvyn - Create & Play 3D Games</title>
+<meta name="description" content="Create stunning 3D games with Orvyn Forge or discover incredible games on Orvyn Play.">
+<meta name="theme-color" content="#f5a623">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg-primary: #0a0a0c;
+    --bg-secondary: #111115;
+    --bg-tertiary: #18181d;
+    --accent: #f5a623;
+    --accent-dim: rgba(245, 166, 35, 0.15);
+    --accent-glow: rgba(245, 166, 35, 0.3);
+    --text-primary: #e8e8ec;
+    --text-secondary: #8a8a96;
+    --text-muted: #55555f;
+    --border: #2a2a32;
+    --success: #34d399;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ─── Header ─── */
+  header {
+    padding: 16px 40px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(17, 17, 21, 0.8);
+    backdrop-filter: blur(10px);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.3px;
+  }
+
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    color: #000;
+    font-size: 18px;
+  }
+
+  .logo span { color: var(--accent); }
+
+  nav {
+    display: flex;
+    gap: 24px;
+  }
+
+  nav a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+
+  nav a:hover { color: var(--accent); }
+
+  .cta-btns {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+
+  .btn-primary:hover {
+    background: #ffb840;
+    box-shadow: 0 0 24px var(--accent-glow);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ─── Hero ─── */
+  .hero {
+    padding: 80px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 800px 400px at 30% 50%, rgba(245,166,35,0.08), transparent),
+      radial-gradient(ellipse 600px 300px at 70% 30%, rgba(245,100,35,0.05), transparent);
+    z-index: -1;
+  }
+
+  .hero h1 {
+    font-size: 56px;
+    font-weight: 800;
+    letter-spacing: -1.2px;
+    line-height: 1.1;
+    margin-bottom: 16px;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hero h1 span { color: var(--accent); }
+
+  .hero p {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 600px;
+    margin: 0 auto 32px;
+    line-height: 1.6;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* ─── Features ─── */
+  .features {
+    padding: 80px 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .features h2 {
+    font-size: 32px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 48px;
+    letter-spacing: -0.5px;
+  }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+  }
+
+  .feature-card {
+    padding: 28px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    transition: all 0.25s;
+  }
+
+  .feature-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(245, 166, 35, 0.1);
+  }
+
+  .feature-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--accent-dim);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 16px;
+  }
+
+  .feature-card h3 {
+    font-size: 18px;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+  }
+
+  .feature-card p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* ─── Showcase ─── */
+  .showcase {
+    padding: 80px 40px;
+    background: linear-gradient(135deg, #0d0714 0%, #0a0a0c 50%, #0f0f15 100%);
+  }
+
+  .showcase-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .showcase-item {
+    padding: 32px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .showcase-item:hover {
+    border-color: var(--accent);
+    transform: translateY(-8px);
+    box-shadow: 0 16px 40px rgba(245, 166, 35, 0.15);
+  }
+
+  .showcase-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+
+  .showcase-item h3 {
+    font-size: 20px;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+  }
+
+  .showcase-item p {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  /* ─── Footer ─── */
+  footer {
+    padding: 48px 40px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  /* ─── Animations ─── */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .anim-in {
+    animation: fadeInUp 0.6s ease forwards;
+    opacity: 0;
+  }
+
+  .delay-1 { animation-delay: 0.1s; }
+  .delay-2 { animation-delay: 0.2s; }
+  .delay-3 { animation-delay: 0.3s; }
+
+  @media (max-width: 768px) {
+    header {
+      flex-direction: column;
+      gap: 16px;
+      padding: 16px 20px;
+    }
+
+    nav {
+      order: 3;
+      width: 100%;
+      justify-content: center;
+      gap: 16px;
+      font-size: 12px;
+    }
+
+    .hero {
+      padding: 48px 20px;
+    }
+
+    .hero h1 {
+      font-size: 36px;
+    }
+
+    .hero p {
+      font-size: 16px;
+    }
+
+    .features, .showcase {
+      padding: 48px 20px;
+    }
+
+    .features h2 {
+      font-size: 24px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <a href="/" class="logo">
+    <div class="logo-icon">O</div>
+    Orvyn
+  </a>
+  <nav>
+    <a href="#features">Features</a>
+    <a href="/forge">Forge</a>
+    <a href="/play">Play</a>
+    <a href="#about">About</a>
+  </nav>
+  <div class="cta-btns">
+    <a href="/forge" class="btn btn-primary">Create</a>
+    <a href="/play" class="btn btn-secondary">Explore</a>
+  </div>
+</header>
+
+<!-- Hero -->
+<section class="hero anim-in">
+  <h1>Create & Play 3D Games <span>Instantly</span></h1>
+  <p>Build stunning 3D worlds with Orvyn Forge, or discover incredible games created by our community.</p>
+  <div class="hero-actions">
+    <a href="/forge" class="btn btn-primary">Launch Forge</a>
+    <a href="/play" class="btn btn-secondary">Browse Games</a>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features" id="features">
+  <h2>Why Orvyn?</h2>
+  <div class="feature-grid">
+    <div class="feature-card anim-in delay-1">
+      <div class="feature-icon">🎨</div>
+      <h3>Visual 3D Editor</h3>
+      <p>Intuitive drag-and-drop interface to create 3D scenes with boxes, spheres, cylinders, lights, and more.</p>
+    </div>
+    <div class="feature-card anim-in delay-2">
+      <div class="feature-icon">🚀</div>
+      <h3>Instant Publishing</h3>
+      <p>Publish your creations directly to Orvyn Play. Share your games with the community in seconds.</p>
+    </div>
+    <div class="feature-card anim-in delay-3">
+      <div class="feature-icon">🌍</div>
+      <h3>Community Driven</h3>
+      <p>Discover games made by creators worldwide. Play, rate, and connect with other players in real-time.</p>
+    </div>
+    <div class="feature-card anim-in delay-1">
+      <div class="feature-icon">⚙️</div>
+      <h3>Full Control</h3>
+      <p>Transform, rotate, and scale objects. Control lighting, materials, and player spawns with precision.</p>
+    </div>
+    <div class="feature-card anim-in delay-2">
+      <div class="feature-icon">👥</div>
+      <h3>Multiplayer Ready</h3>
+      <p>Play with friends online. Chat, collaborate, and compete in a shared 3D environment.</p>
+    </div>
+    <div class="feature-card anim-in delay-3">
+      <div class="feature-icon">🎮</div>
+      <h3>Play Anywhere</h3>
+      <p>Access your games from any device. No downloads, no installations—just instant gaming.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Showcase -->
+<section class="showcase">
+  <div class="showcase-grid">
+    <a href="/forge" class="showcase-item anim-in delay-1">
+      <div class="showcase-icon">🔨</div>
+      <h3>Orvyn Forge</h3>
+      <p>Your creative studio. Build amazing 3D worlds and publish them to the world.</p>
+    </a>
+    <a href="/play" class="showcase-item anim-in delay-2">
+      <div class="showcase-icon">🎯</div>
+      <h3>Orvyn Play</h3>
+      <p>Discover and play thousands of user-created games. Jump in and start exploring.</p>
+    </a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <p>&copy; 2024 Orvyn. Built with ❤️ for creators and players.</p>
+</footer>
+
+</body>
+</html>
