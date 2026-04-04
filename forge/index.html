@@ -68,6 +68,18 @@
 
   .forge-title span { color: var(--accent); }
 
+  .forge-logo-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .forge-logo-container img {
+    height: 20px;
+    width: auto;
+    object-fit: contain;
+  }
+
   .title-project {
     font-size: 12px;
     color: var(--text-muted);
@@ -327,8 +339,10 @@
 
   <!-- Title Bar -->
   <div class="forge-titlebar">
-    <img src="../Orvyn icon.png" alt="Orvyn" style="width: 20px; height: 20px; border-radius: 4px;">
-    <div class="forge-title">Orvyn <span>Forge</span></div>
+    <div class="forge-logo-container">
+      <img src="../Orvyn icon.png" alt="Orvyn" style="width: 20px; height: 20px; border-radius: 4px;">
+      <div class="forge-title">Orvyn <span>Forge</span></div>
+    </div>
     <div class="title-project" id="projectName">untitled-project</div>
     <div class="title-user">
       <div class="title-user-dot"></div>

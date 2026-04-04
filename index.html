@@ -62,8 +62,9 @@
   }
 
   .logo img {
-    height: 32px;
+    height: 36px;
     width: auto;
+    object-fit: contain;
   }
 
   .logo span { color: var(--accent); }
@@ -262,6 +263,25 @@
     margin-bottom: 16px;
   }
 
+  .showcase-icon img {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+  }
+
+  .feature-icon img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+  }
+
+  .hero-logo {
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+    margin-bottom: 24px;
+  }
+
   .showcase-item h3 {
     font-size: 20px;
     margin-bottom: 8px;
@@ -355,6 +375,7 @@
 
 <!-- Hero -->
 <section class="hero anim-in">
+  <img src="Orvyn logomark.png" alt="Orvyn" class="hero-logo">
   <h1>Create & Play 3D Games <span>Instantly</span></h1>
   <p>Build stunning 3D worlds with Orvyn Forge, or discover incredible games created by our community.</p>
   <div class="hero-actions">
@@ -368,32 +389,32 @@
   <h2>Why Orvyn?</h2>
   <div class="feature-grid">
     <div class="feature-card anim-in delay-1">
-      <div class="feature-icon">🎨</div>
+      <div class="feature-icon"><img src="Orvyn icon.png" alt="Feature icon"></div>
       <h3>Visual 3D Editor</h3>
       <p>Intuitive drag-and-drop interface to create 3D scenes with boxes, spheres, cylinders, lights, and more.</p>
     </div>
     <div class="feature-card anim-in delay-2">
-      <div class="feature-icon">🚀</div>
+      <div class="feature-icon"><img src="Orvyn icon.png" alt="Feature icon"></div>
       <h3>Instant Publishing</h3>
       <p>Publish your creations directly to Orvyn Play. Share your games with the community in seconds.</p>
     </div>
     <div class="feature-card anim-in delay-3">
-      <div class="feature-icon">🌍</div>
+      <div class="feature-icon"><img src="Orvyn icon.png" alt="Feature icon"></div>
       <h3>Community Driven</h3>
       <p>Discover games made by creators worldwide. Play, rate, and connect with other players in real-time.</p>
     </div>
     <div class="feature-card anim-in delay-1">
-      <div class="feature-icon">⚙️</div>
+      <div class="feature-icon"><img src="Orvyn icon.png" alt="Feature icon"></div>
       <h3>Full Control</h3>
       <p>Transform, rotate, and scale objects. Control lighting, materials, and player spawns with precision.</p>
     </div>
     <div class="feature-card anim-in delay-2">
-      <div class="feature-icon">👥</div>
+      <div class="feature-icon"><img src="Orvyn icon.png" alt="Feature icon"></div>
       <h3>Multiplayer Ready</h3>
       <p>Play with friends online. Chat, collaborate, and compete in a shared 3D environment.</p>
     </div>
     <div class="feature-card anim-in delay-3">
-      <div class="feature-icon">🎮</div>
+      <div class="feature-icon"><img src="Orvyn icon.png" alt="Feature icon"></div>
       <h3>Play Anywhere</h3>
       <p>Access your games from any device. No downloads, no installations—just instant gaming.</p>
     </div>
@@ -404,12 +425,12 @@
 <section class="showcase">
   <div class="showcase-grid">
     <a href="/forge" class="showcase-item anim-in delay-1">
-      <div class="showcase-icon">🔨</div>
+      <div class="showcase-icon"><img src="Orvyn logomark.png" alt="Orvyn Forge"></div>
       <h3>Orvyn Forge</h3>
       <p>Your creative studio. Build amazing 3D worlds and publish them to the world.</p>
     </a>
     <a href="/play" class="showcase-item anim-in delay-2">
-      <div class="showcase-icon">🎯</div>
+      <div class="showcase-icon"><img src="Orvyn logomark.png" alt="Orvyn Play"></div>
       <h3>Orvyn Play</h3>
       <p>Discover and play thousands of user-created games. Jump in and start exploring.</p>
     </a>

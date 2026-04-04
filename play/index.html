@@ -69,6 +69,19 @@
 
   .titlebar-title span { color: var(--accent); }
 
+  .titlebar-logo-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .titlebar-logo-container img {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    object-fit: contain;
+  }
+
   .titlebar-user {
     margin-left: auto;
     display: flex;
@@ -301,8 +314,10 @@
 
   <!-- Titlebar -->
   <div class="titlebar">
-    <img src="../Orvyn icon.png" alt="Orvyn" style="width: 28px; height: 28px; border-radius: 6px;">
-    <div class="titlebar-title">Orvyn <span>Play</span></div>
+    <div class="titlebar-logo-container">
+      <img src="../Orvyn icon.png" alt="Orvyn">
+      <div class="titlebar-title">Orvyn <span>Play</span></div>
+    </div>
 
     <div class="titlebar-user">
       <div class="user-avatar" id="userAvatar">D</div>
