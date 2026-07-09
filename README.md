@@ -1,81 +1,64 @@
-# Orvyn
+# Hereld
 
-A community-driven 3D game creation and discovery platform.
-
-## 🎮 What is Orvyn?
-
-Orvyn is a platform that empowers creators to build stunning 3D games and share them with a vibrant community. It consists of two main components:
-
-### 🔨 Orvyn Forge
-The creative studio where you can:
-- Build 3D scenes with intuitive visual tools
-- Work with boxes, spheres, cylinders, lights, and spawn points
-- Control transforms, rotations, and scales with precision
-- Publish directly to Orvyn Play
-
-### 🎯 Orvyn Play
-The game discovery platform where you can:
-- Discover games created by the community
-- Play 3D games with multiplayer support
-- Chat with other players in real-time
-- Rate and comment on your favorite games
-
-## 🚀 Getting Started
-
-Visit the platform to:
-1. Go to **Forge** (`/forge`) to start creating
-2. Go to **Play** (`/play`) to discover games
-
-## 📋 Features
-
-- ✨ Visual 3D editor with intuitive interface
-- 🌍 Community-driven game platform
-- 👥 Multiplayer gameplay support
-- 💬 Real-time chat
-- ⚡ Instant game publishing
-- 🎮 Play anywhere, anytime
-- 🎨 Modern dark theme with orange accents
-
-## 🛠️ Tech Stack
-
-- **Frontend**: HTML5, CSS3, Vanilla JavaScript
-- **3D Graphics**: Three.js
-- **Backend**: Supabase (optional, for multiplayer features)
-- **Hosting**: Static files with optional Node.js server
-
-## 📦 Project Structure
-
-```
-/
-├── index.html              # Homepage
-├── forge/
-│   └── index.html         # Game editor with 3D viewport
-├── play/
-│   └── index.html         # Game discovery platform
-├── package.json           # Dependencies
-└── README.md             # This file
-```
+A Twitter v2 clone built with the Swiftaw design system — playful, soft, and slightly off-axis.
 
 ## 🎨 Design System
 
-- **Primary Background**: #0a0a0c
-- **Accent Color**: #f5a623 (Orange)
-- **Text Primary**: #e8e8ec
-- **Border Color**: #2a2a32
-- **Font**: Outfit (UI), JetBrains Mono (code)
+This project follows the [Swiftaw](https://github.com/StawWasTaken/Swiftaw) design language:
 
-## 📄 License
+- **Signature Accent**: #fef83d (bright yellow)
+- **Background**: #0d1117 (deep dark)
+- **Fonts**: Syne (display), DM Sans (body)
+- **Soft tints**: Pink, blue, mint, lilac, peach
 
-MIT License - feel free to use this for your projects
+## ✨ Features
 
-## 🤝 Contributing
+- **Posts** - 300-character limit, renamed "Reposts" (not retweets)
+- **Chronological Feed** - Global feed + Following tab
+- **Media Support** - Image uploads, GIFs support, Twemoji support
+- **Crowdsourced Moderation** - Mute words, block users, hide content
+- **Report Queue** - Simple admin dashboard for reported posts
+- Three-column layout (sidebar, feed, widgets)
+- Post composer with media tools
+- Interactive likes and reposts
+- Who to follow suggestions
+- Trending topics
+- Floating navigation capsule
+- Subtle grain texture and ambient glow blobs
+- Fully responsive (mobile-first)
 
-We welcome contributions! Feel free to:
-- Report bugs
-- Suggest features
-- Submit pull requests
-- Share your games and creations
+## 🚀 Getting Started
+
+Simply open `index.html` in your browser, or serve it locally:
+
+```bash
+# Using Python
+python -m http.server 8000
+
+# Using Node.js
+npx serve .
+```
+
+Then visit `http://localhost:8000`
+
+## 📁 Project Structure
+
+```
+/
+├── index.html          # Main Hereld page
+├── css/
+│   └── swiftaw.css    # Swiftaw design system
+└── README.md          # This file
+```
+
+## 🎯 Design Highlights
+
+- Floating pill navigation with backdrop blur
+- Staggered fade-in animations for posts
+- Soft chip tokens for tags/badges
+- Interactive hover states with color shifts
+- Mobile-responsive bottom navigation bar
 
 ---
 
-Built with ❤️ for creators and players.
+Built with 🛡️ for the Hereld community

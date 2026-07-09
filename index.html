@@ -1,446 +1,836 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Orvyn - Create & Play 3D Games</title>
-<meta name="description" content="Create stunning 3D games with Orvyn Forge or discover incredible games on Orvyn Play.">
-<meta name="theme-color" content="#f5a623">
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
-  :root {
-    --bg-primary: #0a0a0c;
-    --bg-secondary: #111115;
-    --bg-tertiary: #18181d;
-    --accent: #f5a623;
-    --accent-dim: rgba(245, 166, 35, 0.15);
-    --accent-glow: rgba(245, 166, 35, 0.3);
-    --text-primary: #e8e8ec;
-    --text-secondary: #8a8a96;
-    --text-muted: #55555f;
-    --border: #2a2a32;
-    --success: #34d399;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    font-family: 'Outfit', sans-serif;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    overflow-x: hidden;
-  }
-
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-  /* ─── Header ─── */
-  header {
-    padding: 16px 40px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: rgba(17, 17, 21, 0.8);
-    backdrop-filter: blur(10px);
-  }
-
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    text-decoration: none;
-    color: var(--text-primary);
-    font-weight: 700;
-    font-size: 18px;
-    letter-spacing: -0.3px;
-  }
-
-  .logo img {
-    height: 36px;
-    width: auto;
-    object-fit: contain;
-  }
-
-  .logo span { color: var(--accent); }
-
-  nav {
-    display: flex;
-    gap: 24px;
-  }
-
-  nav a {
-    color: var(--text-secondary);
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
-    transition: color 0.2s;
-  }
-
-  nav a:hover { color: var(--accent); }
-
-  .cta-btns {
-    display: flex;
-    gap: 10px;
-  }
-
-  .btn {
-    padding: 8px 18px;
-    border-radius: 8px;
-    border: none;
-    font-family: 'Outfit', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-  }
-
-  .btn-primary {
-    background: var(--accent);
-    color: #000;
-  }
-
-  .btn-primary:hover {
-    background: #ffb840;
-    box-shadow: 0 0 24px var(--accent-glow);
-  }
-
-  .btn-secondary {
-    background: transparent;
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
-  }
-
-  .btn-secondary:hover { color: var(--accent); border-color: var(--accent); }
-
-  /* ─── Hero ─── */
-  .hero {
-    padding: 80px 40px;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .hero::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(ellipse 800px 400px at 30% 50%, rgba(245,166,35,0.08), transparent),
-      radial-gradient(ellipse 600px 300px at 70% 30%, rgba(245,100,35,0.05), transparent);
-    z-index: -1;
-  }
-
-  .hero h1 {
-    font-size: 56px;
-    font-weight: 800;
-    letter-spacing: -1.2px;
-    line-height: 1.1;
-    margin-bottom: 16px;
-    max-width: 900px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .hero h1 span { color: var(--accent); }
-
-  .hero p {
-    font-size: 18px;
-    color: var(--text-secondary);
-    max-width: 600px;
-    margin: 0 auto 32px;
-    line-height: 1.6;
-  }
-
-  .hero-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  /* ─── Features ─── */
-  .features {
-    padding: 80px 40px;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-
-  .features h2 {
-    font-size: 32px;
-    font-weight: 700;
-    text-align: center;
-    margin-bottom: 48px;
-    letter-spacing: -0.5px;
-  }
-
-  .feature-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 24px;
-  }
-
-  .feature-card {
-    padding: 28px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    transition: all 0.25s;
-  }
-
-  .feature-card:hover {
-    border-color: var(--accent);
-    transform: translateY(-4px);
-    box-shadow: 0 12px 32px rgba(245, 166, 35, 0.1);
-  }
-
-  .feature-icon {
-    width: 48px;
-    height: 48px;
-    background: var(--accent-dim);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    margin-bottom: 16px;
-  }
-
-  .feature-card h3 {
-    font-size: 18px;
-    margin-bottom: 8px;
-    color: var(--text-primary);
-  }
-
-  .feature-card p {
-    font-size: 14px;
-    color: var(--text-secondary);
-    line-height: 1.5;
-  }
-
-  /* ─── Showcase ─── */
-  .showcase {
-    padding: 80px 40px;
-    background: linear-gradient(135deg, #0d0714 0%, #0a0a0c 50%, #0f0f15 100%);
-  }
-
-  .showcase-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 24px;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-
-  .showcase-item {
-    padding: 32px;
-    background: var(--bg-secondary);
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.25s;
-    text-decoration: none;
-    color: inherit;
-  }
-
-  .showcase-item:hover {
-    border-color: var(--accent);
-    transform: translateY(-8px);
-    box-shadow: 0 16px 40px rgba(245, 166, 35, 0.15);
-  }
-
-  .showcase-icon {
-    font-size: 48px;
-    margin-bottom: 16px;
-  }
-
-  .showcase-icon img {
-    width: 64px;
-    height: 64px;
-    object-fit: contain;
-  }
-
-  .feature-icon img {
-    width: 48px;
-    height: 48px;
-    object-fit: contain;
-  }
-
-  .hero-logo {
-    width: 120px;
-    height: 120px;
-    object-fit: contain;
-    margin-bottom: 24px;
-  }
-
-  .showcase-item h3 {
-    font-size: 20px;
-    margin-bottom: 8px;
-    color: var(--text-primary);
-  }
-
-  .showcase-item p {
-    font-size: 14px;
-    color: var(--text-secondary);
-  }
-
-  /* ─── Footer ─── */
-  footer {
-    padding: 48px 40px;
-    border-top: 1px solid var(--border);
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 13px;
-  }
-
-  /* ─── Animations ─── */
-  @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .anim-in {
-    animation: fadeInUp 0.6s ease forwards;
-    opacity: 0;
-  }
-
-  .delay-1 { animation-delay: 0.1s; }
-  .delay-2 { animation-delay: 0.2s; }
-  .delay-3 { animation-delay: 0.3s; }
-
-  @media (max-width: 768px) {
-    header {
-      flex-direction: column;
-      gap: 16px;
-      padding: 16px 20px;
-    }
-
-    nav {
-      order: 3;
-      width: 100%;
-      justify-content: center;
-      gap: 16px;
-      font-size: 12px;
-    }
-
-    .hero {
-      padding: 48px 20px;
-    }
-
-    .hero h1 {
-      font-size: 36px;
-    }
-
-    .hero p {
-      font-size: 16px;
-    }
-
-    .features, .showcase {
-      padding: 48px 20px;
-    }
-
-    .features h2 {
-      font-size: 24px;
-    }
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home / Hereld</title>
+  <meta name="description" content="Hereld - Your Voice, Amplified">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+  <link rel="stylesheet" href="css/swiftaw.css">
+  <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/twemoji.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
+  <!-- soft background blobs -->
+  <div class="bg-blob b1"></div>
+  <div class="bg-blob b2"></div>
 
-<!-- Header -->
-<header>
-  <a href="/" class="logo">
-    <img src="Orvyn logomark.png" alt="Orvyn">
-  </a>
-  <nav>
-    <a href="#features">Features</a>
-    <a href="/forge">Forge</a>
-    <a href="/play">Play</a>
-    <a href="#about">About</a>
+  <!-- navigation -->
+  <nav class="nav-root">
+    <a href="/" class="nav-logo">
+      <!-- Hereld Placeholder Logo -->
+      <svg viewBox="0 0 32 32" width="32" height="32">
+        <rect width="32" height="32" rx="8" fill="#fef83d"/>
+        <text x="16" y="22" text-anchor="middle" font-size="18" font-weight="bold" fill="#0d1117">H</text>
+      </svg>
+    </a>
+    <div class="nav-pill-group">
+      <a href="/" class="nav-pill active">Home</a>
+      <a href="/explore" class="nav-pill">Explore</a>
+      <a href="/notifications" class="nav-pill">Notifications</a>
+      <a href="/messages" class="nav-pill">Messages</a>
+      <a href="/profile" class="nav-pill">Profile</a>
+    </div>
+    <div class="nav-right">
+      <button class="nav-btn-ghost">Log in</button>
+      <button class="nav-btn-cta">Sign up</button>
+    </div>
   </nav>
-  <div class="cta-btns">
-    <a href="/forge" class="btn btn-primary">Create</a>
-    <a href="/play" class="btn btn-secondary">Explore</a>
+
+  <!-- main layout -->
+  <div class="main-layout">
+    <!-- left sidebar -->
+    <aside class="sidebar-left">
+      <a href="/" class="sidebar-logo">
+        <svg viewBox="0 0 32 32" width="32" height="32">
+          <rect width="32" height="32" rx="8" fill="#fef83d"/>
+          <text x="16" y="22" text-anchor="middle" font-size="18" font-weight="bold" fill="#0d1117">H</text>
+        </svg>
+      </a>
+      <a href="/" class="sidebar-link active">
+        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        <span>Home</span>
+      </a>
+      <a href="/explore" class="sidebar-link">
+        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <span>Explore</span>
+        <span class="chip chip-blue">new</span>
+      </a>
+      <a href="/notifications" class="sidebar-link">
+        <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+        <span>Notifications</span>
+        <span class="badge">3</span>
+      </a>
+      <a href="/messages" class="sidebar-link">
+        <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+        <span>Messages</span>
+      </a>
+      <a href="/profile" class="sidebar-link">
+        <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        <span>Profile</span>
+      </a>
+      <a href="/bookmarks" class="sidebar-link">
+        <svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
+        <span>Bookmarks</span>
+      </a>
+      <a href="#" class="sidebar-link" onclick="openModal('muteModal'); return false;">
+        <svg viewBox="0 0 24 24"><path d="M18 9.5V6c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v3.5c0 1.12.61 2.1 1.56 2.68l5.44 3.32v5.5c0 1.1.9 2 2 2h1v-2h2v2h2v-2h1c1.1 0 2-.9 2-2v-5.5l5.44-3.32c.95-.58 1.56-1.56 1.56-2.68zM6 18v-4h1v4H6zm10 0v-4h1v4h-1zm-5-7.5V6h4v4.5h-4z"/></svg>
+        <span>Muted Words</span>
+      </a>
+      <a href="#" class="sidebar-link" onclick="openModal('blockModal'); return false;">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9C4.63 15.55 4 13.85 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1C19.37 8.45 20 10.15 20 12c0 4.42-3.58 8-8 8z"/></svg>
+        <span>Blocked Users</span>
+      </a>
+      <a href="#" class="sidebar-link" onclick="openModal('settingsModal'); return false;">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <span>Settings</span>
+      </a>
+    </aside>
+
+    <!-- feed -->
+    <main class="feed">
+      <header class="feed-header">
+        <h1>Home</h1>
+      </header>
+      <div class="feed-tabs">
+        <a href="/" class="feed-tab active">For you</a>
+        <a href="/following" class="feed-tab">Following</a>
+      </div>
+
+      <!-- composer -->
+      <div class="composer">
+        <div class="composer-avatar"></div>
+        <div class="composer-content">
+          <textarea class="composer-textarea" id="postComposer" placeholder="What's happening?" maxlength="300"></textarea>
+          <div class="composer-media-preview" id="mediaPreview"></div>
+          <div class="composer-actions">
+            <div class="composer-tools">
+              <button class="composer-tool" title="Add Image" onclick="document.getElementById('imageInput').click()">
+                <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                <input type="file" id="imageInput" accept="image/*" multiple style="display:none" onchange="handleImageUpload(this)">
+              </button>
+              <button class="composer-tool" title="GIF">
+                <svg viewBox="0 0 24 24"><path d="M11.5 9H13v6h-1.5zM9 9H6c-.6 0-1 .5-1 1v4c0 .5.4 1 1 1h3c.6 0 1-.5 1-1v-2H8.5v1.5h-2v-3H10V10c0-.5-.4-1-1-1zm10 1.5V9h-4.5v6H16v-2h2v-1.5h-2v-1h3z"/></svg>
+              </button>
+              <button class="composer-tool" title="Emoji" onclick="toggleEmojiPicker()">
+                <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
+              </button>
+              <button class="composer-tool" title="Create Poll">
+                <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+              </button>
+              <button class="composer-tool" title="Schedule">
+                <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+              </button>
+              <button class="composer-tool" title="Add Location">
+                <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+              </button>
+            </div>
+            <div class="composer-right">
+              <span class="char-counter" id="charCounter">0/300</span>
+              <button class="composer-submit" id="postSubmit" disabled>Post</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- posts -->
+      <article class="post" data-post-id="1">
+        <div class="post-avatar" style="background: linear-gradient(135deg, #7dd3fc, #86efac);"></div>
+        <div class="post-main">
+          <div class="post-header">
+            <span class="post-author">Elena Hereld</span>
+            <span class="post-handle">@elena_hereld</span>
+            <span class="post-time">· 2h</span>
+            <button class="post-menu" onclick="togglePostMenu(this)">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+            </button>
+          </div>
+          <div class="post-content">Just shipped a new feature to our community platform. The design system is coming together nicely with that signature yellow accent ⚡🚀</div>
+          <div class="post-media">
+            <img src="https://picsum.photos/600/400?random=1" alt="Posted image" onerror="this.parentElement.style.display='none'">
+          </div>
+          <div class="post-actions">
+            <button class="post-action" onclick="toggleReply(this)">
+              <svg viewBox="0 0 24 24"><path d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.13 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z"/></svg>
+              <span class="action-count">42</span>
+            </button>
+            <button class="post-action repost" onclick="toggleRepost(this)">
+              <svg viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.41L5.83 13H21V7z"/></svg>
+              <span class="action-count">12</span>
+            </button>
+            <button class="post-action like" onclick="toggleLike(this)">
+              <svg viewBox="0 0 24 24"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.97 3.257 4.27 7.129 6.61 3.87-2.34 6.052-4.64 7.126-6.61 1.111-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91zm4.187 7.69c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"/></svg>
+              <span class="action-count">128</span>
+            </button>
+            <button class="post-action" onclick="sharePost(this)">
+              <svg viewBox="0 0 24 24"><path d="M4 4h16v12H5.17L4 17.17V4m0-2c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2H4zm2 10h12v2H6v-2zm0-3h12v2H6V9zm0-3h12v2H6V6z"/></svg>
+            </button>
+            <button class="post-action report" onclick="reportPost(this)">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            </button>
+          </div>
+        </div>
+      </article>
+
+      <article class="post" data-post-id="2">
+        <div class="post-avatar" style="background: linear-gradient(135deg, #ff8ab4, #fdba74);"></div>
+        <div class="post-main">
+          <div class="post-header">
+            <span class="post-author">Marcus Chen</span>
+            <span class="post-handle">@mchen_dev</span>
+            <span class="post-time">· 4h</span>
+            <button class="post-menu" onclick="togglePostMenu(this)">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+            </button>
+          </div>
+          <div class="post-content">The new design language is incredible. Soft shadows, subtle grain, and that yellow accent really ties everything together. Big fan of the chip tokens too 🎨</div>
+          <div class="post-actions">
+            <button class="post-action" onclick="toggleReply(this)">
+              <svg viewBox="0 0 24 24"><path d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.13 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z"/></svg>
+              <span class="action-count">89</span>
+            </button>
+            <button class="post-action repost" onclick="toggleRepost(this)">
+              <svg viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.41L5.83 13H21V7z"/></svg>
+              <span class="action-count">34</span>
+            </button>
+            <button class="post-action like" onclick="toggleLike(this)">
+              <svg viewBox="0 0 24 24"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.97 3.257 4.27 7.129 6.61 3.87-2.34 6.052-4.64 7.126-6.61 1.111-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91zm4.187 7.69c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"/></svg>
+              <span class="action-count">256</span>
+            </button>
+            <button class="post-action" onclick="sharePost(this)">
+              <svg viewBox="0 0 24 24"><path d="M4 4h16v12H5.17L4 17.17V4m0-2c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2H4zm2 10h12v2H6v-2zm0-3h12v2H6V9zm0-3h12v2H6V6z"/></svg>
+            </button>
+            <button class="post-action report" onclick="reportPost(this)">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            </button>
+          </div>
+        </div>
+      </article>
+
+      <article class="post" data-post-id="3">
+        <div class="post-avatar" style="background: linear-gradient(135deg, #c4b5fd, #ff8ab4);"></div>
+        <div class="post-main">
+          <div class="post-header">
+            <span class="post-author">Aria Patel</span>
+            <span class="post-handle">@aria_builds</span>
+            <span class="post-time">· 6h</span>
+            <button class="post-menu" onclick="togglePostMenu(this)">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+            </button>
+          </div>
+          <div class="post-content">Hot take: the floating navigation capsule is the cleanest nav pattern I've seen. No clutter, just what you need when you need it. The backdrop blur is chef's kiss ✨</div>
+          <div class="post-actions">
+            <button class="post-action" onclick="toggleReply(this)">
+              <svg viewBox="0 0 24 24"><path d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.13 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z"/></svg>
+              <span class="action-count">156</span>
+            </button>
+            <button class="post-action repost" onclick="toggleRepost(this)">
+              <svg viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.41L5.83 13H21V7z"/></svg>
+              <span class="action-count">67</span>
+            </button>
+            <button class="post-action like" onclick="toggleLike(this)">
+              <svg viewBox="0 0 24 24"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.97 3.257 4.27 7.129 6.61 3.87-2.34 6.052-4.64 7.126-6.61 1.111-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91zm4.187 7.69c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"/></svg>
+              <span class="action-count">412</span>
+            </button>
+            <button class="post-action" onclick="sharePost(this)">
+              <svg viewBox="0 0 24 24"><path d="M4 4h16v12H5.17L4 17.17V4m0-2c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2H4zm2 10h12v2H6v-2zm0-3h12v2H6V9zm0-3h12v2H6V6z"/></svg>
+            </button>
+            <button class="post-action report" onclick="reportPost(this)">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            </button>
+          </div>
+        </div>
+      </article>
+
+      <article class="post" data-post-id="4">
+        <div class="post-avatar" style="background: linear-gradient(135deg, #86efac, #7dd3fc);"></div>
+        <div class="post-main">
+          <div class="post-header">
+            <span class="post-author">Dev Community</span>
+            <span class="post-handle">@devtalk</span>
+            <span class="post-time">· 8h</span>
+            <button class="post-menu" onclick="togglePostMenu(this)">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+            </button>
+          </div>
+          <div class="post-content">Reminder: design systems should feel alive, not sterile. The best ones have personality - slight tilts, floating animations, soft glows. That's what makes users feel welcome 💛</div>
+          <div class="post-actions">
+            <button class="post-action" onclick="toggleReply(this)">
+              <svg viewBox="0 0 24 24"><path d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.13 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z"/></svg>
+              <span class="action-count">234</span>
+            </button>
+            <button class="post-action repost" onclick="toggleRepost(this)">
+              <svg viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.41L5.83 13H21V7z"/></svg>
+              <span class="action-count">89</span>
+            </button>
+            <button class="post-action like" onclick="toggleLike(this)">
+              <svg viewBox="0 0 24 24"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.97 3.257 4.27 7.129 6.61 3.87-2.34 6.052-4.64 7.126-6.61 1.111-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91zm4.187 7.69c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"/></svg>
+              <span class="action-count">891</span>
+            </button>
+            <button class="post-action" onclick="sharePost(this)">
+              <svg viewBox="0 0 24 24"><path d="M4 4h16v12H5.17L4 17.17V4m0-2c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2H4zm2 10h12v2H6v-2zm0-3h12v2H6V9zm0-3h12v2H6V6z"/></svg>
+            </button>
+            <button class="post-action report" onclick="reportPost(this)">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            </button>
+          </div>
+        </div>
+      </article>
+
+      <article class="post" data-post-id="5">
+        <div class="post-avatar" style="background: linear-gradient(135deg, #fdba74, #c4b5fd);"></div>
+        <div class="post-main">
+          <div class="post-header">
+            <span class="post-author">Hereld Team</span>
+            <span class="post-handle">@hereld</span>
+            <span class="post-time">· 12h</span>
+            <button class="post-menu" onclick="togglePostMenu(this)">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+            </button>
+          </div>
+          <div class="post-content">Three small rules for building software that matters:
+
+01 — for small rooms
+02 — healthy by default  
+03 — slow when it counts
+
+More details in bio ↗</div>
+          <div class="post-actions">
+            <button class="post-action" onclick="toggleReply(this)">
+              <svg viewBox="0 0 24 24"><path d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.13 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z"/></svg>
+              <span class="action-count">512</span>
+            </button>
+            <button class="post-action repost" onclick="toggleRepost(this)">
+              <svg viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.41L5.83 13H21V7z"/></svg>
+              <span class="action-count">234</span>
+            </button>
+            <button class="post-action like" onclick="toggleLike(this)">
+              <svg viewBox="0 0 24 24"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.97 3.257 4.27 7.129 6.61 3.87-2.34 6.052-4.64 7.126-6.61 1.111-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91zm4.187 7.69c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"/></svg>
+              <span class="action-count">2.4K</span>
+            </button>
+            <button class="post-action" onclick="sharePost(this)">
+              <svg viewBox="0 0 24 24"><path d="M4 4h16v12H5.17L4 17.17V4m0-2c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2H4zm2 10h12v2H6v-2zm0-3h12v2H6V9zm0-3h12v2H6V6z"/></svg>
+            </button>
+            <button class="post-action report" onclick="reportPost(this)">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            </button>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <!-- right sidebar -->
+    <aside class="sidebar-right">
+      <div class="search-box">
+        <input type="text" class="search-input" placeholder="Search">
+        <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      </div>
+
+      <!-- who to follow -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Who to follow</h2>
+        </div>
+        <div class="card-item">
+          <div class="card-avatar" style="background: linear-gradient(135deg, #7dd3fc, #86efac);"></div>
+          <div class="card-content">
+            <div class="card-name">Sarah Design</div>
+            <div class="card-handle">@sarahdxd</div>
+          </div>
+          <button class="card-follow-btn">Follow</button>
+        </div>
+        <div class="card-item">
+          <div class="card-avatar" style="background: linear-gradient(135deg, #ff8ab4, #c4b5fd);"></div>
+          <div class="card-content">
+            <div class="card-name">Jake Tech</div>
+            <div class="card-handle">@jakebuilds</div>
+          </div>
+          <button class="card-follow-btn">Follow</button>
+        </div>
+        <div class="card-more">Show more</div>
+      </div>
+
+      <!-- trending -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Trending</h2>
+        </div>
+        <div class="trend-item">
+          <div class="trend-category">Technology · Trending</div>
+          <div class="trend-name">#DesignSystems</div>
+          <div class="trend-count">24.5K posts</div>
+        </div>
+        <div class="trend-item">
+          <div class="trend-category">Development · Trending</div>
+          <div class="trend-name">#SwiftUI</div>
+          <div class="trend-count">18.2K posts</div>
+        </div>
+        <div class="trend-item">
+          <div class="trend-category">Design · Trending</div>
+          <div class="trend-name">#UIDesign</div>
+          <div class="trend-count">12.8K posts</div>
+        </div>
+        <div class="trend-item">
+          <div class="trend-category">Productivity · Trending</div>
+          <div class="trend-name">#BuildInPublic</div>
+          <div class="trend-count">8.9K posts</div>
+        </div>
+        <div class="card-more">Show more</div>
+      </div>
+
+      <!-- footer -->
+      <div class="footer-links">
+        <a href="#">Terms of Service</a>
+        <a href="#">Privacy Policy</a>
+        <a href="#">Cookie Policy</a>
+        <a href="#">Accessibility</a>
+        <a href="#">Ads info</a>
+        <a href="#">More</a>
+        <a href="#">© 2026 Swiftaw</a>
+      </div>
+    </aside>
   </div>
-</header>
 
-<!-- Hero -->
-<section class="hero anim-in">
-  <img src="Orvyn logomark.png" alt="Orvyn" class="hero-logo">
-  <h1>Create & Play 3D Games <span>Instantly</span></h1>
-  <p>Build stunning 3D worlds with Orvyn Forge, or discover incredible games created by our community.</p>
-  <div class="hero-actions">
-    <a href="/forge" class="btn btn-primary">Launch Forge</a>
-    <a href="/play" class="btn btn-secondary">Browse Games</a>
-  </div>
-</section>
+  <!-- floating action button -->
+  <button class="fab" title="Post">
+    <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+  </button>
 
-<!-- Features -->
-<section class="features" id="features">
-  <h2>Why Orvyn?</h2>
-  <div class="feature-grid">
-    <div class="feature-card anim-in delay-1">
-      <div class="feature-icon"><img src="Orvyn icon.png" alt="Feature icon"></div>
-      <h3>Visual 3D Editor</h3>
-      <p>Intuitive drag-and-drop interface to create 3D scenes with boxes, spheres, cylinders, lights, and more.</p>
-    </div>
-    <div class="feature-card anim-in delay-2">
-      <div class="feature-icon"><img src="Orvyn icon.png" alt="Feature icon"></div>
-      <h3>Instant Publishing</h3>
-      <p>Publish your creations directly to Orvyn Play. Share your games with the community in seconds.</p>
-    </div>
-    <div class="feature-card anim-in delay-3">
-      <div class="feature-icon"><img src="Orvyn icon.png" alt="Feature icon"></div>
-      <h3>Community Driven</h3>
-      <p>Discover games made by creators worldwide. Play, rate, and connect with other players in real-time.</p>
-    </div>
-    <div class="feature-card anim-in delay-1">
-      <div class="feature-icon"><img src="Orvyn icon.png" alt="Feature icon"></div>
-      <h3>Full Control</h3>
-      <p>Transform, rotate, and scale objects. Control lighting, materials, and player spawns with precision.</p>
-    </div>
-    <div class="feature-card anim-in delay-2">
-      <div class="feature-icon"><img src="Orvyn icon.png" alt="Feature icon"></div>
-      <h3>Multiplayer Ready</h3>
-      <p>Play with friends online. Chat, collaborate, and compete in a shared 3D environment.</p>
-    </div>
-    <div class="feature-card anim-in delay-3">
-      <div class="feature-icon"><img src="Orvyn icon.png" alt="Feature icon"></div>
-      <h3>Play Anywhere</h3>
-      <p>Access your games from any device. No downloads, no installations—just instant gaming.</p>
+  <!-- Modals -->
+  <!-- Mute Modal -->
+  <div class="modal" id="muteModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Muted Words</h2>
+        <button class="modal-close" onclick="closeModal('muteModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Add words to hide posts containing them from your timeline.</p>
+        <div class="form-group">
+          <input type="text" id="mutedWordInput" placeholder="Enter a word or phrase">
+          <button class="btn-primary" onclick="addMutedWord()">Mute</button>
+        </div>
+        <div class="muted-words-list" id="mutedWordsList">
+          <!-- Muted words will appear here -->
+        </div>
+      </div>
     </div>
   </div>
-</section>
 
-<!-- Showcase -->
-<section class="showcase">
-  <div class="showcase-grid">
-    <a href="/forge" class="showcase-item anim-in delay-1">
-      <div class="showcase-icon"><img src="Orvyn logomark.png" alt="Orvyn Forge"></div>
-      <h3>Orvyn Forge</h3>
-      <p>Your creative studio. Build amazing 3D worlds and publish them to the world.</p>
-    </a>
-    <a href="/play" class="showcase-item anim-in delay-2">
-      <div class="showcase-icon"><img src="Orvyn logomark.png" alt="Orvyn Play"></div>
-      <h3>Orvyn Play</h3>
-      <p>Discover and play thousands of user-created games. Jump in and start exploring.</p>
-    </a>
+  <!-- Block Modal -->
+  <div class="modal" id="blockModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Blocked Users</h2>
+        <button class="modal-close" onclick="closeModal('blockModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Block users to prevent them from interacting with you.</p>
+        <div class="form-group">
+          <input type="text" id="blockedUserInput" placeholder="Enter username">
+          <button class="btn-primary" onclick="blockUser()">Block</button>
+        </div>
+        <div class="blocked-users-list" id="blockedUsersList">
+          <!-- Blocked users will appear here -->
+        </div>
+      </div>
+    </div>
   </div>
-</section>
 
-<!-- Footer -->
-<footer>
-  <p>&copy; 2024 Orvyn. Built with ❤️ for creators and players.</p>
-</footer>
+  <!-- Settings Modal -->
+  <div class="modal" id="settingsModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Settings</h2>
+        <button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-section">
+          <h3>Account</h3>
+          <label class="setting-item">
+            <span>Private Account</span>
+            <input type="checkbox">
+          </label>
+          <label class="setting-item">
+            <span>Allow follow requests</span>
+            <input type="checkbox" checked>
+          </label>
+        </div>
+        <div class="settings-section">
+          <h3>Timeline</h3>
+          <label class="setting-item">
+            <span>Show sensitive content</span>
+            <input type="checkbox">
+          </label>
+          <label class="setting-item">
+            <span>Show media with content warnings</span>
+            <input type="checkbox">
+          </label>
+        </div>
+        <div class="settings-section">
+          <h3>Notifications</h3>
+          <label class="setting-item">
+            <span>Push notifications</span>
+            <input type="checkbox" checked>
+          </label>
+          <label class="setting-item">
+            <span>Email notifications</span>
+            <input type="checkbox">
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
 
+  <!-- Report Modal -->
+  <div class="modal" id="reportModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Report Post</h2>
+        <button class="modal-close" onclick="closeModal('reportModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Why are you reporting this post?</p>
+        <div class="report-options">
+          <label class="report-option">
+            <input type="radio" name="reportReason" value="spam">
+            <span>It's spam</span>
+          </label>
+          <label class="report-option">
+            <input type="radio" name="reportReason" value="abuse">
+            <span>Abuse or harassment</span>
+          </label>
+          <label class="report-option">
+            <input type="radio" name="reportReason" value="misinformation">
+            <span>Misinformation</span>
+          </label>
+          <label class="report-option">
+            <input type="radio" name="reportReason" value="illegal">
+            <span>Illegal content</span>
+          </label>
+          <label class="report-option">
+            <input type="radio" name="reportReason" value="other">
+            <span>Something else</span>
+          </label>
+        </div>
+        <button class="btn-primary" onclick="submitReport()">Submit Report</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Dashboard Link -->
+  <div class="admin-link">
+    <a href="#" onclick="openModal('adminModal'); return false;">Admin Dashboard</a>
+  </div>
+
+  <!-- Admin Modal -->
+  <div class="modal" id="adminModal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2>Admin Dashboard - Reported Posts</h2>
+        <button class="modal-close" onclick="closeModal('adminModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="admin-stats">
+          <div class="stat-card">
+            <span class="stat-number" id="reportCount">0</span>
+            <span class="stat-label">Pending Reports</span>
+          </div>
+        </div>
+        <div class="reported-posts" id="reportedPostsList">
+          <p class="empty-state">No reported posts yet.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Data storage (simulated)
+    let mutedWords = [];
+    let blockedUsers = [];
+    let reportedPosts = [];
+    let currentReportPost = null;
+
+    // Composer - character counter and submit
+    const composer = document.getElementById('postComposer');
+    const submit = document.getElementById('postSubmit');
+    const charCounter = document.getElementById('charCounter');
+    
+    composer.addEventListener('input', () => {
+      const length = composer.value.length;
+      charCounter.textContent = `${length}/300`;
+      submit.disabled = length === 0 || length > 300;
+      
+      // Update counter color based on length
+      if (length > 270) {
+        charCounter.style.color = '#ff6b6b';
+      } else if (length > 240) {
+        charCounter.style.color = '#ffd93d';
+      } else {
+        charCounter.style.color = 'var(--muted)';
+      }
+    });
+
+    // Handle image upload preview
+    function handleImageUpload(input) {
+      const preview = document.getElementById('mediaPreview');
+      preview.innerHTML = '';
+      
+      Array.from(input.files).forEach(file => {
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.className = 'preview-image';
+            preview.appendChild(img);
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    // Toggle like
+    function toggleLike(btn) {
+      btn.classList.toggle('liked');
+      const count = btn.querySelector('.action-count');
+      let num = parseCount(count.textContent);
+      if (btn.classList.contains('liked')) {
+        num++;
+        btn.querySelector('svg').style.fill = '#ff6b6b';
+        btn.querySelector('svg').style.color = '#ff6b6b';
+      } else {
+        num--;
+        btn.querySelector('svg').style.fill = '';
+        btn.querySelector('svg').style.color = '';
+      }
+      count.textContent = formatCount(num);
+    }
+
+    // Toggle repost (renamed from retweet)
+    function toggleRepost(btn) {
+      btn.classList.toggle('reposted');
+      const count = btn.querySelector('.action-count');
+      let num = parseCount(count.textContent);
+      if (btn.classList.contains('reposted')) {
+        num++;
+      } else {
+        num--;
+      }
+      count.textContent = formatCount(num);
+    }
+
+    // Reply (placeholder)
+    function toggleReply(btn) {
+      composer.focus();
+    }
+
+    // Share (placeholder)
+    function sharePost(btn) {
+      const post = btn.closest('.post');
+      const author = post.querySelector('.post-author').textContent;
+      alert(`Share "${author}'s post" - Share functionality coming soon!`);
+    }
+
+    // Report post
+    function reportPost(btn) {
+      const post = btn.closest('.post');
+      currentReportPost = post;
+      openModal('reportModal');
+    }
+
+    // Submit report
+    function submitReport() {
+      const reason = document.querySelector('input[name="reportReason"]:checked');
+      if (!reason) {
+        alert('Please select a reason for reporting');
+        return;
+      }
+      
+      const post = currentReportPost;
+      const postId = post.dataset.postId;
+      const author = post.querySelector('.post-author').textContent;
+      const content = post.querySelector('.post-content').textContent.substring(0, 50) + '...';
+      
+      reportedPosts.push({
+        id: postId,
+        author: author,
+        content: content,
+        reason: reason.value,
+        timestamp: new Date().toISOString()
+      });
+      
+      updateAdminDashboard();
+      closeModal('reportModal');
+      alert('Report submitted. Thank you for keeping Hereld safe!');
+      currentReportPost = null;
+    }
+
+    // Update admin dashboard
+    function updateAdminDashboard() {
+      document.getElementById('reportCount').textContent = reportedPosts.length;
+      
+      const list = document.getElementById('reportedPostsList');
+      if (reportedPosts.length === 0) {
+        list.innerHTML = '<p class="empty-state">No reported posts yet.</p>';
+        return;
+      }
+      
+      list.innerHTML = reportedPosts.map(report => `
+        <div class="reported-post">
+          <div class="reported-post-header">
+            <strong>${report.author}</strong>
+            <span class="report-reason">${report.reason}</span>
+          </div>
+          <p class="reported-post-content">${report.content}</p>
+          <div class="reported-post-actions">
+            <button class="btn-danger" onclick="deletePost('${report.id}')">Delete</button>
+            <button class="btn-secondary" onclick="dismissReport('${report.id}')">Dismiss</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Delete post from admin
+    function deletePost(postId) {
+      const post = document.querySelector(`[data-post-id="${postId}"]`);
+      if (post) {
+        post.remove();
+      }
+      reportedPosts = reportedPosts.filter(p => p.id !== postId);
+      updateAdminDashboard();
+      alert('Post deleted');
+    }
+
+    // Dismiss report
+    function dismissReport(postId) {
+      reportedPosts = reportedPosts.filter(p => p.id !== postId);
+      updateAdminDashboard();
+    }
+
+    // Post menu toggle
+    function togglePostMenu(btn) {
+      // Close other menus first
+      document.querySelectorAll('.post-menu.open').forEach(m => {
+        if (m !== btn) m.classList.remove('open');
+      });
+      btn.classList.toggle('open');
+    }
+
+    // Modal functions
+    function openModal(modalId) {
+      document.getElementById(modalId).style.display = 'flex';
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).style.display = 'none';
+    }
+
+    // Close modal on outside click
+    document.querySelectorAll('.modal').forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.style.display = 'none';
+        }
+      });
+    });
+
+    // Mute words functionality
+    function addMutedWord() {
+      const input = document.getElementById('mutedWordInput');
+      const word = input.value.trim();
+      if (word && !mutedWords.includes(word.toLowerCase())) {
+        mutedWords.push(word.toLowerCase());
+        renderMutedWords();
+        input.value = '';
+      }
+    }
+
+    function removeMutedWord(word) {
+      mutedWords = mutedWords.filter(w => w !== word);
+      renderMutedWords();
+    }
+
+    function renderMutedWords() {
+      const list = document.getElementById('mutedWordsList');
+      if (mutedWords.length === 0) {
+        list.innerHTML = '<p class="empty-state">No muted words yet.</p>';
+        return;
+      }
+      list.innerHTML = mutedWords.map(word => `
+        <div class="muted-word-item">
+          <span>${word}</span>
+          <button onclick="removeMutedWord('${word}')">&times;</button>
+        </div>
+      `).join('');
+    }
+
+    // Block users functionality
+    function blockUser() {
+      const input = document.getElementById('blockedUserInput');
+      const user = input.value.trim();
+      if (user && !blockedUsers.includes(user.toLowerCase())) {
+        blockedUsers.push(user.toLowerCase());
+        renderBlockedUsers();
+        input.value = '';
+      }
+    }
+
+    function unblockUser(user) {
+      blockedUsers = blockedUsers.filter(u => u !== user);
+      renderBlockedUsers();
+    }
+
+    function renderBlockedUsers() {
+      const list = document.getElementById('blockedUsersList');
+      if (blockedUsers.length === 0) {
+        list.innerHTML = '<p class="empty-state">No blocked users yet.</p>';
+        return;
+      }
+      list.innerHTML = blockedUsers.map(user => `
+        <div class="blocked-user-item">
+          <span>@${user}</span>
+          <button onclick="unblockUser('${user}')">Unblock</button>
+        </div>
+      `).join('');
+    }
+
+    // Feed tab switching
+    document.querySelectorAll('.feed-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        document.querySelectorAll('.feed-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        // In a real app, this would fetch different feed data
+      });
+    });
+
+    // Nav scroll effect
+    window.addEventListener('scroll', () => {
+      const nav = document.querySelector('.nav-root');
+      if (window.scrollY > 10) {
+        nav.classList.add('scrolled');
+      } else {
+        nav.classList.remove('scrolled');
+      }
+    });
+
+    // Helper functions
+    function parseCount(str) {
+      if (str.includes('K')) {
+        return parseFloat(str) * 1000;
+      }
+      return parseInt(str) || 0;
+    }
+
+    function formatCount(num) {
+      if (num >= 1000) {
+        return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+      }
+      return num.toString();
+    }
+
+    // Initialize
+    renderMutedWords();
+    renderBlockedUsers();
+  </script>
 </body>
 </html>
