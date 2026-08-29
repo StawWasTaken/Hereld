@@ -216,22 +216,22 @@ body.hd-wide .hd-aside { display: none; }
   background: var(--nb-blue) center / cover no-repeat;
   color: var(--nb-ink);
   font-family: var(--nb-font-head); font-weight: 700; font-size: 18px;
-  border: var(--nb-bd-thin); border-radius: 14px;
+  border: var(--nb-bd-thin); border-radius: 50%;
   overflow: hidden;
 }
-.hd-av--xs { width: 26px; height: 26px; font-size: 11px; border-radius: 8px; }
-.hd-av--sm { width: 36px; height: 36px; font-size: 14px; border-radius: 11px; }
-.hd-av--xl { width: 96px; height: 96px; font-size: 36px; border-radius: 22px; box-shadow: var(--nb-sh); }
+.hd-av--xs { width: 26px; height: 26px; font-size: 11px; }
+.hd-av--sm { width: 36px; height: 36px; font-size: 14px; }
+.hd-av--xl { width: 96px; height: 96px; font-size: 36px; box-shadow: var(--nb-sh); }
 /* A company reads as a company at a glance, before any badge is read. */
-.hd-av--sq { border-radius: 5px; }
-.hd-av--sq.hd-av--xl { border-radius: 8px; }
+.hd-av--sq { border-radius: 6px; }
+.hd-av--sq.hd-av--xl { border-radius: 10px; }
 .hd-av[data-hue="1"] { background-color: var(--nb-green); }
 .hd-av[data-hue="2"] { background-color: var(--nb-yellow); }
 .hd-av[data-hue="3"] { background-color: var(--nb-pink); }
 .hd-av[data-hue="4"] { background-color: var(--nb-red); color: var(--nb-paper); }
 
 .hd-av-btn { padding: 0; border: 0; background: none; cursor: zoom-in; line-height: 0; }
-.hd-av-btn:focus-visible { outline: 3px solid var(--nb-blue); outline-offset: 4px; border-radius: 16px; }
+.hd-av-btn:focus-visible { outline: 3px solid var(--nb-blue); outline-offset: 4px; border-radius: 50%; }
 
 /* ── COLUMN HEAD + TABS ────────────────────────────────────────────────── */
 
@@ -340,8 +340,8 @@ body.hd-wide .hd-aside { display: none; }
 /* A product, regional or linked account carries the account it belongs to,
    pinned to the badges so it reads as part of the name. */
 .hd-badge--par { text-decoration: none; line-height: 0; }
-.hd-av--pin { width: 17px; height: 17px; font-size: 9px; border-width: 1.5px; border-radius: 6px; }
-.hd-av--pin.hd-av--sq { border-radius: 3px; }
+.hd-av--pin { width: 17px; height: 17px; font-size: 9px; border-width: 1.5px; }
+.hd-av--pin.hd-av--sq { border-radius: 4px; }
 .hd-badge--par:hover .hd-av--pin { transform: translateY(-1px); }
 
 .hd-who-fol { font-size: 12.5px; color: var(--nb-surface-fg-muted); }
@@ -369,6 +369,15 @@ body.hd-wide .hd-aside { display: none; }
 .hd-cnote b svg { width: 14px; height: 14px; fill: var(--nb-yellow); }
 .hd-cnote p { margin: 8px 0 0; font-size: 14px; line-height: 1.55; }
 .hd-cnote a { font-size: 13px; }
+.hd-cnote-from {
+  display: block; margin-top: 10px; font-size: 12.5px; line-height: 1.5;
+  color: var(--nb-fg-muted);
+}
+.hd-cnote-add {
+  border: 0; background: none; padding: 0; font: inherit; color: var(--nb-blue);
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.hd-cnote-add:hover { color: var(--nb-fg); }
 
 .hd-gone { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .hd-gone p { margin: 0; font-size: 14px; color: var(--nb-surface-fg-muted); }
@@ -632,11 +641,67 @@ body.hd-wide .hd-aside { display: none; }
 
 /* ── ASK SUPERNOVA ─────────────────────────────────────────────────────── */
 
-.hd-nova { text-align: center; }
+.hd-nova-off { text-align: center; }
 .hd-nova-mark { display: block; margin: 0 auto 18px; border-radius: 15px; border: var(--nb-bd); }
 .hd-nav-item img { border-radius: 6px; }
-.hd-nova p { max-width: 54ch; margin: 12px auto 0; font-size: 14.5px; line-height: 1.65; color: var(--nb-surface-fg-muted); }
+.hd-nova-off p { max-width: 54ch; margin: 12px auto 0; font-size: 14.5px; line-height: 1.65; color: var(--nb-surface-fg-muted); }
 .hd-nova-acts { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+
+/* The chat. The column already scrolls, so the talk grows down the page
+   rather than inside a box of its own; the composer is what stays put. */
+.hd-nova { padding: 0 4px 24px; }
+.hd-nova-talk { display: flex; flex-direction: column; gap: 16px; padding: 18px 0 20px; }
+
+.hd-nova-hello { display: flex; align-items: flex-start; gap: 14px; text-align: left; }
+.hd-nova-hello .hd-nova-mark { margin: 0; flex: none; }
+.hd-nova-hello p { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--nb-surface-fg-muted); }
+
+.hd-nova-turn { display: flex; align-items: flex-start; gap: 12px; }
+.hd-nova-turn--me { flex-direction: row-reverse; }
+.hd-nova-av { flex: none; border-radius: 9px; border: var(--nb-bd-thin); }
+.hd-nova-turn .hd-av { flex: none; }
+.hd-nova-said {
+  max-width: 78%; padding: 12px 15px; font-size: 15px; line-height: 1.62;
+  border: var(--nb-bd-thin); border-radius: var(--nb-r);
+  background: var(--nb-surface); box-shadow: var(--nb-sh-sm);
+}
+.hd-nova-turn--me .hd-nova-said { background: var(--nb-blue); color: var(--nb-ink); border-color: var(--nb-ink); }
+.hd-nova-turn--me .hd-nova-said a { color: var(--nb-ink); }
+.hd-nova-said a { color: var(--nb-blue); }
+.hd-nova-said img.hd-em { vertical-align: -.16em; }
+
+.hd-nova-dots { display: inline-flex; gap: 5px; padding: 3px 0; }
+.hd-nova-dots i {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--nb-fg-muted);
+  animation: hdNovaDot 1.05s var(--nb-ease) infinite;
+}
+.hd-nova-dots i:nth-child(2) { animation-delay: .16s; }
+.hd-nova-dots i:nth-child(3) { animation-delay: .32s; }
+@keyframes hdNovaDot { 0%, 60%, 100% { opacity: .3; } 30% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .hd-nova-dots i { animation: none; opacity: .55; } }
+
+.hd-nova-ask {
+  position: sticky; bottom: 14px; z-index: 3;
+  display: flex; align-items: flex-end; gap: 10px; padding: 12px;
+}
+.hd-nova-ask textarea { flex: 1; resize: none; min-height: 44px; max-height: 200px; }
+.hd-nova-ask .nb-btn { flex: none; }
+.hd-nova-ask .nb-btn svg { width: 15px; height: 15px; fill: currentColor; }
+.hd-nova-fine {
+  margin: 12px 0 0; text-align: center; font-size: 12.5px; color: var(--nb-fg-muted);
+}
+
+/* The mark on a post opens the post and the answer together. */
+.hd-nova-quote {
+  margin: 0 0 18px; padding: 13px 15px; border: var(--nb-bd-thin);
+  border-left-width: var(--nb-bd-w); border-left-color: var(--nb-blue);
+  border-radius: var(--nb-r); background: var(--nb-surface-2);
+}
+.hd-nova-quote b { font-family: var(--nb-font-head); font-size: 13.5px; }
+.hd-nova-quote p { margin: 6px 0 0; font-size: 14.5px; line-height: 1.55; }
+.hd-nova-answer { font-size: 15px; line-height: 1.65; min-height: 24px; }
+.hd-nova-answer a { color: var(--nb-blue); }
+.hd-nova-bad { margin: 0; color: var(--nb-red); }
 
 /* ── TOASTS ────────────────────────────────────────────────────────────── */
 
@@ -714,6 +779,15 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
 .hd-ask-line { margin: 0 0 16px; font-size: 15px; line-height: 1.6; }
 .hd-ask-line b { font-family: var(--nb-font-head); font-weight: 700; }
 .hd-ask-note { margin-bottom: 16px; font-size: 13.5px; }
+/* Two fields in a card need air between them, or the hint under the first
+   reads as the label of the second. */
+.hd-modal-body .nb-field + .nb-field { margin-top: 18px; }
+
+.hd-ask-state {
+  margin: 0 0 16px; padding: 11px 13px; font-size: 13.5px; line-height: 1.55;
+  border: var(--nb-bd-thin); border-radius: var(--nb-r-sm);
+  background: var(--nb-surface-2); color: var(--nb-surface-fg-muted);
+}
 .hd-ask-foot { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
 .hd-ask-foot .nb-hint { margin-right: auto; }
 
@@ -981,7 +1055,7 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
 .hd-stf-log-t { font-size: 12px; color: var(--nb-surface-fg-muted); }
 
 /* One account, opened in a sheet */
-.hd-av--lg { width: 64px; height: 64px; font-size: 24px; border-radius: 16px; }
+.hd-av--lg { width: 64px; height: 64px; font-size: 24px; }
 .hd-stf-head { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
 .hd-stf-head h3 { margin: 0; font-size: 19px; font-family: var(--nb-font-head); font-weight: 700; }
 .hd-stf-head p { margin: 2px 0 7px; font-size: 13.5px; color: var(--nb-surface-fg-muted); }
@@ -1141,8 +1215,8 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
 .hd-pcard[hidden] { display: none; }
 .hd-pcard-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .hd-pcard-face { line-height: 0; text-decoration: none; }
-.hd-av--lg { width: 62px; height: 62px; font-size: 24px; border-radius: 18px; }
-.hd-av--lg.hd-av--sq { border-radius: 6px; }
+.hd-av--lg { width: 62px; height: 62px; font-size: 24px; }
+.hd-av--lg.hd-av--sq { border-radius: 8px; }
 .hd-pcard-name { display: flex; align-items: center; gap: 6px; margin: 11px 0 0; }
 .hd-pcard-name a { color: inherit; text-decoration: none; }
 .hd-pcard-name b { font-family: var(--nb-font-head); font-weight: 700; font-size: 16.5px; }

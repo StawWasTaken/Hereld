@@ -56,6 +56,7 @@
     at: at,
     tag: tag,
     trouble: trouble,
+    fn: fn,
     roster: roster,
     switchTo: switchTo,
     forget: forget
@@ -91,7 +92,11 @@
     var handle = (p && p.handle) || '';
     var name = (p && (p.name || p.handle)) || '?';
     var url = p && p.avatar_url;
+    /* A person is a circle and a company is a square, decided here rather
+       than at each call site, because a caller that forgets makes a company
+       look like a person. */
     var c = 'hd-av' + (cls ? ' ' + cls : '');
+    if (p && p.is_company && !/hd-av--sq\b/.test(c)) c += ' hd-av--sq';
     if (url) {
       return '<span class="' + c + '" data-hue="' + hue(handle) + '" ' +
         'style="background-image:url(' + esc(url) + ')" aria-hidden="true"></span>';
@@ -117,6 +122,28 @@
   }
 
   /* Supabase speaks in constraint names. People do not. */
+  /* ── Reaching the server side ─────────────────────────────────────────────
+     Anything that needs a provider key happens in the Supernova function, not
+     here, because a key in a page is a key everybody has. This posts to it
+     with whoever is signed in, and hands back whatever the function said went
+     wrong rather than a shrug. */
+  async function fn(job, body) {
+    var s = await db.auth.getSession();
+    var token = (s.data && s.data.session && s.data.session.access_token) || SUPA_KEY;
+    var r = await fetch(SUPA_URL + '/functions/v1/' + job, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        apikey: SUPA_KEY,
+        authorization: 'Bearer ' + token
+      },
+      body: JSON.stringify(body || {})
+    });
+    var out = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(out.error || 'That did not go through.');
+    return out;
+  }
+
   function trouble(err, fallback) {
     var m = (err && (err.message || err.error_description)) || '';
     if (/duplicate key|already exists|unique/i.test(m)) return 'That handle is taken. Try another one.';

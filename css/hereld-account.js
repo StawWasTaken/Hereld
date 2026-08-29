@@ -28,6 +28,7 @@ avatar: avatar,
 at: at,
 tag: tag,
 trouble: trouble,
+fn: fn,
 roster: roster,
 switchTo: switchTo,
 forget: forget
@@ -57,6 +58,7 @@ var handle = (p && p.handle) || '';
 var name = (p && (p.name || p.handle)) || '?';
 var url = p && p.avatar_url;
 var c = 'hd-av' + (cls ? ' ' + cls : '');
+if (p && p.is_company && !/hd-av--sq\b/.test(c)) c += ' hd-av--sq';
 if (url) {
 return '<span class="' + c + '" data-hue="' + hue(handle) + '" ' +
 'style="background-image:url(' + esc(url) + ')" aria-hidden="true"></span>';
@@ -72,6 +74,22 @@ return '<svg class="hd-at' + (cls ? ' ' + cls : '') + '" viewBox="0 0 512 512" '
 }
 function tag(handle, cls) {
 return at(cls) + '<span class="hd-at-h">' + esc(handle || '') + '</span>';
+}
+async function fn(job, body) {
+var s = await db.auth.getSession();
+var token = (s.data && s.data.session && s.data.session.access_token) || SUPA_KEY;
+var r = await fetch(SUPA_URL + '/functions/v1/' + job, {
+method: 'POST',
+headers: {
+'content-type': 'application/json',
+apikey: SUPA_KEY,
+authorization: 'Bearer ' + token
+},
+body: JSON.stringify(body || {})
+});
+var out = await r.json().catch(function () { return {}; });
+if (!r.ok) throw new Error(out.error || 'That did not go through.');
+return out;
 }
 function trouble(err, fallback) {
 var m = (err && (err.message || err.error_description)) || '';

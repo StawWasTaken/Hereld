@@ -178,14 +178,14 @@
     if (p.parent) {
       out += '<a class="hd-badge hd-badge--par" href="' + url(p.parent.handle) + '" data-r ' +
         'title="Part of ' + esc(p.parent.name || p.parent.handle) + '">' +
-        H.avatar(p.parent, 'hd-av--pin' + (p.parent.is_company ? ' hd-av--sq' : '')) +
+        H.avatar(p.parent, 'hd-av--pin') +
         '<span class="nb-sr">Part of ' + esc(p.parent.name || p.parent.handle) + '</span></a>';
     }
     return out;
   }
 
   function avatarOf(p, cls) {
-    return H.avatar(p, (cls || '') + (p && p.is_company ? ' hd-av--sq' : ''));
+    return H.avatar(p, cls || '');
   }
 
   /* A name, its marks, its handle and, where we know it, how many people
@@ -215,8 +215,6 @@
     /* The author column and the embedded author row share the name "author",
        and the embed wins in the JSON. Read the id off the object. */
     var owned = !!(my && p.author && p.author.id === my.id);
-    var supernovaAsk = 'https://swiftaw.com/supernova/chat?q=' +
-      encodeURIComponent('Explain this Hereld post in plain language:\n\n' + (p.body || ''));
 
     return '<div class="hd-acts" data-id="' + p.id + '">' +
       act('reply',  'comment',  'Reply',   p.reply_count,   false, 'data-do="reply"') +
@@ -225,7 +223,7 @@
       act('views',  'chart',    'Views',   p.view_count,    false, 'data-do="views"') +
       act('save',   'bookmark', mine.saved[p.id] ? 'Saved' : 'Save', null, mine.saved[p.id], 'data-do="save"') +
       act('share',  'share',    'Share',   null, false, 'data-do="share"') +
-      '<button class="hd-act hd-act--nova" type="button" data-do="nova" data-href="' + esc(supernovaAsk) + '" ' +
+      '<button class="hd-act hd-act--nova" type="button" data-do="nova" ' +
         'aria-label="Ask Supernova about this" data-tip="Ask Supernova">' +
         '<img src="' + url('Supernova%20mark.png') + '" alt="" width="18" height="18"></button>' +
       '<button class="hd-act hd-act--more" type="button" data-do="more" data-own="' + (owned ? '1' : '') + '" ' +
@@ -243,6 +241,11 @@
     var note = p.note ? '<div class="hd-cnote">' +
       '<b>' + ic('info') + ' Community note</b><p>' + body(p.note.body) + '</p>' +
       (p.note.source ? '<a href="' + esc(p.note.source) + '" target="_blank" rel="noopener nofollow">Source</a>' : '') +
+      (p.note.wrapped
+        ? '<span class="hd-cnote-from">Written up by Supernova from ' +
+          (p.note.from === 1 ? 'one contribution' : num(p.note.from) + ' contributions') + '. ' +
+          '<button class="hd-cnote-add" type="button" data-note="' + p.id + '">Add context</button></span>'
+        : '') +
       '</div>' : '';
 
     if (p.relayed_by) {
@@ -346,14 +349,27 @@
     });
   }
 
+  /* What sits under a post is not one person's paragraph. People add context,
+     Supernova reads what they added and writes one summary of it, and the
+     summary is what a reader sees. A note a member of staff published by hand
+     still shows, because those came first and are still true. */
   async function attachNotes(rows) {
     if (!rows.length) return rows;
     var ids = rows.map(function (p) { return p.id; });
+
+    var s = await db.from('note_summaries').select('post_id,body,from_count').in('post_id', ids);
+    (s.data || []).forEach(function (n) {
+      var p = rows.filter(function (x) { return x.id === n.post_id; })[0];
+      if (p) p.note = { body: n.body, from: n.from_count, wrapped: true };
+    });
+
+    var left = rows.filter(function (p) { return !p.note; }).map(function (p) { return p.id; });
+    if (!left.length) return rows;
     var r = await db.from('community_notes').select('post_id,body,source')
-      .in('post_id', ids).eq('status', 'published');
+      .in('post_id', left).eq('status', 'published');
     var by = {};
     (r.data || []).forEach(function (n) { if (!by[n.post_id]) by[n.post_id] = n; });
-    rows.forEach(function (p) { if (by[p.id]) p.note = by[p.id]; });
+    rows.forEach(function (p) { if (!p.note && by[p.id]) p.note = by[p.id]; });
     return rows;
   }
 
@@ -811,28 +827,77 @@
     });
   }
 
-  function askNote(id) {
+  /* Community notes, the way they actually work here: readers add the context,
+     and once enough of them have, Supernova reads what they wrote and puts one
+     summary under the post. Nobody's paragraph goes up on its own, so one
+     person cannot put words beneath somebody else's post. */
+  async function askNote(id) {
     if (needAccount()) return;
+
+    var st = await db.rpc('note_state', { p_post: id });
+    var s = st.data || { contributions: 0, needed: 3, mine: false, asked: false, summary: null };
+    var short = Math.max(0, (s.needed || 3) - (s.contributions || 0));
+
+    var where = s.summary
+      ? 'There is already a summary under this post. Adding more context has Supernova write it again.'
+      : s.contributions
+        ? (s.contributions === 1 ? 'One person has' : num(s.contributions) + ' people have') +
+          ' added context so far. ' +
+          (short ? 'Another ' + (short === 1 ? 'one' : short) + ' and a summary goes under the post.'
+                 : 'A summary will go under the post shortly.')
+        : 'Nobody has added context to this post yet. It takes ' + (s.needed || 3) + ' before a summary appears.';
+
     U.sheet({
-      title: 'Request a community note',
+      title: 'Add context',
       html:
-        '<p class="hd-ask-line">Community notes add missing context to a post. Anyone can ask for one, anyone can write one, and the Hereld team publishes the ones that hold up.</p>' +
+        '<p class="hd-ask-line">Say what a reader is missing, and where you got it. ' +
+        'What goes under the post is not your paragraph on its own: Supernova reads everything people added and writes one summary of it.</p>' +
+        '<p class="hd-ask-state">' + esc(where) + '</p>' +
+        (s.mine ? '<p class="hd-ask-state">You have already added context here. Anything you add now sits alongside it.</p>' : '') +
         '<div class="nb-field"><label class="nb-label" for="nq">What is missing?</label>' +
-        '<textarea class="nb-input" id="nq" rows="3" maxlength="300" data-focus placeholder="Say what a reader would need to know."></textarea></div>' +
+        '<textarea class="nb-input" id="nq" rows="4" maxlength="500" data-focus ' +
+          'placeholder="Say what a reader would need to know."></textarea>' +
+        '<span class="nb-hint" id="nqn">20 characters at least.</span></div>' +
+        '<div class="nb-field"><label class="nb-label" for="ns">Where it comes from</label>' +
+        '<input class="nb-input" id="ns" type="url" maxlength="300" placeholder="https://"></div>' +
         '<div class="hd-ask-foot"><button class="nb-btn nb-btn--ghost" type="button" data-no>Cancel</button>' +
-        '<button class="nb-btn nb-btn--primary" type="button" data-yes>Request a note</button></div>',
+        (s.asked ? '' : '<button class="nb-btn nb-btn--paper" type="button" data-ask>Just ask for one</button>') +
+        '<button class="nb-btn nb-btn--primary" type="button" data-yes>Add context</button></div>',
       wire: function (api) {
+        var txt = api.q('#nq'), count = api.q('#nqn');
+        txt.addEventListener('input', function () {
+          var n = txt.value.trim().length;
+          count.textContent = n < 20 ? (20 - n) + ' more character' + (20 - n === 1 ? '' : 's') + ' needed.'
+                                     : n + ' of 500.';
+        });
+
         api.q('[data-no]').addEventListener('click', api.close);
-        api.q('[data-yes]').addEventListener('click', async function () {
+
+        var justAsk = api.q('[data-ask]');
+        if (justAsk) justAsk.addEventListener('click', async function () {
           var r = await db.from('note_requests').insert({
-            post_id: id, user_id: my.id, reason: api.q('#nq').value.trim()
+            post_id: id, user_id: my.id, reason: txt.value.trim().slice(0, 300)
           });
           api.close();
           if (r.error && /duplicate|unique/i.test(r.error.message || '')) {
             return U.toast('You have already asked for a note on this post.');
           }
           if (r.error) return U.toast(H.trouble(r.error, 'That did not send.'), 'bad');
-          U.toast('Noted. A note will appear if one is published.');
+          U.toast('Asked. A summary appears once enough people have added context.');
+        });
+
+        api.q('[data-yes]').addEventListener('click', async function () {
+          var said = txt.value.trim();
+          if (said.length < 20) return U.toast('Say a little more than that.', 'bad');
+          var src = api.q('#ns').value.trim();
+          var r = await db.from('community_notes').insert({
+            post_id: id, author: my.id, body: said, source: src
+          });
+          api.close();
+          if (r.error) return U.toast(H.trouble(r.error, 'That did not send.'), 'bad');
+          U.toast(short > 1
+            ? 'Added. ' + (short - 1) + ' more and a summary goes under the post.'
+            : 'Added. A summary will go under the post shortly.');
         });
       }
     });
@@ -958,7 +1023,7 @@
     items.push('rule');
     items.push({ label: 'Copy link', ic: 'link', run: function () { U.copy(postLink(id), 'Link copied.'); } });
     items.push({ label: 'Embed post', ic: 'code', run: function () { embed(id); } });
-    items.push({ label: 'Request community note', ic: 'info', run: function () { askNote(id); } });
+    items.push({ label: 'Add context', ic: 'info', run: function () { askNote(id); } });
     items.push({ label: 'Report post', ic: 'flag', kind: 'bad', run: function () { report({ kind: 'post', post: id }); } });
 
     if (staffRole) {
@@ -1532,18 +1597,149 @@
     watchViews(col);
   }
 
-  function viewSupernova() {
-    col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, on Hereld.') +
-      '<div class="nb-card nb-card--lg hd-nova">' +
-        '<img class="hd-nova-mark" src="' + url('Supernova%20mark.png') + '" alt="Supernova" width="64" height="64">' +
-        '<h2 class="nb-h3">Supernova runs on Swiftaw</h2>' +
-        '<p>Hereld is served as static files, so there is nowhere here to keep an API key without shipping it to every visitor. ' +
-        'Until Hereld has a server of its own, the Supernova button on a post opens the real Supernova with that post as the question.</p>' +
-        '<div class="hd-nova-acts">' +
-          '<a class="nb-btn nb-btn--primary" href="https://swiftaw.com/supernova/chat" target="_blank" rel="noopener">Open Supernova</a>' +
-          link('explore', 'Back to Explore', 'nb-btn nb-btn--ghost') +
+  /* ── Ask Supernova ───────────────────────────────────────────────────────
+     The chat itself. Nothing here holds a provider key: the turns go to the
+     Supernova function, which holds one, and it hands back a line. The
+     conversation lives in this page and is gone when it closes, because a
+     transcript nobody asked us to keep is a transcript we should not keep. */
+
+  var novaTalk = [];
+
+  function novaTurn(t) {
+    return '<div class="hd-nova-turn hd-nova-turn--' + (t.role === 'you' ? 'nova' : 'me') + '">' +
+      (t.role === 'you'
+        ? '<img class="hd-nova-av" src="' + url('Supernova%20mark.png') + '" alt="Supernova" width="30" height="30">'
+        : H.avatar(my, 'hd-av--sm')) +
+      '<div class="hd-nova-said">' + body(t.text) + '</div></div>';
+  }
+
+  /* The mark on a post. It opens a card with the post above the answer, so
+     what was read and what was said sit together and nobody has to trust a
+     summary of something they cannot see. */
+  async function novaOnPost(btn) {
+    if (needAccount()) return;
+    var box = btn.closest('[data-post]');
+    var id = box && box.getAttribute('data-post');
+    if (!id) return;
+
+    var r = await db.from('posts').select('body, author:profiles!posts_author_fkey(handle,name)')
+      .eq('id', id).maybeSingle();
+    if (r.error || !r.data) return U.toast('That post could not be read.', 'bad');
+    var p = r.data, who = (p.author && (p.author.name || p.author.handle)) || 'Someone';
+
+    U.sheet({
+      title: 'Ask Supernova',
+      html:
+        '<blockquote class="hd-nova-quote"><b>' + esc(who) + '</b><p>' + body(p.body) + '</p></blockquote>' +
+        '<div class="hd-nova-answer" id="novaAns" aria-live="polite">' +
+          '<span class="hd-nova-dots"><i></i><i></i><i></i></span></div>' +
+        '<div class="hd-ask-foot"><button class="nb-btn nb-btn--ghost" type="button" data-no>Close</button>' +
+        '<a class="nb-btn nb-btn--primary" href="' + url('supernova') + '" data-r>Keep asking</a></div>',
+      wire: function (api) {
+        api.q('[data-no]').addEventListener('click', api.close);
+        twem(api.body);
+        H.fn('supernova?job=ask', {
+          turns: [{ role: 'them', text:
+            'Explain this post from Hereld in plain language, in under 120 words. ' +
+            'Say what it is about and anything a reader would need to know to follow it. ' +
+            'If it is too short or too vague to explain, say that instead of guessing.\n\n' +
+            who + ' posted:\n' + String(p.body || '') }]
+        }).then(function (out) {
+          var ans = api.q('#novaAns');
+          if (!ans) return;
+          ans.innerHTML = body(out.text || 'Nothing came back.');
+          twem(ans);
+        }).catch(function (err) {
+          var ans = api.q('#novaAns');
+          if (ans) ans.innerHTML = '<p class="hd-nova-bad">' + esc(err.message || 'Supernova could not answer that.') + '</p>';
+        });
+      }
+    });
+  }
+
+  async function viewSupernova() {
+    col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
+      '<div class="hd-loading" role="status">Opening Supernova&hellip;</div>';
+
+    var ready = await db.rpc('supernova_ready');
+    if (ready.error || !ready.data) {
+      col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
+        '<div class="nb-card nb-card--lg hd-nova-off">' +
+          '<img class="hd-nova-mark" src="' + url('Supernova%20mark.png') + '" alt="" width="56" height="56">' +
+          '<h2 class="nb-h3">Supernova is not answering yet</h2>' +
+          '<p>Hereld reaches Supernova through Swiftaw, and Swiftaw has not pointed it at a model yet. ' +
+          'Nothing you type would go anywhere, so there is nothing to type into.</p>' +
+          '<div class="hd-nova-acts">' + link('explore', 'Back to Explore', 'nb-btn nb-btn--ghost') + '</div>' +
+        '</div>';
+      return;
+    }
+
+    col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
+      '<div class="hd-nova">' +
+        '<div class="hd-nova-talk" id="novaTalk" aria-live="polite">' +
+          (novaTalk.length ? novaTalk.map(novaTurn).join('') :
+            '<div class="nb-card hd-nova-hello">' +
+              '<img class="hd-nova-mark" src="' + url('Supernova%20mark.png') + '" alt="" width="44" height="44">' +
+              '<p>Ask about a post, a word you have not met, or anything else. ' +
+              'Supernova cannot post, follow or moderate for you, and it will say so rather than pretend.</p>' +
+            '</div>') +
         '</div>' +
+        '<form class="nb-card hd-nova-ask" id="novaForm">' +
+          '<label class="nb-sr" for="novaIn">Ask Supernova</label>' +
+          '<textarea class="nb-input" id="novaIn" rows="1" maxlength="1200" ' +
+            'placeholder="Ask Supernova"></textarea>' +
+          '<button class="nb-btn nb-btn--primary nb-btn--sm" type="submit" id="novaGo">' + ic('send') + ' Ask</button>' +
+        '</form>' +
+        '<p class="hd-nova-fine">Answers are generated and can be wrong. Check anything that matters.</p>' +
       '</div>';
+
+    twem(col);
+
+    var form = col.querySelector('#novaForm');
+    var box = col.querySelector('#novaIn');
+    var go = col.querySelector('#novaGo');
+    var talk = col.querySelector('#novaTalk');
+    var busy = false;
+
+    function grow() { box.style.height = 'auto'; box.style.height = Math.min(box.scrollHeight, 200) + 'px'; }
+    box.addEventListener('input', grow);
+    box.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+    });
+
+    function paint() {
+      talk.innerHTML = novaTalk.map(novaTurn).join('') +
+        (busy ? '<div class="hd-nova-turn hd-nova-turn--nova hd-nova-wait">' +
+          '<img class="hd-nova-av" src="' + url('Supernova%20mark.png') + '" alt="" width="30" height="30">' +
+          '<div class="hd-nova-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div></div>' : '');
+      twem(talk);
+      talk.scrollTop = talk.scrollHeight;
+    }
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      if (busy) return;
+      if (needAccount()) return;
+      var said = box.value.trim();
+      if (!said) return;
+
+      novaTalk.push({ role: 'them', text: said });
+      box.value = ''; grow();
+      busy = true; go.disabled = true;
+      paint();
+
+      try {
+        var out = await H.fn('supernova?job=ask', { turns: novaTalk });
+        novaTalk.push({ role: 'you', text: out.text || 'Nothing came back.' });
+      } catch (err) {
+        novaTalk.pop();
+        box.value = said; grow();
+        U.toast(String(err.message || 'Supernova could not answer that.'), 'bad');
+      }
+      busy = false; go.disabled = false;
+      paint();
+      box.focus();
+    });
   }
 
   function notFoundHTML(line) {
@@ -1630,7 +1826,7 @@
       return '<li class="hd-acct' + (a.current ? ' is-on' : '') + '">' +
         '<button class="hd-acct-go" type="button" data-switch="' + esc(a.id) + '"' +
           (a.current ? ' disabled' : '') + '>' +
-          H.avatar(a, 'hd-av--sm' + (a.is_company ? ' hd-av--sq' : '')) +
+          H.avatar(a, 'hd-av--sm') +
           '<span class="hd-acct-who"><b>' + esc(who) + '</b>' +
             '<i>' + H.tag(a.handle) + '</i></span>' +
           (a.current ? '<span class="hd-acct-now">Signed in</span>' : ic('swap')) +
@@ -2043,6 +2239,9 @@
       var cover = b.getAttribute('data-cover');
       if (cover) { U.look([cover], 0, 'Banner'); return; }
 
+      var noteOn = b.getAttribute('data-note');
+      if (noteOn) return askNote(noteOn);
+
       var doing = b.getAttribute('data-do');
       if (doing === 'like') return like(b);
       if (doing === 'relay') return relay(b);
@@ -2053,7 +2252,7 @@
         var n = b.querySelector('.hd-act-n');
         return U.toast((n && n.textContent ? n.textContent : '0') + ' people have seen this post.');
       }
-      if (doing === 'nova') { window.open(b.getAttribute('data-href'), '_blank', 'noopener'); return; }
+      if (doing === 'nova') return novaOnPost(b);
       if (doing === 'reply') {
         var id = b.closest('[data-post]').getAttribute('data-post');
         var who = b.closest('[data-post]').getAttribute('data-author');
