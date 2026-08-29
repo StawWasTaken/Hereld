@@ -1,9 +1,10 @@
 /* Supernova, for Hereld.
  *
- * Three jobs, one door:
- *   ask     the Ask Supernova chat, asked by a signed-in person
- *   notes   wrap up the context people have added to a post
- *   seed    let a seed account take its turn
+ * Four jobs, one door:
+ *   ask       the Ask Supernova chat, asked by a signed-in person
+ *   mentions  answer the posts that called @supernova into a thread
+ *   notes     wrap up the context people have added to a post
+ *   seed      let a seed account take its turn
  *
  * The provider key lives in one database row that no browser can read. This
  * function reaches it with the service role, which is held here and is never
@@ -120,10 +121,83 @@ async function whoIsAsking(req: Request) {
   return data?.user?.id || null;
 }
 
+/* ── What Supernova is allowed to know ─────────────────────────────────────
+   Everything here is read with the service role, so it is deliberately kept
+   to what the person asking could already see for themselves: public posts,
+   public profiles, and their own account. Nothing private is gathered, and
+   the model is told plainly that this is the whole of what it knows. */
+
+const STOP = new Set(['the', 'and', 'for', 'that', 'this', 'with', 'from', 'what',
+  'who', 'why', 'how', 'when', 'where', 'about', 'does', 'did', 'was', 'were',
+  'are', 'you', 'your', 'has', 'have', 'been', 'they', 'their', 'them', 'her',
+  'his', 'its', 'into', 'over', 'than', 'then', 'there', 'here', 'post', 'posts']);
+
+function terms(q: string) {
+  return String(q || '').toLowerCase().replace(/[^a-z0-9@# ]+/g, ' ').split(/\s+/)
+    .filter((w) => w.length > 3 && !STOP.has(w))
+    .sort((a, b) => b.length - a.length).slice(0, 4);
+}
+
+function said(p: any) {
+  const who = p.author ? (p.author.name || p.author.handle) : 'someone';
+  const at = p.created_at ? new Date(p.created_at).toISOString().slice(0, 10) : '';
+  return '- @' + (p.author?.handle || '?') + ' (' + who + ')' + (at ? ', ' + at : '') +
+    ': ' + String(p.body || '').replace(/\s+/g, ' ').slice(0, 280);
+}
+
+const WITH_WHO = '*, author:profiles!posts_author_fkey(id,handle,name,headline,verified,is_company)';
+
+async function gather(uid: string, question: string, postId?: string) {
+  const bits: string[] = [];
+
+  const { data: me } = await admin.from('profiles')
+    .select('handle,name,headline,bio,follower_count,following_count,is_company,created_at')
+    .eq('id', uid).maybeSingle();
+  if (me) {
+    bits.push('Who is asking: @' + me.handle + ' (' + (me.name || me.handle) + ')' +
+      (me.is_company ? ', a company account' : '') +
+      (me.headline ? '. Headline: ' + me.headline : '') +
+      (me.bio ? '. About: ' + String(me.bio).slice(0, 200) : '') +
+      '. Followers ' + (me.follower_count || 0) + ', following ' + (me.following_count || 0) +
+      '. On Hereld since ' + String(me.created_at).slice(0, 10) + '.');
+  }
+
+  if (postId) {
+    const { data: p } = await admin.from('posts').select(WITH_WHO).eq('id', postId).maybeSingle();
+    if (p) {
+      bits.push('The post in question:\n' + said(p));
+      const { data: kids } = await admin.from('posts').select(WITH_WHO)
+        .eq('reply_to', postId).order('created_at', { ascending: true }).limit(4);
+      if (kids?.length) bits.push('Replies to it:\n' + kids.map(said).join('\n'));
+    }
+  }
+
+  const words = terms(question);
+  if (words.length) {
+    const { data: found } = await admin.rpc('search_posts', { p_q: words.join(' '), p_limit: 6 })
+      .select(WITH_WHO);
+    if (found?.length) bits.push('Other posts on Hereld that may be related:\n' + found.map(said).join('\n'));
+
+    const like = '%' + words[0] + '%';
+    const { data: people } = await admin.from('profiles')
+      .select('handle,name,headline,follower_count,verified,is_company')
+      .or('handle.ilike.' + like + ',name.ilike.' + like + ',headline.ilike.' + like)
+      .eq('banned', false).order('follower_count', { ascending: false }).limit(4);
+    if (people?.length) {
+      bits.push('Accounts that may be related:\n' + people.map((x: any) =>
+        '- @' + x.handle + ' (' + (x.name || x.handle) + ')' +
+        (x.verified ? ', verified' : '') + (x.is_company ? ', a company' : '') +
+        (x.headline ? ': ' + x.headline : '')).join('\n'));
+    }
+  }
+
+  return bits.join('\n\n');
+}
+
 /* ── Ask Supernova ─────────────────────────────────────────────────────── */
 
 async function ask(req: Request, c: Config, uid: string) {
-  const { turns } = await req.json().catch(() => ({ turns: [] }));
+  const { turns, post } = await req.json().catch(() => ({ turns: [] }));
   const talk = Array.isArray(turns) ? turns.slice(-12) : [];
   if (!talk.length) return reply({ error: 'Nothing was asked.' }, 400);
 
@@ -144,14 +218,86 @@ async function ask(req: Request, c: Config, uid: string) {
     'policies; if you are not sure a feature exists, say you are not sure. ' +
     (c.system_note || '');
 
+  /* What it has been handed from Hereld itself. It is told the limits of
+     that in the same breath, so it does not answer as though it had read
+     the whole platform. */
+  const seen = await gather(uid, talk[talk.length - 1]?.text || '', typeof post === 'string' ? post : undefined);
+  const system2 = seen
+    ? system + '\n\nHere is what was found on Hereld for this question. It is ' +
+      'public material only, and it is all you have: do not claim to know ' +
+      'anything else about Hereld, and do not invent posts, accounts or ' +
+      'numbers. If it does not answer the question, say so.\n\n' + seen
+    : system;
+
   try {
-    const out = await think(c, system, talk, 800);
+    const out = await think(c, system2, talk, 800);
     await log(uid, 'ask', c.model, out);
     return reply({ text: out.text });
   } catch (e) {
     await log(uid, 'ask', c.model, null, false, String(e));
     return reply({ error: 'Supernova could not answer that just now.' }, 502);
   }
+}
+
+/* ── Being called into a thread ────────────────────────────────────────────
+   Somebody writes @supernova in a post and an answer arrives under it. The
+   answer is written by the supernova account itself, so it carries that name
+   and can be seen, reported and replied to like anything else. A post is
+   answered once: the check is whether that account has already replied. */
+
+async function mentions(c: Config) {
+  const { data: nova } = await admin.from('profiles').select('id,handle')
+    .eq('handle', 'supernova').maybeSingle();
+  if (!nova) return reply({ error: 'There is no supernova account yet.' }, 503);
+
+  const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
+  const { data: called } = await admin.from('posts').select(WITH_WHO)
+    .ilike('body', '%@supernova%').gte('created_at', since)
+    .neq('author', nova.id)
+    .order('created_at', { ascending: true }).limit(20);
+
+  const done: string[] = [];
+  for (const p of called || []) {
+    const { count } = await admin.from('posts').select('id', { count: 'exact', head: true })
+      .eq('reply_to', p.id).eq('author', nova.id);
+    if (count) continue;
+
+    /* The thread it was called into, so a bare "is that true?" has something
+       to be true about. */
+    let thread = '';
+    if (p.reply_to) {
+      const { data: parent } = await admin.from('posts').select(WITH_WHO).eq('id', p.reply_to).maybeSingle();
+      if (parent) thread = '\n\nIt is a reply to:\n' + said(parent);
+    }
+
+    const asked = String(p.body || '').replace(/@supernova/gi, '').trim();
+    const system =
+      'You are Supernova, the assistant built into Hereld. ' + HOUSE + ' ' +
+      'Somebody has called you into a public thread by writing @supernova. ' +
+      'Answer them in under 60 words, in one paragraph, as a reply that will ' +
+      'be posted publicly under their post. Do not greet them, do not sign ' +
+      'off, and do not repeat their question back. If they have not actually ' +
+      'asked anything, say in one line that you are not sure what they want. ' +
+      'Never invent posts, accounts, numbers or Hereld features. ' +
+      (c.system_note || '');
+
+    try {
+      const out = await think(c, system,
+        [{ role: 'them', text: '@' + (p.author?.handle || 'someone') + ' posted:\n' +
+          (asked || String(p.body || '')) + thread }], 220);
+      const text = (out.text || '').trim().slice(0, 500);
+      if (!text) continue;
+
+      const made = await admin.from('posts').insert({ author: nova.id, body: text, reply_to: p.id });
+      if (made.error) continue;
+      await log(p.author?.id || null, 'mention', c.model, out);
+      done.push(p.id);
+    } catch (e) {
+      await log(null, 'mention', c.model, null, false, String(e));
+    }
+  }
+
+  return reply({ answered: done.length });
 }
 
 /* ── The wrap-up under a post ──────────────────────────────────────────── */
@@ -351,12 +497,14 @@ Deno.serve(async (req) => {
   if (!c) return reply({ error: 'Supernova has no key set yet.' }, 503);
 
   /* The timer jobs are not something a visitor may start. */
-  if (job === 'notes' || job === 'seed') {
+  if (job === 'notes' || job === 'seed' || job === 'mentions') {
     const secret = Deno.env.get('HERELD_CRON_SECRET') || '';
     if (!secret || req.headers.get('x-cron-secret') !== secret) {
       return reply({ error: 'Not for you.' }, 403);
     }
-    return job === 'notes' ? await notes(c) : await seed(c);
+    if (job === 'notes') return await notes(c);
+    if (job === 'mentions') return await mentions(c);
+    return await seed(c);
   }
 
   const uid = await whoIsAsking(req);

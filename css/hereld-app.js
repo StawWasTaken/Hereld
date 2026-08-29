@@ -1536,6 +1536,7 @@ wire: function (api) {
 api.q('[data-no]').addEventListener('click', api.close);
 twem(api.body);
 H.fn('supernova?job=ask', {
+post: id,
 turns: [{ role: 'them', text:
 'Explain this post from Hereld in plain language, in under 120 words. ' +
 'Say what it is about and anything a reader would need to know to follow it. ' +
