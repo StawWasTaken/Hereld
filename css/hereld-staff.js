@@ -92,7 +92,7 @@ return true;
 function shellHTML(page) {
 var nav = PAGES.filter(function (p) { return atLeast(p.min); }).map(function (p) {
 var glyph = p.mark
-? '<img class="hd-stf-nav-mark" src="' + url('Supernova%20mark.png') + '" alt="" width="17" height="17">'
+? '<span class="hd-nvm hd-stf-nav-mark" aria-hidden="true"></span>'
 : ic(p.ic);
 return '<button class="hd-stf-nav-i' + (p.id === page ? ' is-on' : '') + '" type="button" data-page="' + p.id + '">' +
 glyph + '<span>' + esc(p.label) + '</span></button>';
@@ -204,7 +204,7 @@ s.body.innerHTML =
 '<div class="hd-stf-head">' + H.avatar(p, 'hd-av--lg') +
 '<div><h3>' + esc(p.name || p.handle) + '</h3><p>' + H.tag(p.handle) + '</p>' +
 '<div class="hd-stf-row-tags">' + flags(p) + (theirRole ? tag(theirRole, 'blue') : '') + '</div></div>' +
-'<a class="nb-btn nb-btn--ghost nb-btn--sm" href="' + url(p.handle) + '" data-r>View profile</a>' +
+'<a class="nb-btn nb-btn--ghost nb-btn--sm" href="' + url('@' + p.handle) + '" data-r>View profile</a>' +
 '</div>' +
 (p.bio ? '<p class="hd-stf-bio">' + esc(p.bio) + '</p>' : '') +
 '<div class="hd-stf-facts">' + facts() + '</div>' +

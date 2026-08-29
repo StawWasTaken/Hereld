@@ -55,7 +55,7 @@
   background: var(--nb-bg);
 }
 .hd-splash[hidden] { display: none; }
-.hd-splash img { width: 112px; height: auto; display: block; }
+.hd-splash img { width: min(272px, 62vw); height: auto; display: block; }
 .hd-splash.is-done { opacity: 0; pointer-events: none; transition: opacity .34s var(--nb-ease); }
 
 /* ── LANDING ───────────────────────────────────────────────────────────── */
@@ -400,8 +400,6 @@ body.hd-wide .hd-aside { display: none; }
   transition: background var(--nb-fast), color var(--nb-fast), border-color var(--nb-fast), transform var(--nb-fast);
 }
 .hd-act svg { width: 16px; height: 16px; fill: currentColor; flex: none; }
-.hd-act img { display: block; border-radius: 5px; opacity: .75; transition: opacity var(--nb-fast); }
-.hd-act--nova:hover img { opacity: 1; }
 .hd-act-n { font-variant-numeric: tabular-nums; }
 .hd-act-n:empty { display: none; }
 .hd-act:hover { background: var(--nb-surface-2); color: var(--nb-surface-fg); border-color: var(--nb-line); }
@@ -410,7 +408,7 @@ body.hd-wide .hd-aside { display: none; }
 .hd-act--relay:hover   { color: var(--nb-green); }
 .hd-act--like:hover { color: var(--nb-pink); }
 .hd-act--save:hover    { color: var(--nb-yellow); }
-.hd-act--nova:hover img { opacity: 1; }
+.hd-act--nova:hover     { color: var(--nb-blue); }
 .hd-act--relay.is-on   { background: var(--nb-green); color: var(--nb-ink); border-color: var(--nb-ink); }
 .hd-act--like.is-on { background: var(--nb-pink); color: var(--nb-ink); border-color: var(--nb-ink); }
 .hd-act--save.is-on    { background: var(--nb-yellow); color: var(--nb-ink); border-color: var(--nb-ink); }
@@ -641,9 +639,21 @@ body.hd-wide .hd-aside { display: none; }
 
 /* ── ASK SUPERNOVA ─────────────────────────────────────────────────────── */
 
+/* The mark itself. It is drawn on a transparent ground and it is taller than
+   it is wide, so it is never given a stroke, a plate or a square slot: the
+   height is set and the width follows the artwork. */
+.hd-nvm {
+  display: inline-block; height: 18px; aspect-ratio: 256 / 336; flex: none;
+  background: currentColor;
+  -webkit-mask: url(../Supernova%20mark.png) center / contain no-repeat;
+  mask: url(../Supernova%20mark.png) center / contain no-repeat;
+}
+.hd-nva { display: block; flex: none; height: auto; }
+.hd-act-nvm { height: 17px; }
+.hd-nav-nvm { height: 21px; }
+
 .hd-nova-off { text-align: center; }
-.hd-nova-mark { display: block; margin: 0 auto 18px; border-radius: 15px; border: var(--nb-bd); }
-.hd-nav-item img { border-radius: 6px; }
+.hd-nova-mark { margin: 0 auto 18px; }
 .hd-nova-off p { max-width: 54ch; margin: 12px auto 0; font-size: 14.5px; line-height: 1.65; color: var(--nb-surface-fg-muted); }
 .hd-nova-acts { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 
@@ -658,7 +668,7 @@ body.hd-wide .hd-aside { display: none; }
 
 .hd-nova-turn { display: flex; align-items: flex-start; gap: 12px; }
 .hd-nova-turn--me { flex-direction: row-reverse; }
-.hd-nova-av { flex: none; border-radius: 9px; border: var(--nb-bd-thin); }
+.hd-nova-av { flex: none; }
 .hd-nova-turn .hd-av { flex: none; }
 .hd-nova-said {
   max-width: 78%; padding: 12px 15px; font-size: 15px; line-height: 1.62;
@@ -811,16 +821,22 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
 .hd-lb {
   position: fixed; inset: 0; z-index: 130;
   display: grid; place-items: center;
-  padding: 80px 22px 44px;
-  background: rgba(0, 0, 0, .94);
+  padding: 64px 16px 40px;
+  background: rgba(0, 0, 0, .96);
   animation: hdFade .16s var(--nb-ease) backwards;
 }
-.hd-lb-fig { margin: 0; display: grid; place-items: center; gap: 14px; }
+/* The picture takes the room it is given. A viewer that leaves half the
+   screen black is a thumbnail with the lights off. */
+.hd-lb-fig { margin: 0; display: grid; place-items: center; gap: 12px; min-height: 0; }
 .hd-lb img {
-  display: block; max-width: min(94vw, 980px); max-height: 80vh;
+  display: block; max-width: min(100%, 1600px); max-height: calc(100vh - 116px);
   width: auto; height: auto;
   border: var(--nb-bd); border-radius: var(--nb-r);
   animation: hdPop .24s var(--nb-ease) backwards;
+}
+@media (max-width: 700px) {
+  .hd-lb { padding: 58px 8px 34px; }
+  .hd-lb img { max-height: calc(100vh - 100px); border-width: var(--nb-bd-w-thin); }
 }
 .hd-lb-n { font-family: var(--nb-font-mono); font-size: 13px; color: var(--nb-paper); }
 .hd-lb-x { position: fixed; top: 18px; left: 18px; z-index: 2; }
@@ -915,7 +931,7 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
   transition: background var(--nb-fast) var(--nb-ease), color var(--nb-fast) var(--nb-ease);
 }
 .hd-stf-nav-i svg { width: 16px; height: 16px; flex: none; }
-.hd-stf-nav-mark { width: 17px; height: 17px; flex: none; display: block; }
+.hd-stf-nav-mark { height: 17px; flex: none; }
 .hd-stf-nav-i:hover { background: var(--nb-surface); color: var(--nb-fg); }
 .hd-stf-nav-i.is-on {
   background: var(--nb-blue); color: var(--nb-ink);

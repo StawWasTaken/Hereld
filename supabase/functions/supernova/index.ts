@@ -213,6 +213,10 @@ async function notes(c: Config) {
 /* ── Seed accounts ─────────────────────────────────────────────────────── */
 
 async function seed(c: Config) {
+  /* Decide what is owed before working out what is due, or the first run
+     after an account is switched on finds an empty queue and does nothing. */
+  await admin.rpc('bot_fill', { p_limit: 5 });
+
   const { data: due } = await admin.rpc('bot_due', { p_limit: 3 });
   let made = 0;
 
@@ -248,6 +252,9 @@ async function seed(c: Config) {
       const text = out.text.replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
       if (text.length < 12) throw new Error('nothing usable came back');
 
+      const { data: repeat } = await admin.rpc('bot_said_before', { p_bot: b.bot, p_text: text });
+      if (repeat) throw new Error('same thing again');
+
       const row: any = { author: b.bot, body: text };
       if (b.kind === 'reply' && b.about) row.reply_to = b.about;
       const ins = await admin.from('posts').insert(row);
@@ -266,6 +273,63 @@ async function seed(c: Config) {
   return reply({ posted: made });
 }
 
+/* ── Making one of these accounts ──────────────────────────────────────────
+   An account needs a row in auth, which only the service role can write, so
+   this cannot be done from the console alone. The console asks; the rank is
+   read back out of the database here rather than taken from the request. */
+
+async function newBot(req: Request, uid: string) {
+  const { data: rank } = await admin.from('staff').select('role').eq('user_id', uid).maybeSingle();
+  if (!rank || (rank.role !== 'admin' && rank.role !== 'superadmin')) {
+    return reply({ error: 'That needs admin rank.' }, 403);
+  }
+
+  const b = await req.json().catch(() => ({}));
+  const handle = String(b.handle || '').trim().toLowerCase().replace(/^@/, '');
+  const name = String(b.name || '').trim().slice(0, 50);
+
+  if (!/^[a-z0-9_]{3,20}$/.test(handle)) {
+    return reply({ error: 'A handle is 3 to 20 characters: letters, numbers and underscores.' }, 400);
+  }
+  const { data: taken } = await admin.from('profiles').select('id').eq('handle', handle).maybeSingle();
+  const { data: kept } = await admin.from('reserved_handles').select('handle').eq('handle', handle).maybeSingle();
+  if (taken || kept) return reply({ error: 'That handle is taken or reserved.' }, 400);
+
+  /* The address is real in shape and dead in practice: nothing is sent to it
+     and nobody can sign in as one of these. */
+  const made = await admin.auth.admin.createUser({
+    email: 'seed+' + handle + '@hereld.invalid',
+    password: crypto.randomUUID() + crypto.randomUUID(),
+    email_confirm: true,
+    user_metadata: { handle, name: name || handle }
+  });
+  if (made.error || !made.data?.user) {
+    return reply({ error: made.error?.message || 'That account could not be made.' }, 400);
+  }
+
+  const id = made.data.user.id;
+
+  /* Marked as automated on the profile itself, which is what every reader
+     sees, before it is given anything to say. If either write fails the
+     account is removed again rather than left half made. */
+  const mark = await admin.from('profiles').update({ is_bot: true }).eq('id', id);
+  const row = await admin.from('bots').insert({
+    id,
+    persona: String(b.persona || '').slice(0, 400),
+    interests: String(b.interests || '').slice(0, 300),
+    cooldown_min: Math.max(15, parseInt(b.cooldown, 10) || 90),
+    active: false
+  });
+
+  if (mark.error || row.error) {
+    await admin.auth.admin.deleteUser(id);
+    return reply({ error: (mark.error || row.error)!.message }, 400);
+  }
+
+  await admin.from('bot_log').insert({ bot: id, kind: 'created', detail: '@' + handle });
+  return reply({ id, handle });
+}
+
 /* ── The door ──────────────────────────────────────────────────────────── */
 
 Deno.serve(async (req) => {
@@ -274,6 +338,14 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const job = url.searchParams.get('job') || 'ask';
+
+  /* Making an account is the one job that has nothing to say, so it is the
+     one job that does not need a key. */
+  if (job === 'bot_new') {
+    const who = await whoIsAsking(req);
+    if (!who) return reply({ error: 'Sign in first.' }, 401);
+    return await newBot(req, who);
+  }
 
   const c = await config();
   if (!c) return reply({ error: 'Supernova has no key set yet.' }, 503);

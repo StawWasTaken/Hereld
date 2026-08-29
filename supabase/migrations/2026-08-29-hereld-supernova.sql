@@ -288,6 +288,140 @@ end $$;
 
 revoke all on function public.bot_acted(uuid, bigint) from public;
 
+-- ── Deciding what goes in the queue ───────────────────────────────────────
+--
+-- bot_due answers what may act now. Nothing was answering what should be
+-- queued in the first place, so an account could be active, in cooldown and
+-- perfectly willing and still never do anything. This is that decision, and
+-- it sits in the database next to the gates rather than in the worker, so the
+-- switches in the console are the only thing that can change it.
+--
+-- One waiting row per account, ever. An account still holding a row it has
+-- not acted on does not get another, so a worker that stops for a day comes
+-- back to a queue the size it left rather than a week of backlog.
+
+create or replace function public.bot_fill(p_limit int default 5)
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  b      record;
+  target uuid;
+  gap    integer;
+  made   integer := 0;
+begin
+  -- The same two switches the worker obeys. Queueing while the system is off
+  -- would mean flipping it back on released a burst of held-back activity.
+  if not coalesce((select on_off from platform_flags where key = 'bots_enabled'), false)
+     or coalesce((select on_off from platform_flags where key = 'bots_emergency'), false) then
+    return 0;
+  end if;
+
+  for b in
+    select bo.id, bo.cooldown_min, bo.last_act_at
+      from bots bo
+      join profiles p on p.id = bo.id and not p.banned
+     where bo.active
+       and not exists (select 1 from bot_queue q where q.bot = bo.id and q.done_at is null)
+     order by coalesce(bo.last_act_at, 'epoch'::timestamptz)
+     limit least(greatest(p_limit, 1), 20)
+  loop
+    -- Somewhere between the cooldown and twice it, so a row of accounts set
+    -- up in one sitting does not go off in lockstep every time afterwards.
+    gap := b.cooldown_min + floor(random() * b.cooldown_min)::integer;
+
+    target := null;
+
+    -- Most of the time it answers somebody, because an account that only ever
+    -- posts and never replies to anyone reads as a feed rather than a person.
+    if random() < 0.66 then
+      select p.id into target
+        from posts p
+        join profiles a on a.id = p.author
+       where not p.hidden
+         and not a.banned
+         and not a.is_bot                       -- they do not talk to each other
+         and p.author <> b.id
+         and p.reply_to is null
+         and p.created_at > now() - interval '2 days'
+         -- said something here already
+         and not exists (select 1 from posts r where r.reply_to = p.id and r.author = b.id)
+         -- and no post ends up ringed by them
+         and (select count(*) from posts r join profiles ra on ra.id = r.author and ra.is_bot
+               where r.reply_to = p.id) < 2
+       order by random()
+       limit 1;
+    end if;
+
+    insert into bot_queue (bot, kind, about, due_at)
+    values (b.id,
+            case when target is null then 'post' else 'reply' end,
+            target,
+            coalesce(b.last_act_at, now()) + (gap || ' minutes')::interval);
+    made := made + 1;
+  end loop;
+
+  return made;
+end $$;
+
+revoke all on function public.bot_fill(int) from public;
+
+-- Whether one account has said this before. The worker asks before it writes,
+-- because a model given the same day's topics twice will happily hand back
+-- the same sentence twice, and that is the tell.
+create or replace function public.bot_said_before(p_bot uuid, p_text text)
+returns boolean language sql security definer set search_path = public stable as $$
+  select exists (
+    select 1 from posts
+     where author = p_bot
+       and lower(btrim(body)) = lower(btrim(p_text))
+       and created_at > now() - interval '60 days'
+  );
+$$;
+
+revoke all on function public.bot_said_before(uuid, text) from public;
+
+-- ── Editing one account ───────────────────────────────────────────────────
+
+create or replace function public.staff_bot_edit(
+  p_id        uuid,
+  p_persona   text default null,
+  p_interests text default null,
+  p_cooldown  integer default null
+) returns text language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_staff('admin') then raise exception 'needs_admin'; end if;
+
+  update bots set
+    persona      = coalesce(p_persona, persona),
+    interests    = coalesce(p_interests, interests),
+    -- A floor, because a cooldown of nothing is a way to flood the platform
+    -- from the settings page rather than a setting.
+    cooldown_min = greatest(coalesce(p_cooldown, cooldown_min), 15)
+   where id = p_id;
+  if not found then raise exception 'no_such_bot'; end if;
+
+  -- What it was queued to say was decided under the old persona.
+  delete from bot_queue where bot = p_id and done_at is null;
+
+  insert into bot_log (bot, kind, detail) values (p_id, 'edit', 'settings changed');
+  insert into mod_actions (actor, kind, subject) values (auth.uid(), 'bot_edit', p_id);
+  return 'ok';
+end $$;
+
+grant execute on function public.staff_bot_edit(uuid, text, text, integer) to authenticated;
+
+-- What one account is waiting to do, for the console to show rather than
+-- leave staff guessing whether anything is going to happen.
+create or replace function public.bot_pending(p_id uuid)
+returns jsonb language sql security definer set search_path = public stable as $$
+  select case when not public.is_staff() then null else
+    (select jsonb_build_object('kind', kind, 'due_at', due_at, 'about', about)
+       from bot_queue where bot = p_id and done_at is null
+      order by due_at limit 1)
+  end;
+$$;
+
+grant execute on function public.bot_pending(uuid) to authenticated;
+
 -- ── The one row that says a bot is a bot ──────────────────────────────────
 -- is_bot already exists on profiles. Nothing in this file changes what is
 -- shown to a reader; it decides what the worker is allowed to do.

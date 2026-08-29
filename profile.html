@@ -29,20 +29,22 @@
 <body class="hd-app">
 
 <div class="hd-splash" id="splash">
-  <img src="Hereld%20favicon.png" alt="" width="112" height="112">
-  <span class="nb-sr">Loading Hereld</span>
+  <img src="Hereld%20logomark.png" alt="Hereld" width="272" height="66" fetchpriority="high">
 </div>
 <script>
 /* Shown when somebody arrives at Hereld, not every time they open a page
    inside it. The flag is read before the first paint, so a return visit
-   never flashes. */
+   never flashes. The time it went up is kept so the boot can hold it there
+   long enough to be read rather than blinked. */
 (function () {
   try {
     if (sessionStorage.getItem('hd-arrived')) {
       document.getElementById('splash').hidden = true;
+    } else {
+      window.__hdSplashAt = Date.now();
     }
     sessionStorage.setItem('hd-arrived', '1');
-  } catch (e) {}
+  } catch (e) { window.__hdSplashAt = Date.now(); }
 })();
 </script>
 

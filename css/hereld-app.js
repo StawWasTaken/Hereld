@@ -39,6 +39,15 @@ var p = location.pathname.slice(base().length).replace(/^\/+|\/+$/g, '');
 return p.replace(/\.html$/, '');
 }
 function url(path) { return base() + String(path || '').replace(/^\/+/, ''); }
+function who(handle) { return url('@' + String(handle || '').toLowerCase()); }
+var MARK_W = 256, MARK_H = 336;
+function novaMark(cls) {
+return '<span class="hd-nvm' + (cls ? ' ' + cls : '') + '" aria-hidden="true"></span>';
+}
+function novaArt(cls, h) {
+return '<img class="hd-nva' + (cls ? ' ' + cls : '') + '" src="' + url('Supernova%20mark.png') +
+'" alt="" height="' + h + '" width="' + Math.round(h * MARK_W / MARK_H) + '">';
+}
 function go(path, replace) {
 var to = url(path);
 if (replace) history.replaceState({}, '', to);
@@ -85,7 +94,7 @@ return park('<a href="' + trim + '" target="_blank" rel="noopener nofollow">' +
 esc(trim.replace(/^https?:\/\/(www\.)?/, '')) + '</a>') + tail;
 });
 out = out.replace(/(^|[\s(])@([a-z0-9_]{3,20})\b/gi, function (m, pre, h) {
-return pre + park('<a href="' + url(h.toLowerCase()) + '" data-r data-card="' + esc(h.toLowerCase()) +
+return pre + park('<a href="' + who(h) + '" data-r data-card="' + esc(h.toLowerCase()) +
 '" class="hd-mention">' + H.tag(h) + '</a>');
 });
 out = out.replace(/(^|[\s(])#([a-z0-9_]{2,30})\b/gi, function (m, pre, t) {
@@ -136,9 +145,9 @@ function nameLine(p, stamp, extra) {
 var count = p.follower_count == null ? '' :
 '<span class="hd-who-fol">' + num(p.follower_count) + ' follower' + (p.follower_count === 1 ? '' : 's') + '</span>';
 return '<span class="hd-who">' +
-link(p.handle, '<b>' + esc(p.name || p.handle) + '</b>', 'hd-who-name', ' data-card="' + esc(p.handle || '') + '"') +
+link('@' + p.handle, '<b>' + esc(p.name || p.handle) + '</b>', 'hd-who-name', ' data-card="' + esc(p.handle || '') + '"') +
 badges(p) +
-link(p.handle, H.tag(p.handle), 'hd-who-at', ' data-card="' + esc(p.handle || '') + '"') + count +
+link('@' + p.handle, H.tag(p.handle), 'hd-who-at', ' data-card="' + esc(p.handle || '') + '"') + count +
 (stamp ? '<span class="hd-dot">&middot;</span><span class="hd-when">' + esc(stamp) + '</span>' : '') +
 (extra || '') + '</span>';
 }
@@ -158,7 +167,7 @@ act('save',   'bookmark', mine.saved[p.id] ? 'Saved' : 'Save', null, mine.saved[
 act('share',  'share',    'Share',   null, false, 'data-do="share"') +
 '<button class="hd-act hd-act--nova" type="button" data-do="nova" ' +
 'aria-label="Ask Supernova about this" data-tip="Ask Supernova">' +
-'<img src="' + url('Supernova%20mark.png') + '" alt="" width="18" height="18"></button>' +
+novaMark('hd-act-nvm') + '</button>' +
 '<button class="hd-act hd-act--more" type="button" data-do="more" data-own="' + (owned ? '1' : '') + '" ' +
 'aria-haspopup="menu" aria-expanded="false" aria-label="More" data-tip="More">' + ic('more') + '</button>' +
 '</div>';
@@ -193,7 +202,7 @@ return '<article class="nb-card hd-post' + (o.lead ? ' hd-post--lead' : '') + '"
 '" data-author="' + esc(a.handle || '') + '"' + (o.lead ? '' : ' data-open="' + p.id + '" tabindex="0" role="link"') + '>' +
 lead +
 '<div class="hd-post-top">' +
-'<a class="hd-av-btn" href="' + url(a.handle || '') + '" data-r data-card="' + esc(a.handle || '') + '" ' +
+'<a class="hd-av-btn" href="' + who(a.handle) + '" data-r data-card="' + esc(a.handle || '') + '" ' +
 'aria-label="' + esc(a.name || a.handle || '') + '">' + avatarOf(a) + '</a>' +
 '<div class="hd-post-who">' + nameLine(a, H.when(p.created_at)) +
 (a.headline ? '<i class="hd-head">' + esc(a.headline) + '</i>' : '') +
@@ -346,7 +355,7 @@ function railHTML(active) {
 var items = NAV.map(function (n) {
 var on = active === n.path || (n.path === 'profile' && active === 'me');
 var glyph = n.nova
-? '<img src="' + url('Supernova%20mark.png') + '" alt="" width="21" height="21">'
+? novaMark('hd-nav-nvm')
 : ic(n.ic);
 var dot = (n.badge === 'notes' && unread)
 ? '<span class="hd-nav-dot">' + (unread > 9 ? '9+' : unread) + '</span>' : '';
@@ -911,13 +920,13 @@ if (!p || cardFor !== key) return;
 var isMe = my && my.id === p.id;
 box.innerHTML =
 '<div class="hd-pcard-top">' +
-link(p.handle, avatarOf(p, 'hd-av--lg'), 'hd-pcard-face') +
+link('@' + p.handle, avatarOf(p, 'hd-av--lg'), 'hd-pcard-face') +
 (isMe ? link('settings', 'Edit profile', 'nb-btn nb-btn--ghost nb-btn--sm')
 : (my ? '<button class="nb-btn nb-btn--sm ' + (mine.following[p.id] ? 'nb-btn--ghost' : 'nb-btn--primary') +
 '" type="button" data-follow="' + p.id + '">' + (mine.following[p.id] ? 'Following' : 'Follow') + '</button>'
 : link('join', 'Follow', 'nb-btn nb-btn--primary nb-btn--sm'))) +
 '</div>' +
-'<p class="hd-pcard-name">' + link(p.handle, '<b>' + esc(p.name || p.handle) + '</b>') + badges(p) + '</p>' +
+'<p class="hd-pcard-name">' + link('@' + p.handle, '<b>' + esc(p.name || p.handle) + '</b>') + badges(p) + '</p>' +
 '<p class="hd-pcard-at">' + H.tag(p.handle) + '</p>' +
 (p.headline ? '<p class="hd-pcard-head">' + esc(p.headline) + '</p>' : '') +
 (p.bio ? '<p class="hd-pcard-bio">' + body(p.bio) + '</p>' : '') +
@@ -1036,10 +1045,10 @@ watchViews(feed);
 function personRow(p) {
 var on = mine.following[p.handle];
 return '<div class="nb-card nb-card--tight hd-person" data-person="' + p.id + '" data-handle="' + esc(p.handle) + '">' +
-'<a class="hd-av-btn" href="' + url(p.handle) + '" data-r data-card="' + esc(p.handle) + '" aria-hidden="true" tabindex="-1">' +
+'<a class="hd-av-btn" href="' + who(p.handle) + '" data-r data-card="' + esc(p.handle) + '" aria-hidden="true" tabindex="-1">' +
 avatarOf(p, 'hd-av--sm') + '</a>' +
-'<div class="hd-person-txt">' + link(p.handle, '<b>' + esc(p.name || p.handle) + '</b>' + badges(p), '', ' data-card="' + esc(p.handle) + '"') +
-'<i>' + link(p.handle, H.tag(p.handle)) + '</i>' +
+'<div class="hd-person-txt">' + link('@' + p.handle, '<b>' + esc(p.name || p.handle) + '</b>' + badges(p), '', ' data-card="' + esc(p.handle) + '"') +
+'<i>' + link('@' + p.handle, H.tag(p.handle)) + '</i>' +
 (p.headline ? '<p>' + esc(p.headline) + '</p>' : '') + '</div>' +
 (my && p.id !== my.id
 ? '<button class="nb-btn nb-btn--sm ' + (on ? 'nb-btn--ghost' : 'nb-btn--primary') + '" type="button" data-follow="' + p.id + '">' +
@@ -1182,7 +1191,7 @@ var isMe = my && my.id === p.id;
 var tabsHTML = tabs(PROF_TABS.filter(function (t) {
 return t.key !== 'articles' || p.is_company;
 }).map(function (t) {
-return { key: t.key, label: t.label, path: p.handle + (t.key === 'posts' ? '' : '/' + t.key) };
+return { key: t.key, label: t.label, path: '@' + p.handle + (t.key === 'posts' ? '' : '/' + t.key) };
 }), tab);
 var joined = new Date(p.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 col.innerHTML = head(esc(p.name || p.handle),
@@ -1211,8 +1220,8 @@ esc(p.website.replace(/^https?:\/\/(www\.)?/, '')) + '</a></span>' : '') +
 (p.industry ? '<span>' + ic('building') + esc(p.industry) + '</span>' : '') +
 '</p>' +
 '<p class="hd-count-row">' +
-link(p.handle, '<b>' + num(p.following_count) + '</b> following') +
-link(p.handle, '<b>' + num(p.follower_count) + '</b> follower' + (p.follower_count === 1 ? '' : 's')) +
+link('@' + p.handle, '<b>' + num(p.following_count) + '</b> following') +
+link('@' + p.handle, '<b>' + num(p.follower_count) + '</b> follower' + (p.follower_count === 1 ? '' : 's')) +
 '</p>' +
 (counts[2] && counts[2].data && counts[2].data.length ? assocHTML(counts[2].data) : '') +
 '</div>' +
@@ -1342,7 +1351,7 @@ var novaTalk = [];
 function novaTurn(t) {
 return '<div class="hd-nova-turn hd-nova-turn--' + (t.role === 'you' ? 'nova' : 'me') + '">' +
 (t.role === 'you'
-? '<img class="hd-nova-av" src="' + url('Supernova%20mark.png') + '" alt="Supernova" width="30" height="30">'
+? novaArt('hd-nova-av', 30)
 : H.avatar(my, 'hd-av--sm')) +
 '<div class="hd-nova-said">' + body(t.text) + '</div></div>';
 }
@@ -1391,7 +1400,7 @@ var ready = await db.rpc('supernova_ready');
 if (ready.error || !ready.data) {
 col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
 '<div class="nb-card nb-card--lg hd-nova-off">' +
-'<img class="hd-nova-mark" src="' + url('Supernova%20mark.png') + '" alt="" width="56" height="56">' +
+novaArt('hd-nova-mark', 62) +
 '<h2 class="nb-h3">Supernova is not answering yet</h2>' +
 '<p>Hereld reaches Supernova through Swiftaw, and Swiftaw has not pointed it at a model yet. ' +
 'Nothing you type would go anywhere, so there is nothing to type into.</p>' +
@@ -1404,7 +1413,7 @@ col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Her
 '<div class="hd-nova-talk" id="novaTalk" aria-live="polite">' +
 (novaTalk.length ? novaTalk.map(novaTurn).join('') :
 '<div class="nb-card hd-nova-hello">' +
-'<img class="hd-nova-mark" src="' + url('Supernova%20mark.png') + '" alt="" width="44" height="44">' +
+novaArt('hd-nova-mark', 48) +
 '<p>Ask about a post, a word you have not met, or anything else. ' +
 'Supernova cannot post, follow or moderate for you, and it will say so rather than pretend.</p>' +
 '</div>') +
@@ -1431,7 +1440,7 @@ if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit()
 function paint() {
 talk.innerHTML = novaTalk.map(novaTurn).join('') +
 (busy ? '<div class="hd-nova-turn hd-nova-turn--nova hd-nova-wait">' +
-'<img class="hd-nova-av" src="' + url('Supernova%20mark.png') + '" alt="" width="30" height="30">' +
+novaArt('hd-nova-av', 30) +
 '<div class="hd-nova-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div></div>' : '');
 twem(talk);
 talk.scrollTop = talk.scrollHeight;
@@ -1503,7 +1512,7 @@ if (whoBox) {
 whoBox.innerHTML = '<h2>' + ic('users') + ' Worth following</h2>' + (who.length
 ? who.map(function (p) {
 return '<div class="hd-aside-person" data-handle="' + esc(p.handle) + '">' +
-link(p.handle, avatarOf(p, 'hd-av--sm') + '<span><b>' + esc(p.name || p.handle) + '</b><i>' + H.tag(p.handle) + '</i></span>', 'hd-aside-who') +
+link('@' + p.handle, avatarOf(p, 'hd-av--sm') + '<span><b>' + esc(p.name || p.handle) + '</b><i>' + H.tag(p.handle) + '</i></span>', 'hd-aside-who') +
 (my ? '<button class="nb-btn nb-btn--sm nb-btn--primary" type="button" data-follow="' + p.id + '">Follow</button>' : '') +
 '</div>';
 }).join('') + link('explore', 'See more', 'hd-aside-more')
@@ -1810,7 +1819,7 @@ if (first === 'bookmarks') { setTitle('Bookmarks'); return viewBookmarks(); }
 if (first === 'supernova') { setTitle('Ask Supernova'); return viewSupernova(); }
 if (first === 'profile') {
 if (!my) return needAccount();
-return go(my.handle, true);
+return go('@' + my.handle, true);
 }
 if (first === 'settings') { setTitle('Settings'); return viewSettings(); }
 if (first === 'staff') {
@@ -1822,9 +1831,12 @@ return loadStaff();
 if (first === 'post' && s[1]) { setTitle('Post'); return viewThread(s[1]); }
 if (first === 'article' && s[1]) { setTitle('Article'); return viewArticle(s[1]); }
 if (first === 'company' && s[1]) { setTitle('@' + s[1]); return viewProfile(s[1], s[2]); }
+if (/^@[a-z0-9_]{3,20}$/.test(first)) {
+setTitle(first);
+return viewProfile(first.slice(1), s[1]);
+}
 if (/^[a-z0-9_]{3,20}$/.test(first) && RESERVED.indexOf(first) < 0) {
-setTitle('@' + first);
-return viewProfile(first, s[1]);
+return go('@' + first + (s[1] ? '/' + s[1] : ''), true);
 }
 setTitle('Not found');
 col.innerHTML = notFoundHTML();
@@ -1965,7 +1977,7 @@ var p = await person(handle);
 if (!p) return;
 var isMe = my && my.id === p.id;
 var items = [
-{ label: 'Copy link to profile', ic: 'link', run: function () { U.copy(location.origin + url(p.handle), 'Link copied.'); } }
+{ label: 'Copy link to profile', ic: 'link', run: function () { U.copy(location.origin + who(p.handle), 'Link copied.'); } }
 ];
 if (!isMe) {
 items.push({ label: 'Mute @' + p.handle, ic: 'mute', run: function () { mutePerson(p); } });
@@ -1981,7 +1993,7 @@ U.menu(btn, items);
 }
 function meMenu(btn) {
 var items = [
-{ label: 'Your profile', ic: 'user', run: function () { go(my.handle); } },
+{ label: 'Your profile', ic: 'user', run: function () { go('@' + my.handle); } },
 { label: 'Settings', ic: 'gear', run: function () { go('settings'); } },
 { label: 'Bookmarks', ic: 'bookmark', run: function () { go('bookmarks'); } }
 ];
@@ -2031,11 +2043,16 @@ var b = await db.rpc('bootstrap_staff');
 if (b && !b.error && b.data === 'superadmin') staffRole = 'superadmin';
 }
 }
+var SPLASH_HOLD = 2300;
 function splashOff() {
 var s = el('splash');
 if (!s) return;
+var up = window.__hdSplashAt || 0;
+var wait = up ? Math.max(0, SPLASH_HOLD - (Date.now() - up)) : 0;
+setTimeout(function () {
 s.classList.add('is-done');
 setTimeout(function () { s.remove(); }, 620);
+}, wait);
 }
 function shell() {
 var lift = el('splash');
