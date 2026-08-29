@@ -1080,8 +1080,30 @@
   var col, aside, rail, bar;
   var painting = 0;
 
+  /* Two ways to read the same room. Ranked is what most people want most of
+     the time, and it is not what everybody wants all of the time, so the
+     plain newest-first feed keeps its own place rather than being argued
+     about. The choice is remembered on the device. */
+  var HOME_SORT_KEY = 'hereld-home-sort';
+
+  function homeSort() {
+    try { return localStorage.getItem(HOME_SORT_KEY) === 'latest' ? 'latest' : 'foryou'; }
+    catch (e) { return 'foryou'; }
+  }
+
+  function setHomeSort(v) {
+    try { localStorage.setItem(HOME_SORT_KEY, v); } catch (e) {}
+  }
+
   async function viewHome() {
+    var sort = homeSort();
     col.innerHTML = head('Home', '') +
+      '<nav class="hd-tabs" aria-label="How the feed is ordered">' +
+        '<button class="hd-tab' + (sort === 'foryou' ? ' is-on' : '') + '" type="button" data-sort="foryou"' +
+          (sort === 'foryou' ? ' aria-current="true"' : '') + '>For you</button>' +
+        '<button class="hd-tab' + (sort === 'latest' ? ' is-on' : '') + '" type="button" data-sort="latest"' +
+          (sort === 'latest' ? ' aria-current="true"' : '') + '>Latest</button>' +
+      '</nav>' +
       (my ? '<div class="nb-card hd-compose-card">' + composerHTML({}) + '</div>' : '') +
       '<div class="hd-feed" id="feed">' + skeletons(4) + '</div>';
 
@@ -1091,8 +1113,22 @@
       });
     }
 
+    col.querySelectorAll('[data-sort]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var to = b.getAttribute('data-sort');
+        if (to === homeSort()) return;
+        setHomeSort(to);
+        viewHome();
+      });
+    });
+
     var token = painting;
-    var r = await db.rpc('feed', { p_limit: 25 }).select(WITH_AUTHOR);
+    var r = await db.rpc(sort === 'latest' ? 'feed_latest' : 'feed', { p_limit: 25 }).select(WITH_AUTHOR);
+    /* An older database has not been given the ranked feed yet. Falling back
+       is better than an empty home screen. */
+    if (r.error && /feed_latest|does not exist|schema cache/i.test(String(r.error.message || ''))) {
+      r = await db.rpc('feed', { p_limit: 25 }).select(WITH_AUTHOR);
+    }
     if (token !== painting) return;
     var feed = el('feed');
     if (!feed) return;
