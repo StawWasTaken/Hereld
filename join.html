@@ -105,7 +105,8 @@
   var H = window.Hereld;
   var qs = new URLSearchParams(location.search);
   var next = qs.get('next') || 'home';
-  var mode = qs.get('mode') === 'in' ? 'in' : 'up';
+  var adding = qs.get('add') === '1';
+  var mode = (adding || qs.get('mode') === 'in') ? 'in' : 'up';
 
   function el(id) { return document.getElementById(id); }
   var form = el('form'), go = el('go'), say = el('say'), busy = el('busy');
@@ -113,10 +114,14 @@
 
   function paint() {
     var up = mode === 'up';
-    el('gateTitle').textContent = up ? 'Claim your handle' : 'Sign in to Hereld';
-    el('gateLede').textContent = up
-      ? 'Free, and it takes a minute. A Hereld account is separate from your Swiftaw and Fortized accounts.'
-      : 'Welcome back. Your handle is waiting where you left it.';
+    el('gateTitle').textContent = adding
+      ? (up ? 'Claim another handle' : 'Add another account')
+      : (up ? 'Claim your handle' : 'Sign in to Hereld');
+    el('gateLede').textContent = adding
+      ? 'The account you are already on stays signed in. You will be able to switch between them.'
+      : (up
+        ? 'Free, and it takes a minute. A Hereld account is separate from your Swiftaw and Fortized accounts.'
+        : 'Welcome back. Your handle is waiting where you left it.');
     el('fName').hidden = !up;
     el('fHandle').hidden = !up;
     go.textContent = up ? 'Create my account' : 'Sign in';
@@ -207,7 +212,9 @@
 
   H.ready(function () {
     if (!H.db()) { stop('Hereld could not be reached. Reload and try again.'); return; }
-    if (H.user()) { location.replace(next); return; }
+    /* Somebody adding a second account is already signed in on the first.
+       Sending them straight back would make the button do nothing. */
+    if (H.user() && !adding) { location.replace(next); return; }
     paint();
   });
 

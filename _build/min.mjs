@@ -149,7 +149,7 @@ for (const job of JOBS) {
 // them (/post/<id>, /<handle>), which no fixed filename can cover.
 const ROUTES = [
   'home', 'explore', 'search', 'notifications', 'bookmarks',
-  'supernova', 'profile', 'staff', '404'
+  'supernova', 'profile', 'settings', 'staff', '404'
 ];
 const appHtml = fs.readFileSync(path.join(ROOT, 'app.html'), 'utf8');
 for (const r of ROUTES) {

@@ -1333,6 +1333,274 @@ var active = routeKey();
 if (rail) rail.innerHTML = railHTML(active);
 if (bar) bar.innerHTML = barHTML(active);
 }
+function setCard(title, line, inner, cls) {
+return '<section class="nb-card hd-set-card' + (cls ? ' ' + cls : '') + '">' +
+'<h2>' + esc(title) + '</h2>' +
+(line ? '<p class="hd-set-line">' + esc(line) + '</p>' : '') + inner + '</section>';
+}
+function rosterHTML() {
+var list = H.roster();
+if (!list.length) return '';
+return '<ul class="hd-acct-list">' + list.map(function (a) {
+var who = a.name || a.handle || 'Account';
+return '<li class="hd-acct' + (a.current ? ' is-on' : '') + '">' +
+'<button class="hd-acct-go" type="button" data-switch="' + esc(a.id) + '"' +
+(a.current ? ' disabled' : '') + '>' +
+H.avatar(a, 'hd-av--sm' + (a.is_company ? ' hd-av--sq' : '')) +
+'<span class="hd-acct-who"><b>' + esc(who) + '</b>' +
+'<i>' + H.tag(a.handle) + '</i></span>' +
+(a.current ? '<span class="hd-acct-now">Signed in</span>' : ic('swap')) +
+'</button>' +
+(a.current ? '' : '<button class="nb-icon-btn hd-acct-x" type="button" data-forget="' + esc(a.id) + '" ' +
+'aria-label="Remove ' + esc(who) + ' from this device">' + ic('x') + '</button>') +
+'</li>';
+}).join('') + '</ul>';
+}
+async function viewSettings() {
+if (!my) return needAccount();
+col.innerHTML = head('Settings', 'Everything on this page is public except the last card.') +
+'<div class="hd-set" id="setBody">' +
+setCard('Pictures',
+'Your picture sits on every post. Your banner sits across the top of your profile.',
+'<div class="hd-set-pics">' +
+'<span id="setFace"></span>' +
+'<div class="hd-set-pics-do">' +
+'<label class="nb-btn nb-btn--sm">Change picture' +
+'<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden id="pickFace"></label>' +
+'<p class="nb-hint">PNG, JPEG, WebP or GIF, up to 24 MB.</p>' +
+'</div>' +
+'</div>' +
+'<div class="hd-set-cover" id="setCover"></div>' +
+'<div class="hd-set-foot">' +
+'<label class="nb-btn nb-btn--sm">Change banner' +
+'<input type="file" accept="image/png,image/jpeg,image/webp" hidden id="pickCover"></label>' +
+'<button type="button" class="nb-btn nb-btn--ghost nb-btn--sm" id="dropCover" hidden>Remove banner</button>' +
+'<span class="hd-busy" id="picBusy" hidden><span class="nb-loader nb-loader--sm"></span> Uploading</span>' +
+'</div>' +
+'<p class="nb-alert nb-alert--error hd-say" id="picSay" hidden></p>') +
+'<form class="nb-card hd-set-card" id="setForm">' +
+'<h2>Who you are</h2>' +
+'<p class="hd-set-line">Your handle is fixed. It is on every post you have already made.</p>' +
+'<div class="hd-set-fields">' +
+'<div class="nb-field"><span class="nb-label">Handle</span>' +
+'<p class="hd-set-handle">' + H.tag(my.handle) + '</p></div>' +
+'<div class="nb-field"><label class="nb-label" for="sName">Name</label>' +
+'<input class="nb-input" id="sName" type="text" maxlength="50" autocomplete="name" value="' + esc(my.name || '') + '"></div>' +
+'<div class="nb-field"><label class="nb-label" for="sHead">What you do</label>' +
+'<input class="nb-input" id="sHead" type="text" maxlength="120" placeholder="One line, under your name on every post" value="' + esc(my.headline || '') + '">' +
+'<p class="nb-hint"><span class="hd-set-count" id="cHead"></span></p></div>' +
+'<div class="nb-field"><label class="nb-label" for="sBio">About you</label>' +
+'<textarea class="nb-textarea" id="sBio" maxlength="400" rows="4" placeholder="A short paragraph on your profile.">' + esc(my.bio || '') + '</textarea>' +
+'<p class="nb-hint"><span class="hd-set-count" id="cBio"></span></p></div>' +
+'<div class="nb-field"><label class="nb-label" for="sLoc">Where you are</label>' +
+'<input class="nb-input" id="sLoc" type="text" maxlength="60" placeholder="City, country" value="' + esc(my.location || '') + '"></div>' +
+'<div class="nb-field"><label class="nb-label" for="sSite">Website</label>' +
+'<input class="nb-input" id="sSite" type="url" maxlength="120" placeholder="https://" value="' + esc(my.website || '') + '"></div>' +
+'</div>' +
+'<p class="nb-alert nb-alert--error hd-say" id="setSay" hidden></p>' +
+'<div class="hd-set-foot">' +
+'<span class="hd-busy" id="setBusy" hidden><span class="nb-loader nb-loader--sm"></span> Saving</span>' +
+'<button type="submit" class="nb-btn nb-btn--primary" id="setSave">Save changes</button>' +
+link(my.handle, 'View profile', 'nb-btn nb-btn--ghost') +
+'</div>' +
+'</form>' +
+setCard('Accounts on this device',
+'Signing in another account does not sign this one out. Switching is instant and asks for nothing.',
+'<div id="setRoster">' + rosterHTML() + '</div>' +
+'<div class="hd-set-foot">' +
+'<button type="button" class="nb-btn nb-btn--sm" id="addAcct">Add an account</button>' +
+'</div>') +
+setCard('Company mode',
+'A company account carries a square picture, an Articles tab and associated accounts. ' +
+'Turning it on files a verification request. It does not grant the badge.',
+'<div class="hd-set-state" id="coState"><span class="nb-skel nb-skel--line" style="width:60%"></span></div>' +
+'<div class="nb-field" id="claimField"><label class="nb-label" for="sClaim">What is this account for?</label>' +
+'<textarea class="nb-textarea" id="sClaim" maxlength="400" rows="3" placeholder="The organisation, and how it can be checked."></textarea></div>' +
+'<p class="nb-alert nb-alert--error hd-say" id="coSay" hidden></p>' +
+'<div class="hd-set-foot">' +
+'<span class="hd-busy" id="coBusy" hidden><span class="nb-loader nb-loader--sm"></span> Saving</span>' +
+'<button type="button" class="nb-btn nb-btn--primary nb-btn--sm" id="coOn">Turn company mode on</button>' +
+'<button type="button" class="nb-btn nb-btn--ghost nb-btn--sm" id="coOff" hidden>Turn it off</button>' +
+'</div>') +
+setCard('Signing out',
+'This ends the session for this account on this device. Any other account signed in here stays. ' +
+'Your Swiftaw and Fortized accounts are separate and are untouched.',
+'<div class="hd-set-foot">' +
+'<button type="button" class="nb-btn nb-btn--red nb-btn--sm" id="setOut">Sign out of Hereld</button>' +
+'</div>', 'hd-set-card--last') +
+'</div>';
+wireSettings();
+twem(col);
+}
+function wireSettings() {
+var picSay = el('picSay'), picBusy = el('picBusy');
+function faces() {
+el('setFace').innerHTML = avatarOf(my, 'hd-av--lg');
+el('setCover').innerHTML = my.banner_url
+? '<img src="' + esc(my.banner_url) + '" alt="Your banner">'
+: '<span>No banner yet</span>';
+el('dropCover').hidden = !my.banner_url;
+}
+faces();
+function counter(id, out, max) {
+var f = el(id), c = el(out);
+function tick() { c.textContent = f.value.length + ' / ' + max; }
+f.addEventListener('input', tick);
+tick();
+}
+counter('sHead', 'cHead', 120);
+counter('sBio', 'cBio', 400);
+function picFail(m) { picSay.textContent = m; picSay.hidden = false; picBusy.hidden = true; }
+async function upload(file, kind) {
+if (file.size > 24 * 1024 * 1024) return picFail('That picture is over 24 MB.');
+picSay.hidden = true; picBusy.hidden = false;
+var ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+var path = my.id + '/' + kind + '.' + ext;
+var up = await db.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
+if (up.error) return picFail(H.trouble(up.error, 'The picture did not upload.'));
+var to = db.storage.from('avatars').getPublicUrl(path).data.publicUrl + '?t=' + Date.now();
+var patch = {};
+patch[kind === 'avatar' ? 'avatar_url' : 'banner_url'] = to;
+var w = await db.from('profiles').update(patch).eq('id', my.id);
+picBusy.hidden = true;
+if (w.error) return picFail(H.trouble(w.error, 'It uploaded but did not save.'));
+if (kind === 'avatar') my.avatar_url = to; else my.banner_url = to;
+faces();
+await H.refreshMe();
+paintRail();
+U.toast(kind === 'avatar' ? 'Picture changed.' : 'Banner changed.');
+}
+el('pickFace').addEventListener('change', function () { if (this.files[0]) upload(this.files[0], 'avatar'); this.value = ''; });
+el('pickCover').addEventListener('change', function () { if (this.files[0]) upload(this.files[0], 'banner'); this.value = ''; });
+el('dropCover').addEventListener('click', async function () {
+var sure = await U.ask({ title: 'Remove your banner', line: 'Your profile goes back to the plain header.', yes: 'Remove it' });
+if (!sure) return;
+picBusy.hidden = false;
+var w = await db.from('profiles').update({ banner_url: null }).eq('id', my.id);
+picBusy.hidden = true;
+if (w.error) return picFail(H.trouble(w.error, 'That did not save.'));
+my.banner_url = null;
+faces();
+await H.refreshMe();
+U.toast('Banner removed.');
+});
+var say = el('setSay'), busy = el('setBusy'), save = el('setSave');
+function fail(m) { say.textContent = m; say.hidden = false; busy.hidden = true; save.disabled = false; }
+el('setForm').addEventListener('submit', async function (e) {
+e.preventDefault();
+var site = el('sSite').value.trim();
+if (site && !/^https?:\/\//i.test(site)) site = 'https://' + site;
+if (site && !/^https?:\/\/[^\s.]+\.[^\s]{2,}$/i.test(site)) return fail('That does not look like a web address.');
+say.hidden = true; busy.hidden = false; save.disabled = true;
+var w = await db.from('profiles').update({
+name: el('sName').value.trim(),
+headline: el('sHead').value.trim(),
+bio: el('sBio').value.trim(),
+location: el('sLoc').value.trim(),
+website: site
+}).eq('id', my.id);
+busy.hidden = true; save.disabled = false;
+if (w.error) return fail(H.trouble(w.error, 'That did not save.'));
+await H.refreshMe();
+my = H.me() || my;
+el('sSite').value = site;
+paintRail();
+U.toast('Saved.');
+});
+el('addAcct').addEventListener('click', function () {
+location.href = url(H.joinPage + '?add=1&next=' + encodeURIComponent(here()));
+});
+el('setRoster').addEventListener('click', async function (e) {
+var b = e.target.closest && e.target.closest('button');
+if (!b) return;
+var drop = b.getAttribute('data-forget');
+if (drop) {
+var sure = await U.ask({
+title: 'Remove this account',
+line: 'It comes off this device. The account itself is untouched and you can sign back in.',
+yes: 'Remove it'
+});
+if (!sure) return;
+H.forget(drop);
+el('setRoster').innerHTML = rosterHTML();
+twem(el('setRoster'));
+return;
+}
+var to = b.getAttribute('data-switch');
+if (!to) return;
+b.disabled = true;
+try {
+await H.switchTo(to);
+my = H.me();
+U.toast('Switched to ' + ((my && (my.name || my.handle)) || 'your other account') + '.');
+go(my && my.handle ? my.handle : 'home', true);
+} catch (err) {
+b.disabled = false;
+el('setRoster').innerHTML = rosterHTML();
+twem(el('setRoster'));
+U.toast((err && err.message) || 'That did not switch.', 'bad');
+}
+});
+var coSay = el('coSay'), coBusy = el('coBusy');
+async function paintCompany() {
+var v = await db.from('verifications').select('status,note,created_at')
+.eq('subject', my.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+var row = (v && !v.error && v.data) || null;
+var line;
+if (my.verified) line = 'Verified. The badge is on your profile and beside your name on every post.';
+else if (!row) line = 'No request has been filed.';
+else if (row.status === 'pending') line = 'A request is with the staff. Filed ' + H.when(row.created_at) + ' ago.';
+else if (row.status === 'more_info') line = 'The staff asked for more: ' + (row.note || 'no detail was given.');
+else if (row.status === 'rejected') line = 'The last request was turned down' + (row.note ? ': ' + row.note : '.');
+else line = 'Approved.';
+el('coState').innerHTML = '<b>' + (my.is_company ? 'Company mode is on' : 'Company mode is off') + '</b>' +
+'<span>' + esc(line) + '</span>';
+el('coOn').hidden = my.is_company && row && row.status === 'pending';
+el('coOn').textContent = my.is_company ? 'File a request again' : 'Turn company mode on';
+el('coOff').hidden = !my.is_company;
+el('claimField').hidden = !!my.verified;
+}
+paintCompany();
+async function company(on) {
+coSay.hidden = true; coBusy.hidden = false;
+var r = await db.rpc('company_mode', { p_on: on, p_claim: el('sClaim').value.trim() });
+coBusy.hidden = true;
+if (r.error) { coSay.textContent = H.trouble(r.error, 'That did not go through.'); coSay.hidden = false; return; }
+my.is_company = on;
+await H.refreshMe();
+my = H.me() || my;
+el('setFace').innerHTML = avatarOf(my, 'hd-av--lg');
+paintCompany();
+paintRail();
+U.toast(on ? 'Company mode on. Your request is filed.' : 'Company mode off.');
+}
+el('coOn').addEventListener('click', function () {
+if (!el('sClaim').value.trim()) { coSay.textContent = 'Say what the account is for first.'; coSay.hidden = false; return; }
+company(true);
+});
+el('coOff').addEventListener('click', async function () {
+var sure = await U.ask({
+title: 'Turn company mode off',
+line: 'Your profile goes back to a personal one. A verification you already hold is not removed by this.',
+yes: 'Turn it off'
+});
+if (sure) company(false);
+});
+el('setOut').addEventListener('click', async function () {
+var others = H.roster().filter(function (a) { return !a.current; }).length;
+var sure = await U.ask({
+title: 'Sign out',
+line: others
+? 'Sign out of this account? You stay signed in on ' + others + ' other account' + (others === 1 ? '' : 's') + ' here.'
+: 'Sign out of Hereld on this device?',
+yes: 'Sign out', bad: true
+});
+if (!sure) return;
+var next = await H.signOut();
+if (next) { my = next; go(next.handle, true); U.toast('Signed out. You are on ' + (next.name || next.handle) + ' now.'); }
+else location.href = url('index');
+});
+}
 var RESERVED = ['home', 'explore', 'search', 'notifications', 'bookmarks', 'supernova',
 'profile', 'settings', 'staff', 'join', 'index', 'post', 'article', 'company', '404'];
 function parts() { return here().split('/').filter(Boolean); }
@@ -1361,7 +1629,7 @@ if (first === 'profile') {
 if (!my) return needAccount();
 return go(my.handle, true);
 }
-if (first === 'settings') { location.href = url('settings'); return; }
+if (first === 'settings') { setTitle('Settings'); return viewSettings(); }
 if (first === 'staff') {
 setTitle('Staff console');
 if (window.HStaff) return window.HStaff.render(col, { db: db, my: my, role: staffRole, go: go, url: url });
@@ -1527,16 +1795,41 @@ items.push({ label: 'Open in staff console', ic: 'shield', run: function () { go
 U.menu(btn, items);
 }
 function meMenu(btn) {
-U.menu(btn, [
+var items = [
 { label: 'Your profile', ic: 'user', run: function () { go(my.handle); } },
-{ label: 'Settings', ic: 'gear', href: url('settings') },
-{ label: 'Bookmarks', ic: 'bookmark', run: function () { go('bookmarks'); } },
-'rule',
-{ label: 'Sign out', ic: 'out', kind: 'bad', run: async function () {
-await H.signOut();
-location.href = url('');
-} }
-]);
+{ label: 'Settings', ic: 'gear', run: function () { go('settings'); } },
+{ label: 'Bookmarks', ic: 'bookmark', run: function () { go('bookmarks'); } }
+];
+var others = H.roster().filter(function (a) { return !a.current; });
+if (others.length) {
+items.push('rule');
+others.slice(0, 4).forEach(function (a) {
+items.push({
+label: (a.name || a.handle) + ' @' + a.handle,
+ic: 'swap',
+run: async function () {
+try {
+await H.switchTo(a.id);
+my = H.me();
+U.toast('Switched to ' + ((my && (my.name || my.handle)) || a.handle) + '.');
+go(my && my.handle ? my.handle : 'home', true);
+} catch (err) {
+U.toast((err && err.message) || 'That did not switch.', 'bad');
+}
+}
+});
+});
+}
+items.push('rule');
+items.push({ label: 'Add an account', ic: 'plus', run: function () {
+location.href = url(H.joinPage + '?add=1&next=' + encodeURIComponent(here()));
+} });
+items.push({ label: 'Sign out', ic: 'out', kind: 'bad', run: async function () {
+var next = await H.signOut();
+if (next) { my = next; go(next.handle, true); U.toast('Signed out. You are on ' + (next.name || next.handle) + ' now.'); }
+else location.href = url('');
+} });
+U.menu(btn, items);
 }
 async function countNotes() {
 if (!my) return;

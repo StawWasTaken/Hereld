@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Settings - Hereld</title>
+<title>Hereld</title>
+<meta name="description" content="Hereld, the professional network by Swiftaw.">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0C0F15">
+
 <script>
 (function () {
   var b = '/';
@@ -17,315 +19,43 @@
 })();
 </script>
 <link rel="icon" type="image/png" href="Hereld%20favicon.png">
+<link rel="apple-touch-icon" href="Hereld%20favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/hereld-nb.css?v=2">
 <link rel="stylesheet" href="css/hereld.css?v=2">
 </head>
-<body>
+<body class="hd-app">
 
-<div class="nb-rainbaw" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-
-<div class="hd-set">
-  <header class="hd-set-head">
-    <a class="nb-icon-btn hd-back" href="home" aria-label="Back to Hereld">
-      <svg viewBox="0 0 448 512" aria-hidden="true"><path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.2 288 416 288c17.7 0 32-14.3 32-32s-14.3-32-32-32l-306.7 0L214.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg>
-    </a>
-    <h1>Settings</h1>
-    <a class="nb-btn nb-btn--ghost nb-btn--sm" id="viewMe" href="home">View profile</a>
-  </header>
-
-  <div id="body">
-    <div class="nb-card nb-card--lg">
-      <span class="nb-skel nb-skel--line" style="width:38%"></span>
-      <span class="nb-skel nb-skel--line" style="width:64%"></span>
-    </div>
-  </div>
+<div class="hd-splash" id="splash">
+  <img src="Hereld%20favicon.png" alt="" width="112" height="112">
+  <span class="nb-sr">Loading Hereld</span>
 </div>
+<script>
+/* Shown when somebody arrives at Hereld, not every time they open a page
+   inside it. The flag is read before the first paint, so a return visit
+   never flashes. */
+(function () {
+  try {
+    if (sessionStorage.getItem('hd-arrived')) {
+      document.getElementById('splash').hidden = true;
+    }
+    sessionStorage.setItem('hd-arrived', '1');
+  } catch (e) {}
+})();
+</script>
 
-<template id="tpl">
-  <div>
-    <section class="nb-card nb-card--lg hd-set-block">
-      <h2>Pictures</h2>
-      <p>Your picture sits on every post. Your banner sits across the top of your profile.</p>
-
-      <div class="hd-set-pics">
-        <div class="hd-set-pic">
-          <span id="faceHost"></span>
-          <div>
-            <input type="file" id="pickFace" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
-            <button type="button" class="nb-btn nb-btn--sm" id="goFace">Change picture</button>
-            <p class="nb-hint">PNG, JPEG, WebP or GIF, up to 24 MB.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="hd-set-cover" id="coverHost"></div>
-      <input type="file" id="pickCover" accept="image/png,image/jpeg,image/webp" hidden>
-      <div class="hd-set-foot">
-        <button type="button" class="nb-btn nb-btn--sm" id="goCover">Change banner</button>
-        <button type="button" class="nb-btn nb-btn--ghost nb-btn--sm" id="dropCover">Remove banner</button>
-        <span class="hd-busy" id="picBusy" hidden><span class="nb-loader nb-loader--sm"></span> Uploading</span>
-      </div>
-      <div class="nb-alert nb-alert--error hd-say" id="picSay" hidden></div>
-    </section>
-
-    <form class="nb-card nb-card--lg hd-set-block" id="form">
-      <h2>Who you are</h2>
-      <p>Everything here is public. Your handle is fixed, because it is on every post you have already made.</p>
-
-      <div class="hd-set-fields">
-        <div class="nb-field">
-          <span class="nb-label">Handle</span>
-          <p class="hd-set-handle" id="handleOut"></p>
-        </div>
-
-        <div class="nb-field">
-          <label class="nb-label" for="name">Name</label>
-          <input class="nb-input" id="name" type="text" maxlength="50" autocomplete="name">
-        </div>
-
-        <div class="nb-field">
-          <label class="nb-label" for="headline">What you do</label>
-          <input class="nb-input" id="headline" type="text" maxlength="120" placeholder="One line, under your name on every post">
-          <p class="nb-hint"><span class="hd-set-count" id="cHeadline"></span></p>
-        </div>
-
-        <div class="nb-field">
-          <label class="nb-label" for="bio">About you</label>
-          <textarea class="nb-textarea" id="bio" maxlength="400" rows="4" placeholder="A short paragraph on your profile."></textarea>
-          <p class="nb-hint"><span class="hd-set-count" id="cBio"></span></p>
-        </div>
-
-        <div class="nb-field">
-          <label class="nb-label" for="location">Where you are</label>
-          <input class="nb-input" id="location" type="text" maxlength="60" placeholder="City, country">
-        </div>
-
-        <div class="nb-field">
-          <label class="nb-label" for="website">Website</label>
-          <input class="nb-input" id="website" type="url" maxlength="120" placeholder="https://">
-        </div>
-      </div>
-
-      <div class="nb-alert nb-alert--error hd-say" id="say" hidden></div>
-      <div class="nb-alert nb-alert--ok hd-say" id="ok" hidden>Saved.</div>
-
-      <div class="hd-set-foot">
-        <span class="hd-busy" id="busy" hidden><span class="nb-loader nb-loader--sm"></span> Saving</span>
-        <button type="submit" class="nb-btn nb-btn--primary" id="save">Save changes</button>
-        <a class="nb-btn nb-btn--ghost" href="home">Cancel</a>
-      </div>
-    </form>
-
-    <section class="nb-card nb-card--lg hd-set-block">
-      <h2>Company mode</h2>
-      <p>A company account carries a square picture, an Articles tab and associated accounts.
-        Turning it on files a verification request. It does not grant the badge.</p>
-
-      <div class="hd-set-state" id="coState"></div>
-
-      <div class="nb-field" id="claimField">
-        <label class="nb-label" for="claim">What is this account for?</label>
-        <textarea class="nb-textarea" id="claim" maxlength="400" rows="3" placeholder="The organisation, and how it can be checked."></textarea>
-      </div>
-
-      <div class="nb-alert nb-alert--error hd-say" id="coSay" hidden></div>
-
-      <div class="hd-set-foot">
-        <span class="hd-busy" id="coBusy" hidden><span class="nb-loader nb-loader--sm"></span> Saving</span>
-        <button type="button" class="nb-btn nb-btn--primary nb-btn--sm" id="coOn">Turn company mode on</button>
-        <button type="button" class="nb-btn nb-btn--ghost nb-btn--sm" id="coOff" hidden>Turn it off</button>
-      </div>
-    </section>
-
-    <section class="nb-card nb-card--lg hd-set-block hd-set-danger">
-      <h2>This device</h2>
-      <p>Signing out ends this session on this device only. Your Swiftaw and Fortized accounts are separate and are untouched.</p>
-      <div class="hd-set-foot">
-        <button type="button" class="nb-btn nb-btn--red nb-btn--sm" id="out">Sign out of Hereld</button>
-      </div>
-    </section>
+<noscript>
+  <div class="hd-boot-bad">
+    <h1>Hereld needs JavaScript</h1>
+    <p>The feed, the composer and everything else here are drawn in the browser.
+      Turn JavaScript on for this site and reload.</p>
   </div>
-</template>
+</noscript>
 
 <script src="css/hereld-account.js?v=2"></script>
 <script src="css/hereld-ui.js?v=2"></script>
-<script>
-(function () {
-  'use strict';
-  var H = window.Hereld, U = window.HU;
-  function el(id) { return document.getElementById(id); }
-
-  H.ready(async function () {
-    if (!H.db()) {
-      el('body').innerHTML = '<div class="nb-alert nb-alert--error">Hereld could not be reached. Reload the page.</div>';
-      return;
-    }
-    if (!H.require()) return;
-
-    var db = H.db();
-    var me = H.me();
-    if (!me) {
-      el('body').innerHTML = '<div class="nb-alert nb-alert--error">There is no profile on this account yet.</div>';
-      return;
-    }
-
-    el('viewMe').setAttribute('href', me.handle);
-    el('body').innerHTML = '';
-    el('body').appendChild(el('tpl').content.cloneNode(true));
-
-    el('handleOut').innerHTML = H.tag(me.handle);
-    el('name').value = me.name || '';
-    el('headline').value = me.headline || '';
-    el('bio').value = me.bio || '';
-    el('location').value = me.location || '';
-    el('website').value = me.website || '';
-
-    function faces() {
-      el('faceHost').innerHTML = H.avatar(me, 'hd-av--lg' + (me.is_company ? ' hd-av--sq' : ''));
-      el('coverHost').innerHTML = me.banner_url
-        ? '<img src="' + H.esc(me.banner_url) + '" alt="Your banner">'
-        : '<span>No banner yet</span>';
-      el('dropCover').hidden = !me.banner_url;
-    }
-    faces();
-
-    function counter(id, out, max) {
-      var f = el(id), c = el(out);
-      var tick = function () { c.textContent = f.value.length + ' / ' + max; };
-      f.addEventListener('input', tick);
-      tick();
-    }
-    counter('headline', 'cHeadline', 120);
-    counter('bio', 'cBio', 400);
-
-    var picSay = el('picSay'), picBusy = el('picBusy');
-    function picFail(m) { picSay.textContent = m; picSay.hidden = false; picBusy.hidden = true; }
-
-    async function upload(file, kind) {
-      if (file.size > 24 * 1024 * 1024) { picFail('That picture is over 24 MB.'); return; }
-      picSay.hidden = true; picBusy.hidden = false;
-
-      var ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
-      var path = me.id + '/' + kind + '.' + ext;
-      var up = await db.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
-      if (up.error) { picFail(H.trouble(up.error, 'The picture did not upload.')); return; }
-
-      var link = db.storage.from('avatars').getPublicUrl(path).data.publicUrl + '?t=' + Date.now();
-      var patch = {};
-      patch[kind === 'avatar' ? 'avatar_url' : 'banner_url'] = link;
-      var w = await db.from('profiles').update(patch).eq('id', me.id);
-      picBusy.hidden = true;
-      if (w.error) { picFail(H.trouble(w.error, 'It uploaded but did not save.')); return; }
-
-      if (kind === 'avatar') me.avatar_url = link; else me.banner_url = link;
-      faces();
-      await H.refreshMe();
-      U.toast(kind === 'avatar' ? 'Picture changed.' : 'Banner changed.');
-    }
-
-    el('goFace').addEventListener('click', function () { el('pickFace').click(); });
-    el('goCover').addEventListener('click', function () { el('pickCover').click(); });
-    el('pickFace').addEventListener('change', function () { if (this.files[0]) upload(this.files[0], 'avatar'); });
-    el('pickCover').addEventListener('change', function () { if (this.files[0]) upload(this.files[0], 'banner'); });
-
-    el('dropCover').addEventListener('click', async function () {
-      var sure = await U.ask({ title: 'Remove your banner', line: 'Your profile goes back to the plain header.', yes: 'Remove it' });
-      if (!sure) return;
-      picBusy.hidden = false;
-      var w = await db.from('profiles').update({ banner_url: null }).eq('id', me.id);
-      picBusy.hidden = true;
-      if (w.error) { picFail(H.trouble(w.error, 'That did not save.')); return; }
-      me.banner_url = null;
-      faces();
-      await H.refreshMe();
-      U.toast('Banner removed.');
-    });
-
-    var say = el('say'), ok = el('ok'), busy = el('busy'), save = el('save');
-    function fail(m) { say.textContent = m; say.hidden = false; ok.hidden = true; busy.hidden = true; save.disabled = false; }
-
-    el('form').addEventListener('submit', async function (e) {
-      e.preventDefault();
-      var site = el('website').value.trim();
-      if (site && !/^https?:\/\//i.test(site)) site = 'https://' + site;
-      if (site && !/^https?:\/\/[^\s.]+\.[^\s]{2,}$/i.test(site)) return fail('That does not look like a web address.');
-
-      say.hidden = true; ok.hidden = true; busy.hidden = false; save.disabled = true;
-      var w = await db.from('profiles').update({
-        name: el('name').value.trim(),
-        headline: el('headline').value.trim(),
-        bio: el('bio').value.trim(),
-        location: el('location').value.trim(),
-        website: site
-      }).eq('id', me.id);
-      busy.hidden = true;
-      if (w.error) return fail(H.trouble(w.error, 'That did not save.'));
-
-      await H.refreshMe();
-      save.disabled = false;
-      ok.hidden = false;
-      el('website').value = site;
-      U.toast('Saved.');
-    });
-
-    var coSay = el('coSay'), coBusy = el('coBusy');
-
-    async function paintCompany() {
-      var v = await db.from('verifications').select('status,note,created_at')
-        .eq('subject', me.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      var row = (v && !v.error && v.data) || null;
-
-      var line;
-      if (me.verified) line = 'Verified. The badge is on your profile and beside your name on every post.';
-      else if (!row) line = 'Company mode is ' + (me.is_company ? 'on. No request has been filed.' : 'off.');
-      else if (row.status === 'pending') line = 'A request is with the staff. Filed ' + H.when(row.created_at) + ' ago.';
-      else if (row.status === 'more_info') line = 'The staff asked for more: ' + (row.note || 'no detail was given.');
-      else if (row.status === 'rejected') line = 'The last request was turned down' + (row.note ? ': ' + row.note : '.');
-      else line = 'Approved.';
-
-      el('coState').innerHTML = '<b>' + (me.is_company ? 'Company mode is on' : 'Company mode is off') + '</b>' +
-        '<span>' + H.esc(line) + '</span>';
-      el('coOn').hidden = me.is_company && row && row.status === 'pending';
-      el('coOn').textContent = me.is_company ? 'File a request again' : 'Turn company mode on';
-      el('coOff').hidden = !me.is_company;
-      el('claimField').hidden = me.verified;
-    }
-    paintCompany();
-
-    async function company(on) {
-      coSay.hidden = true; coBusy.hidden = false;
-      var r = await db.rpc('company_mode', { p_on: on, p_claim: el('claim').value.trim() });
-      coBusy.hidden = true;
-      if (r.error) { coSay.textContent = H.trouble(r.error, 'That did not go through.'); coSay.hidden = false; return; }
-      me.is_company = on;
-      await H.refreshMe();
-      faces();
-      paintCompany();
-      U.toast(on ? 'Company mode on. Your request is filed.' : 'Company mode off.');
-    }
-
-    el('coOn').addEventListener('click', function () {
-      if (!el('claim').value.trim()) { coSay.textContent = 'Say what the account is for first.'; coSay.hidden = false; return; }
-      company(true);
-    });
-    el('coOff').addEventListener('click', async function () {
-      var sure = await U.ask({
-        title: 'Turn company mode off',
-        line: 'Your profile goes back to a personal one. A verification you already hold is not removed by this.',
-        yes: 'Turn it off'
-      });
-      if (sure) company(false);
-    });
-
-    el('out').addEventListener('click', async function () {
-      var sure = await U.ask({ title: 'Sign out', line: 'Sign out of Hereld on this device?', yes: 'Sign out', bad: true });
-      if (sure) H.signOut().then(function () { location.href = 'index'; });
-    });
-  });
-})();
-</script>
+<script src="css/hereld-app.js?v=2" defer></script>
 </body>
 </html>

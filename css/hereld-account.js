@@ -5,6 +5,7 @@ var SUPA_URL = 'https://brgwymecsgjmuubfmast.supabase.co';
 var SUPA_KEY = 'sb_publishable__yhsh8Ck_OLfGTPG9DlEsg_Gh9S12L9';
 var SUPA_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
 var AUTH_KEY = 'hereld-auth';
+var ROSTER_KEY = 'hereld-accounts';
 var JOIN_PAGE = 'join';
 var db = null, user = null, me = null, isReady = false;
 var readyCbs = [], changeCbs = [];
@@ -26,7 +27,10 @@ hue: hue,
 avatar: avatar,
 at: at,
 tag: tag,
-trouble: trouble
+trouble: trouble,
+roster: roster,
+switchTo: switchTo,
+forget: forget
 };
 function esc(s) {
 return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -78,6 +82,57 @@ if (/rate limit|too many/i.test(m)) return 'Too many tries. Give it a minute.';
 if (/Failed to fetch|NetworkError/i.test(m)) return 'Could not reach Hereld. Check your connection.';
 return m || fallback || 'Something went wrong.';
 }
+function readRoster() {
+try {
+var raw = localStorage.getItem(ROSTER_KEY);
+var list = raw ? JSON.parse(raw) : [];
+return Array.isArray(list) ? list : [];
+} catch (e) { return []; }
+}
+function writeRoster(list) {
+try { localStorage.setItem(ROSTER_KEY, JSON.stringify(list.slice(0, 8))); } catch (e) {}
+}
+function roster() {
+var here = user && user.id;
+return readRoster().map(function (a) {
+return { id: a.id, handle: a.handle, name: a.name, avatar_url: a.avatar_url,
+is_company: !!a.is_company, current: a.id === here };
+});
+}
+async function remember(session) {
+if (!session || !session.user || !session.refresh_token) return;
+var p = me && me.id === session.user.id ? me : null;
+var list = readRoster().filter(function (a) { return a.id !== session.user.id; });
+var was = readRoster().filter(function (a) { return a.id === session.user.id; })[0] || {};
+list.unshift({
+id: session.user.id,
+handle: (p && p.handle) || was.handle || '',
+name: (p && p.name) || was.name || '',
+avatar_url: p ? p.avatar_url : was.avatar_url || null,
+is_company: p ? !!p.is_company : !!was.is_company,
+access_token: session.access_token,
+refresh_token: session.refresh_token
+});
+writeRoster(list);
+}
+function forget(id) {
+writeRoster(readRoster().filter(function (a) { return a.id !== id; }));
+}
+async function switchTo(id) {
+var a = readRoster().filter(function (x) { return x.id === id; })[0];
+if (!a) throw new Error('That account is not signed in on this device.');
+if (user && user.id === id) return me;
+var r = await db.auth.setSession({ access_token: a.access_token, refresh_token: a.refresh_token });
+if (r.error) {
+forget(id);
+throw new Error('That account needs signing in again.');
+}
+user = (r.data && r.data.user) || (r.data && r.data.session && r.data.session.user) || null;
+await refreshMe();
+await remember(r.data && r.data.session);
+fire();
+return me;
+}
 function loadScript(src) {
 return new Promise(function (res, rej) {
 var s = document.createElement('script');
@@ -99,6 +154,7 @@ var r = await db.auth.signInWithPassword({ email: email, password: password });
 if (r.error) throw r.error;
 user = r.data.user;
 await refreshMe();
+await remember(r.data.session);
 fire();
 return r.data;
 }
@@ -112,14 +168,22 @@ if (r.error) throw r.error;
 if (r.data.session) {
 user = r.data.user;
 await refreshMe();
+await remember(r.data.session);
 fire();
 }
 return r.data;
 }
 async function signOut() {
+var leaving = user && user.id;
 try { await db.auth.signOut(); } catch (e) {}
 user = null; me = null;
+if (leaving) forget(leaving);
+var next = readRoster()[0];
+if (next) {
+try { await switchTo(next.id); return me; } catch (e) {}
+}
 fire();
+return null;
 }
 function require_() {
 if (user) return true;
@@ -139,14 +203,16 @@ db = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
 auth: { storageKey: AUTH_KEY, persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 });
 var s = await db.auth.getSession();
-user = (s.data && s.data.session && s.data.session.user) || null;
-if (user) await refreshMe();
-db.auth.onAuthStateChange(function (_evt, session) {
+var session = (s.data && s.data.session) || null;
+user = (session && session.user) || null;
+if (user) { await refreshMe(); await remember(session); }
+db.auth.onAuthStateChange(function (evt, session) {
 var next = (session && session.user) || null;
 var same = (next && next.id) === (user && user.id);
 user = next;
 if (!next) { me = null; fire(); return; }
-if (!same) refreshMe().then(fire);
+if (!same) refreshMe().then(function () { remember(session); fire(); });
+else if (evt === 'TOKEN_REFRESHED') remember(session);
 });
 } catch (e) {
 db = null;
