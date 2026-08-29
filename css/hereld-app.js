@@ -1263,13 +1263,37 @@ return;
 var feed = el('feed');
 var r;
 if (tab === 'articles') {
-r = await db.from('articles').select('*').eq('author', p.id).eq('published', true)
-.order('created_at', { ascending: false }).limit(30);
+var q = db.from('articles').select('*').eq('author', p.id);
+if (!isMe) q = q.eq('published', true);
+r = await q.order('created_at', { ascending: false }).limit(30);
 if (token !== painting) return;
 var arts = r.data || [];
-feed.innerHTML = arts.length ? arts.map(function (a) { return articleCard(a, p); }).join('')
-: empty('No articles yet', p.is_company ? 'Articles this company publishes will appear here.' : 'Only company accounts publish articles.');
+feed.innerHTML =
+(isMe && p.is_company
+? '<div class="hd-art-new"><button class="nb-btn nb-btn--primary nb-btn--sm" type="button" id="artNew">' +
+ic('edit') + ' Write an article</button></div>'
+: '') +
+(arts.length ? arts.map(function (a) { return articleCard(a, p, isMe); }).join('')
+: empty('No articles yet', p.is_company
+? 'Articles this company publishes will appear here.'
+: 'Only company accounts publish articles.'));
 twem(feed);
+if (isMe && p.is_company) {
+el('artNew').addEventListener('click', function () { articleComposer(); });
+feed.addEventListener('click', async function (e) {
+var b = e.target.closest && e.target.closest('[data-art-drop]');
+if (!b) return;
+var sure = await U.ask({
+title: 'Delete this article',
+line: 'It comes off your profile for good.',
+yes: 'Delete it', bad: true
+});
+if (!sure) return;
+var d = await db.from('articles').delete().eq('id', b.getAttribute('data-art-drop'));
+if (d.error) return U.toast(H.trouble(d.error, 'That did not delete.'), 'bad');
+render();
+});
+}
 return;
 }
 if (tab === 'replies') {
@@ -1348,7 +1372,7 @@ f = '<button class="nb-btn nb-btn--red nb-btn--sm" type="button" data-unblock="'
 return f + '<button class="nb-icon-btn nb-icon-btn--round" type="button" data-pmore="' + esc(p.handle) + '" ' +
 'aria-haspopup="menu" aria-expanded="false" aria-label="More">' + ic('more') + '</button>';
 }
-function articleCard(a, who) {
+function articleCard(a, who, mineToo) {
 return '<article class="nb-card hd-art">' +
 (a.cover_url ? '<img class="hd-art-cover" src="' + esc(a.cover_url) + '" alt="">' : '') +
 '<div class="hd-art-in">' +
@@ -1357,8 +1381,81 @@ return '<article class="nb-card hd-art">' +
 ? '<a href="' + esc(a.url) + '" target="_blank" rel="noopener nofollow">' + esc(a.title) + '</a>'
 : '<a href="' + url('article/' + a.id) + '" data-r>' + esc(a.title) + '</a>') + '</h3>' +
 (a.summary ? '<p>' + esc(a.summary) + '</p>' : '') +
-'<span class="hd-art-by">' + esc(who.name || who.handle) + ' · ' + esc(H.when(a.created_at)) + '</span>' +
+'<span class="hd-art-by">' + esc(who.name || who.handle) + ' · ' + esc(H.when(a.created_at)) +
+(a.published ? '' : ' · Draft') + '</span>' +
+(mineToo
+? '<div class="hd-art-do"><button class="nb-btn nb-btn--red nb-btn--sm" type="button" ' +
+'data-art-drop="' + a.id + '">Delete</button></div>'
+: '') +
 '</div></article>';
+}
+function articleComposer() {
+U.sheet({
+title: 'Write an article',
+wide: true,
+html:
+'<form class="hd-artform" id="artForm">' +
+'<div class="nb-field"><label class="nb-label" for="arKind">Kind</label>' +
+'<select class="nb-select" id="arKind">' +
+'<option value="native">Written here</option>' +
+'<option value="link">A link to where it lives</option>' +
+'</select></div>' +
+'<div class="nb-field"><label class="nb-label" for="arTitle">Title</label>' +
+'<input class="nb-input" id="arTitle" maxlength="140" data-focus></div>' +
+'<div class="nb-field"><label class="nb-label" for="arSum">Summary ' +
+'<span class="nb-hint">shown on your profile</span></label>' +
+'<textarea class="nb-textarea" id="arSum" rows="2" maxlength="300"></textarea></div>' +
+'<div class="nb-field" id="arBodyF"><label class="nb-label" for="arBody">The article</label>' +
+'<textarea class="nb-textarea" id="arBody" rows="12" maxlength="40000"></textarea></div>' +
+'<div class="nb-field" id="arUrlF" hidden><label class="nb-label" for="arUrl">Address</label>' +
+'<input class="nb-input" id="arUrl" type="url" placeholder="https://"></div>' +
+'<div class="nb-field"><label class="nb-label" for="arCover">Cover picture ' +
+'<span class="nb-hint">optional</span></label>' +
+'<input class="nb-input" id="arCover" type="url" placeholder="https://"></div>' +
+'<label class="nb-check"><input type="checkbox" id="arPub" checked>' +
+'<span class="nb-box"></span><span>Publish it now</span></label>' +
+'<p class="nb-alert nb-alert--error hd-say" id="arSay" hidden></p>' +
+'<div class="hd-set-foot">' +
+'<button class="nb-btn nb-btn--primary nb-btn--sm" type="submit">Save the article</button>' +
+'</div>' +
+'</form>',
+wire: function (api) {
+var kind = api.q('#arKind');
+var say = api.q('#arSay');
+kind.addEventListener('change', function () {
+var linked = kind.value === 'link';
+api.q('#arBodyF').hidden = linked;
+api.q('#arUrlF').hidden = !linked;
+});
+api.q('#artForm').addEventListener('submit', async function (e) {
+e.preventDefault();
+var btn = api.q('button[type="submit"]');
+var linked = kind.value === 'link';
+var row = {
+author: my.id, kind: kind.value,
+title: api.q('#arTitle').value.trim(),
+summary: api.q('#arSum').value.trim(),
+body: linked ? '' : api.q('#arBody').value.trim(),
+url: linked ? api.q('#arUrl').value.trim() : '',
+cover_url: api.q('#arCover').value.trim() || null,
+published: api.q('#arPub').checked
+};
+if (row.title.length < 3) { say.textContent = 'Give it a title first.'; say.hidden = false; return; }
+if (linked ? !row.url : !row.body) {
+say.textContent = linked ? 'Say where it lives.' : 'There is nothing written yet.';
+say.hidden = false; return;
+}
+btn.disabled = true;
+var r = await db.from('articles').insert(row);
+btn.disabled = false;
+if (r.error) { say.textContent = H.trouble(r.error, 'That did not save.'); say.hidden = false; return; }
+say.hidden = true;
+api.close();
+U.toast(row.published ? 'Article published.' : 'Saved as a draft.');
+render();
+});
+}
+});
 }
 async function viewArticle(id) {
 col.innerHTML = head('Article', '', { back: true }) + '<div class="nb-card nb-card--lg">' + skeletons(1) + '</div>';

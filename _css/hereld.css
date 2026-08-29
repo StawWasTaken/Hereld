@@ -1376,3 +1376,7 @@ label.nb-btn { display: inline-flex; align-items: center; justify-content: cente
   text-transform: uppercase; color: var(--nb-surface-fg-muted);
 }
 .hd-compose-as select { flex: 1; min-width: 0; }
+
+.hd-art-new { margin-bottom: 14px; }
+.hd-art-do { margin-top: 12px; }
+.hd-artform { display: flex; flex-direction: column; gap: 15px; }

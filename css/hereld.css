@@ -1116,3 +1116,6 @@ font-size: 12px; font-weight: 700; letter-spacing: .06em;
 text-transform: uppercase; color: var(--nb-surface-fg-muted);
 }
 .hd-compose-as select { flex: 1; min-width: 0; }
+.hd-art-new { margin-bottom: 14px; }
+.hd-art-do { margin-top: 12px; }
+.hd-artform { display: flex; flex-direction: column; gap: 15px; }
