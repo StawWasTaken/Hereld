@@ -1,10 +1,12 @@
 /* Supernova, for Hereld.
  *
- * Four jobs, one door:
+ * Five jobs, one door:
  *   ask       the Ask Supernova chat, asked by a signed-in person
  *   mentions  answer the posts that called @supernova into a thread
  *   notes     wrap up the context people have added to a post
- *   seed      let a seed account take its turn
+ *   seed      let a seed account take its turn (posts, replies, likes,
+ *             reposts, profile edits)
+ *   bot_new   create a new seed account
  *
  * The provider key lives in one database row that no browser can read. This
  * function reaches it with the service role, which is held here and is never
@@ -147,6 +149,8 @@ function said(p: any) {
 
 const WITH_WHO = '*, author:profiles!posts_author_fkey(id,handle,name,headline,verified,is_company)';
 
+/* Enhanced gather: uses post_context and profile_lookup RPCs for richer
+   context. Falls back to the old approach if the RPCs are not available. */
 async function gather(uid: string, question: string, postId?: string) {
   const bits: string[] = [];
 
@@ -163,12 +167,57 @@ async function gather(uid: string, question: string, postId?: string) {
   }
 
   if (postId) {
-    const { data: p } = await admin.from('posts').select(WITH_WHO).eq('id', postId).maybeSingle();
-    if (p) {
-      bits.push('The post in question:\n' + said(p));
-      const { data: kids } = await admin.from('posts').select(WITH_WHO)
-        .eq('reply_to', postId).order('created_at', { ascending: true }).limit(4);
-      if (kids?.length) bits.push('Replies to it:\n' + kids.map(said).join('\n'));
+    /* Try the rich context RPC first. */
+    const { data: ctx } = await admin.rpc('post_context', { p_post: postId });
+    if (ctx) {
+      const p = ctx.post;
+      const a = ctx.author;
+      bits.push('The post in question:\n- @' + a.handle + ' (' + (a.name || a.handle) + ')' +
+        (a.headline ? ', ' + a.headline : '') +
+        ', followers ' + (a.follower_count || 0) + ', ' + (a.post_count || 0) + ' posts.' +
+        '\nPost: ' + String(p.body || '').replace(/\s+/g, ' ').slice(0, 400) +
+        '\nEngagement: ' + (p.endorse_count || 0) + ' likes, ' +
+        (p.reply_count || 0) + ' replies, ' + (p.relay_count || 0) + ' reposts.');
+
+      if (ctx.parent) {
+        bits.push('It is a reply to:\n- @' + ctx.parent.author_handle +
+          ': ' + String(ctx.parent.body || '').replace(/\s+/g, ' ').slice(0, 280));
+      }
+
+      if (ctx.thread?.length) {
+        bits.push('Replies to it:\n' + ctx.thread.map((r: any) =>
+          '- @' + r.author_handle + ': ' + String(r.body || '').replace(/\s+/g, ' ').slice(0, 200)
+        ).join('\n'));
+      }
+    } else {
+      /* Fallback to old approach. */
+      const { data: p } = await admin.from('posts').select(WITH_WHO).eq('id', postId).maybeSingle();
+      if (p) {
+        bits.push('The post in question:\n' + said(p));
+        const { data: kids } = await admin.from('posts').select(WITH_WHO)
+          .eq('reply_to', postId).order('created_at', { ascending: true }).limit(4);
+        if (kids?.length) bits.push('Replies to it:\n' + kids.map(said).join('\n'));
+      }
+    }
+  }
+
+  /* If the question mentions a @handle, look up that profile. */
+  const handleMatch = question.match(/@([a-z0-9_]{3,20})/i);
+  if (handleMatch) {
+    const { data: prof } = await admin.rpc('profile_lookup', { p_handle: handleMatch[1] });
+    if (prof) {
+      bits.push('Profile of @' + prof.handle + ': ' + (prof.name || prof.handle) +
+        (prof.headline ? ', ' + prof.headline : '') +
+        (prof.bio ? '. Bio: ' + String(prof.bio).slice(0, 200) : '') +
+        '. Followers ' + (prof.follower_count || 0) + ', ' + (prof.post_count || 0) + ' posts.' +
+        (prof.location ? ', based in ' + prof.location : '') +
+        '. On Hereld since ' + String(prof.created_at).slice(0, 10) + '.');
+      if (prof.recent_posts?.length) {
+        bits.push('Recent posts by @' + prof.handle + ':\n' + prof.recent_posts.map((rp: any) =>
+          '- ' + String(rp.body || '').replace(/\s+/g, ' ').slice(0, 200) +
+          ' (' + (rp.endorse_count || 0) + ' likes, ' + (rp.reply_count || 0) + ' replies)'
+        ).join('\n'));
+      }
     }
   }
 
@@ -216,11 +265,10 @@ async function ask(req: Request, c: Config, uid: string) {
     'post, follow, block, delete or moderate on anyone\'s behalf, and you must ' +
     'say so rather than pretend. Do not invent Hereld features, numbers or ' +
     'policies; if you are not sure a feature exists, say you are not sure. ' +
+    'You have access to Hereld\'s data - profiles, posts, engagement numbers. ' +
+    'Use it to answer questions about the platform and its users accurately. ' +
     (c.system_note || '');
 
-  /* What it has been handed from Hereld itself. It is told the limits of
-     that in the same breath, so it does not answer as though it had read
-     the whole platform. */
   const seen = await gather(uid, talk[talk.length - 1]?.text || '', typeof post === 'string' ? post : undefined);
   const system2 = seen
     ? system + '\n\nHere is what was found on Hereld for this question. It is ' +
@@ -243,7 +291,10 @@ async function ask(req: Request, c: Config, uid: string) {
    Somebody writes @supernova in a post and an answer arrives under it. The
    answer is written by the supernova account itself, so it carries that name
    and can be seen, reported and replied to like anything else. A post is
-   answered once: the check is whether that account has already replied. */
+   answered once: the check is whether that account has already replied.
+
+   Enhanced: reads the full post context including thread, author info, and
+   engagement numbers. */
 
 async function mentions(c: Config) {
   const { data: nova } = await admin.from('profiles').select('id,handle')
@@ -262,29 +313,58 @@ async function mentions(c: Config) {
       .eq('reply_to', p.id).eq('author', nova.id);
     if (count) continue;
 
-    /* The thread it was called into, so a bare "is that true?" has something
-       to be true about. */
-    let thread = '';
-    if (p.reply_to) {
-      const { data: parent } = await admin.from('posts').select(WITH_WHO).eq('id', p.reply_to).maybeSingle();
-      if (parent) thread = '\n\nIt is a reply to:\n' + said(parent);
+    /* Build rich context for the reply. */
+    let context = '';
+
+    /* Try the rich context RPC. */
+    const { data: ctx } = await admin.rpc('post_context', { p_post: p.id });
+    if (ctx) {
+      const a = ctx.author;
+      context = 'Post by @' + a.handle + ' (' + (a.name || a.handle) + ')' +
+        (a.headline ? ', ' + a.headline : '') +
+        ', followers ' + (a.follower_count || 0) + '.\n' +
+        'Post (' + (ctx.post.endorse_count || 0) + ' likes, ' +
+        (ctx.post.reply_count || 0) + ' replies, ' +
+        (ctx.post.relay_count || 0) + ' reposts):\n' +
+        String(ctx.post.body || '').replace(/\s+/g, ' ').slice(0, 600);
+
+      if (ctx.parent) {
+        context += '\n\nIt is a reply to:\n- @' + ctx.parent.author_handle +
+          ': ' + String(ctx.parent.body || '').replace(/\s+/g, ' ').slice(0, 280);
+      }
+
+      if (ctx.thread?.length) {
+        context += '\n\nOther replies in this thread:\n' + ctx.thread.map((r: any) =>
+          '- @' + r.author_handle + ': ' + String(r.body || '').replace(/\s+/g, ' ').slice(0, 160)
+        ).join('\n');
+      }
+    } else {
+      /* Fallback. */
+      let thread = '';
+      if (p.reply_to) {
+        const { data: parent } = await admin.from('posts').select(WITH_WHO).eq('id', p.reply_to).maybeSingle();
+        if (parent) thread = '\n\nIt is a reply to:\n' + said(parent);
+      }
+      context = said(p) + thread;
     }
 
     const asked = String(p.body || '').replace(/@supernova/gi, '').trim();
     const system =
       'You are Supernova, the assistant built into Hereld. ' + HOUSE + ' ' +
       'Somebody has called you into a public thread by writing @supernova. ' +
-      'Answer them in under 60 words, in one paragraph, as a reply that will ' +
-      'be posted publicly under their post. Do not greet them, do not sign ' +
-      'off, and do not repeat their question back. If they have not actually ' +
+      'Answer them in under 80 words, in one paragraph, as a reply that will ' +
+      'be posted publicly under their post. You can see the full context: the ' +
+      'post, the author\'s profile, the thread, and engagement numbers. Use ' +
+      'this to give a thoughtful, contextual reply. Do not greet them, do not ' +
+      'sign off, and do not repeat their question back. If they have not actually ' +
       'asked anything, say in one line that you are not sure what they want. ' +
       'Never invent posts, accounts, numbers or Hereld features. ' +
       (c.system_note || '');
 
     try {
       const out = await think(c, system,
-        [{ role: 'them', text: '@' + (p.author?.handle || 'someone') + ' posted:\n' +
-          (asked || String(p.body || '')) + thread }], 220);
+        [{ role: 'them', text: 'Context:\n' + context + '\n\nTheir message:\n' +
+          (asked || String(p.body || '')) }], 280);
       const text = (out.text || '').trim().slice(0, 500);
       if (!text) continue;
 
@@ -300,43 +380,60 @@ async function mentions(c: Config) {
   return reply({ answered: done.length });
 }
 
-/* ── The wrap-up under a post ──────────────────────────────────────────── */
+/* ── The wrap-up under a post ────────────────────────────────────────────
+   Enhanced: reads every contribution, cross-references the original post
+   and thread, and writes a thorough summary. */
 
 async function notes(c: Config) {
   const { data: due } = await admin.rpc('notes_awaiting', { p_limit: 5 });
   const done: string[] = [];
 
   for (const row of due || []) {
-    const { data: post } = await admin.from('posts').select('body').eq('id', row.post_id).maybeSingle();
+    const { data: post } = await admin.from('posts').select('body,endorse_count,reply_count,relay_count')
+      .eq('id', row.post_id).maybeSingle();
     const { data: bits } = await admin
       .from('community_notes')
-      .select('body,source')
+      .select('body,source,author')
       .eq('post_id', row.post_id)
       .neq('status', 'rejected')
       .order('created_at')
       .limit(30);
     if (!bits || bits.length < 3) continue;
 
+    /* Fetch author info for each contribution. */
+    const authorIds = [...new Set(bits.map((b: any) => b.author).filter(Boolean))];
+    let authorMap: Record<string, any> = {};
+    if (authorIds.length) {
+      const { data: authors } = await admin.from('profiles')
+        .select('id,handle,name')
+        .in('id', authorIds);
+      (authors || []).forEach((a: any) => { authorMap[a.id] = a; });
+    }
+
     const system =
       'People reading a post on Hereld have added context to it. Write one ' +
-      'short summary of what they added, for readers of that post. ' + HOUSE + ' ' +
+      'thorough summary of what they added, for readers of that post. ' + HOUSE + ' ' +
       'Rules you must follow: begin with exactly "' + NOTE_OPENER + '" and ' +
       'carry straight on from there in the same sentence. Say only what the ' +
       'contributions say; add nothing of your own and no opinion about whether ' +
-      'the post is good or bad. Where they disagree, say they disagree. Under ' +
-      'eighty words. No dashes. ' + (c.system_note || '');
+      'the post is good or bad. Where they disagree, say they disagree. ' +
+      'Attribute points to their sources when given. Under 120 words. No dashes. ' +
+      (c.system_note || '');
 
     const asked =
       'The post said:\n' + (post?.body || '').slice(0, 900) +
-      '\n\nWhat people added:\n' +
-      bits.map((b: any, i: number) =>
-        (i + 1) + '. ' + b.body + (b.source ? ' [source: ' + b.source + ']' : '')).join('\n');
+      (post ? '\nEngagement: ' + (post.endorse_count || 0) + ' likes, ' +
+        (post.reply_count || 0) + ' replies, ' + (post.relay_count || 0) + ' reposts.' : '') +
+      '\n\nWhat people added (' + bits.length + ' contributions):\n' +
+      bits.map((b: any, i: number) => {
+        const author = authorMap[b.author];
+        const who = author ? ('@' + author.handle + ' (' + (author.name || author.handle) + ')') : 'Anonymous';
+        return (i + 1) + '. [' + who + '] ' + b.body + (b.source ? ' [source: ' + b.source + ']' : '');
+      }).join('\n');
 
     try {
-      const out = await think(c, system, [{ role: 'them', text: asked }], 320);
+      const out = await think(c, system, [{ role: 'them', text: asked }], 400);
       let text = out.text.replace(/[—–]/g, '-').trim();
-      /* The opener is the promise the feature makes. If the model wandered,
-         the summary is not published rather than published wrong. */
       if (!text.toLowerCase().startsWith(NOTE_OPENER.toLowerCase())) {
         await log(null, 'note_summary', c.model, out, false, 'opener missing');
         continue;
@@ -356,11 +453,74 @@ async function notes(c: Config) {
   return reply({ wrapped: done.length });
 }
 
-/* ── Seed accounts ─────────────────────────────────────────────────────── */
+/* ── Seed accounts ───────────────────────────────────────────────────────
+   Enhanced: handles posts, replies, likes, reposts, and profile edits.
+   Also auto-creates new accounts when the active count exceeds existing. */
 
 async function seed(c: Config) {
-  /* Decide what is owed before working out what is due, or the first run
-     after an account is switched on finds an empty queue and does nothing. */
+  /* Auto-create bots if needed. */
+  const { data: needCreate } = await admin.rpc('bot_auto_create', { p_count: 2 });
+  if (needCreate && needCreate > 0) {
+    for (let i = 0; i < needCreate; i++) {
+      const { data: persona } = await admin.rpc('bot_suggest_persona');
+      if (!persona) continue;
+
+      const regions = [
+        { tz: -5, handle_suffix: 'nyc' },
+        { tz: -6, handle_suffix: 'chi' },
+        { tz: -8, handle_suffix: 'la' },
+        { tz: 0, handle_suffix: 'ldn' },
+        { tz: 1, handle_suffix: 'par' },
+        { tz: 1, handle_suffix: 'ber' },
+        { tz: 3, handle_suffix: 'mow' },
+        { tz: 2, handle_suffix: 'cai' },
+        { tz: 9, handle_suffix: 'tyo' },
+        { tz: 8, handle_suffix: 'sha' },
+        { tz: 10, handle_suffix: 'syd' }
+      ];
+      const weights = [0.20, 0.10, 0.12, 0.15, 0.10, 0.08, 0.05, 0.05, 0.08, 0.05, 0.02];
+      let pick = Math.random();
+      let cumulative = 0;
+      let region = regions[0];
+      for (let j = 0; j < weights.length; j++) {
+        cumulative += weights[j];
+        if (pick < cumulative) { region = regions[j]; break; }
+      }
+
+      const name = (persona as any).name || 'User';
+      const handle = name.toLowerCase() + '_' + region.handle_suffix + '_' + Math.random().toString(36).slice(2, 6);
+
+      /* Create the auth user. */
+      const made = await admin.auth.admin.createUser({
+        email: 'seed+' + handle + '@hereld.invalid',
+        password: crypto.randomUUID() + crypto.randomUUID(),
+        email_confirm: true,
+        user_metadata: { handle, name }
+      });
+      if (made.error || !made.data?.user) continue;
+
+      const id = made.data.user.id;
+
+      await admin.from('profiles').update({ is_bot: true }).eq('id', id);
+      const { error: botErr } = await admin.from('bots').insert({
+        id,
+        persona: String((persona as any).persona || '').slice(0, 400),
+        interests: String((persona as any).interests || '').slice(0, 300),
+        cooldown_min: 60 + Math.floor(Math.random() * 120),
+        timezone_offset: region.tz,
+        active: false
+      });
+
+      if (botErr) {
+        await admin.auth.admin.deleteUser(id);
+        continue;
+      }
+
+      await admin.from('bot_log').insert({ bot: id, kind: 'created', detail: '@' + handle + ' (auto)' });
+    }
+  }
+
+  /* Decide what is owed before working out what is due. */
   await admin.rpc('bot_fill', { p_limit: 5 });
 
   const { data: due } = await admin.rpc('bot_due', { p_limit: 3 });
@@ -375,10 +535,92 @@ async function seed(c: Config) {
       parent = data;
       if (!parent) { await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id); continue; }
       asked = 'Somebody posted:\n' + String(parent.body).slice(0, 600) + '\n\nWrite your reply.';
-    } else {
-      const { data: line } = await admin.rpc('horn_line', { p_limit: 6 });
+    } else if (b.kind === 'post') {
+      const { data: line } = await admin.rpc('the_cry', { p_limit: 6 });
+      const topics = (line as any)?.topics || [];
       asked = 'Write one post. Things being talked about right now: ' +
-        (line || []).map((t: any) => '#' + t.tag).join(', ') + '.';
+        topics.map((t: any) => '#' + t.tag).join(', ') + '.';
+    } else if (b.kind === 'like' && b.about) {
+      /* Like: just endorse the post. */
+      const { error: likeErr } = await admin.from('endorsements').insert({
+        post_id: b.about, user_id: b.bot
+      });
+      if (!likeErr) {
+        await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
+        await admin.from('bot_log').insert({ bot: b.bot, kind: 'like', detail: 'liked ' + b.about });
+        made++;
+      } else {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+      }
+      continue;
+    } else if (b.kind === 'repost' && b.about) {
+      /* Repost: create a relay post. */
+      const { error: relayErr } = await admin.from('posts').insert({
+        author: b.bot, body: '', relay_of: b.about
+      });
+      if (!relayErr) {
+        await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
+        await admin.from('bot_log').insert({ bot: b.bot, kind: 'repost', detail: 'reposted ' + b.about });
+        made++;
+      } else {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+      }
+      continue;
+    } else if (b.kind === 'profile_edit') {
+      /* Profile edit: fill in missing fields using AI. */
+      const { data: profile } = await admin.from('profiles')
+        .select('handle,name,headline,bio,location,avatar_url')
+        .eq('id', b.bot).maybeSingle();
+      if (!profile) {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+        continue;
+      }
+
+      const missing: string[] = [];
+      if (!profile.headline) missing.push('headline');
+      if (!profile.bio) missing.push('bio');
+      if (!profile.location) missing.push('location');
+      if (!profile.avatar_url) missing.push('avatar_url');
+
+      const system =
+        'You are filling in a profile on Hereld, a professional network. ' + HOUSE + ' ' +
+        'The account represents: ' + (b.persona || 'an ordinary person') + '. ' +
+        'Write a JSON object with these keys (only the missing ones): ' +
+        'headline (max 120 chars), bio (max 400 chars), location (a real city name). ' +
+        'Do not use markdown. Do not add emoji. Keep it brief and natural.';
+
+      try {
+        const out = await think(c, system,
+          [{ role: 'them', text: 'Missing fields: ' + missing.join(', ') + '. Account handle: @' + profile.handle }], 300);
+
+        /* Parse the JSON from the response. */
+        const jsonMatch = out.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          const update: any = {};
+          if (parsed.headline && !profile.headline) update.headline = String(parsed.headline).slice(0, 120);
+          if (parsed.bio && !profile.bio) update.bio = String(parsed.bio).slice(0, 400);
+          if (parsed.location && !profile.location) update.location = String(parsed.location).slice(0, 100);
+
+          if (Object.keys(update).length) {
+            await admin.from('profiles').update(update).eq('id', b.bot);
+          }
+        }
+
+        await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
+        await admin.from('bot_log').insert({ bot: b.bot, kind: 'profile_edit', detail: 'filled: ' + missing.join(', ') });
+        made++;
+      } catch (e) {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+        await admin.from('bot_log').insert({ bot: b.bot, kind: 'profile_edit', detail: String(e).slice(0, 200), ok: false });
+      }
+      continue;
+    } else {
+      /* Fallback to post. */
+      const { data: line } = await admin.rpc('the_cry', { p_limit: 6 });
+      const topics = (line as any)?.topics || [];
+      asked = 'Write one post. Things being talked about right now: ' +
+        topics.map((t: any) => '#' + t.tag).join(', ') + '.';
     }
 
     const system =
@@ -387,11 +629,14 @@ async function seed(c: Config) {
       'Who you are: ' + (b.persona || 'an ordinary person with a job and opinions') + '. ' +
       'What you care about: ' + (b.interests || 'whatever is going on') + '. ' +
       'Write under 240 characters. One thought, said the way a person says it. ' +
-      'Do not announce yourself, do not greet anybody, do not sign it, do not ' +
-      'use hashtags unless one fits naturally. Never claim to be a real named ' +
-      'person, never claim to represent a real company, never state a fact ' +
-      'about a real named individual, and never give medical, legal or ' +
-      'financial advice. ' + (c.system_note || '');
+      'Sometimes be serious, sometimes silly, sometimes opinionated, sometimes ' +
+      'observational. Mix it up - real people do not post the same kind of thing ' +
+      'every time. You can agree or disagree with things. You can mention other ' +
+      'users with @handles. You can use #hashtags when they fit naturally. ' +
+      'Do not announce yourself, do not greet anybody, do not sign it. ' +
+      'Never claim to be a real named person, never claim to represent a real ' +
+      'company, never state a fact about a real named individual, and never ' +
+      'give medical, legal or financial advice. ' + (c.system_note || '');
 
     try {
       const out = await think(c, system, [{ role: 'them', text: asked }], 240);
@@ -464,6 +709,7 @@ async function newBot(req: Request, uid: string) {
     persona: String(b.persona || '').slice(0, 400),
     interests: String(b.interests || '').slice(0, 300),
     cooldown_min: Math.max(15, parseInt(b.cooldown, 10) || 90),
+    timezone_offset: parseInt(b.tz, 10) || 0,
     active: false
   });
 

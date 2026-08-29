@@ -70,7 +70,8 @@
      Artwork on a transparent ground, 256 by 336, so it is never boxed,
      never stroked and never squared off into whatever slot it lands in.
      Beside other controls it goes in as a mask and takes their colour;
-     where it stands for the product itself it keeps its own. */
+     where it stands for the product itself it keeps its own.
+     The gradient overlay uses the Swiftaw brand colours. */
 
   var MARK_W = 256, MARK_H = 336;
   function novaMark(cls) {
@@ -79,6 +80,11 @@
   function novaArt(cls, h) {
     return '<img class="hd-nva' + (cls ? ' ' + cls : '') + '" src="' + url('Supernova%20mark.png') +
       '" alt="" height="' + h + '" width="' + Math.round(h * MARK_W / MARK_H) + '">';
+  }
+  /* The gradient avatar used in the Supernova card and ask page. */
+  function novaAv(cls, h) {
+    return '<span class="hd-nova-av-wrap' + (cls ? ' ' + cls : '') + '" style="width:' + h + 'px;height:' + h + 'px">' +
+      novaArt('hd-nva--grad', h) + '</span>';
   }
   function go(path, replace) {
     var to = url(path);
@@ -631,7 +637,11 @@
         tray.hidden = false;
         tray.innerHTML = '<figure class="hd-compose-pic"><img src="' + read.result + '" alt="">' +
           '<button class="nb-icon-btn nb-icon-btn--round" type="button" data-drop aria-label="Remove picture">' + ic('x') + '</button>' +
-          '<span class="hd-compose-bar" data-bar hidden><i></i></span></figure>';
+          '<span class="hd-compose-bar" data-bar hidden><i></i></span></figure>' +
+          '<div class="hd-compose-media-meta">' +
+            '<input class="nb-input hd-compose-alt" type="text" placeholder="Alt text (description of the image)" maxlength="500" data-alt>' +
+            '<label class="hd-compose-spoiler"><input type="checkbox" data-spoiler> <span>Spoiler / sensitive</span></label>' +
+          '</div>';
         tray.querySelector('[data-drop]').addEventListener('click', function () {
           media = null; tray.hidden = true; tray.innerHTML = ''; tick();
         });
@@ -681,6 +691,23 @@
           r = await db.from('posts').insert(row).select(WITH_AUTHOR).single();
         }
         if (r.error) throw r.error;
+
+        /* Save alt text and spoiler metadata if an image was attached. */
+        if (media && r.data) {
+          var altInput = tray.querySelector('[data-alt]');
+          var spoilerInput = tray.querySelector('[data-spoiler]');
+          var mediaUrl = text.match(/(https?:\/\/[^\s]+)$/);
+          if (mediaUrl) {
+            await db.rpc('set_post_media', {
+              p_post: r.data.id,
+              p_media: JSON.stringify([{
+                url: mediaUrl[1],
+                alt_text: altInput ? altInput.value.trim() : '',
+                spoiler: spoilerInput ? spoilerInput.checked : false
+              }])
+            });
+          }
+        }
 
         ta.value = ''; media = null; tray.hidden = true; tray.innerHTML = '';
         tick();
@@ -1360,52 +1387,124 @@
     mention: 'mentioned you',
     verify: 'ruled on your verification request',
     staff: 'sent you a message from the Hereld team',
-    note: 'published a community note'
+    note: 'published a community note',
+    quote: 'quoted your post',
+    affiliate: 'sent you an invitation'
   };
+
+  var NOTE_ICONS = {
+    endorse: 'heart', relay: 'relay', reply: 'comment', follow: 'follow',
+    mention: 'quill', verify: 'tick', staff: 'shield', note: 'file',
+    quote: 'quote', affiliate: 'users'
+  };
+
+  var NOTE_FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'endorse', label: 'Likes' },
+    { key: 'reply', label: 'Replies' },
+    { key: 'relay', label: 'Reposts' },
+    { key: 'follow', label: 'Follows' },
+    { key: 'mention', label: 'Mentions' }
+  ];
+
+  var noteFilter = 'all';
 
   async function viewNotifications() {
     if (!my) return needAccount();
     col.innerHTML = head('Notifications', '', {
       tools: '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" id="readAll">' + ic('check') + ' Mark all read</button>'
-    }) + '<div class="hd-list" id="notes">' + skeletons(4) + '</div>';
+    }) +
+      '<div class="hd-note-filters" id="noteFilters">' +
+        NOTE_FILTERS.map(function (f) {
+          return '<button class="hd-note-filter' + (f.key === noteFilter ? ' is-on' : '') +
+            '" type="button" data-nf="' + f.key + '">' + esc(f.label) + '</button>';
+        }).join('') +
+      '</div>' +
+      '<div class="hd-list" id="notes">' + skeletons(4) + '</div>';
 
     var token = painting;
-    var r = await db.from('notifications')
-      .select('*, actor:profiles!notifications_actor_fkey(id,handle,name,avatar_url,verified,is_company,is_platform,is_bot)')
-      .eq('user_id', my.id).order('created_at', { ascending: false }).limit(60);
+    var r = await db.rpc('notifications_grouped', { p_limit: 60 });
     if (token !== painting) return;
 
     var host = el('notes');
-    if (r.error) { host.innerHTML = broke(H.trouble(r.error, '')); return; }
-    var rows = r.data || [];
-
-    var quotes = {};
-    var ids = rows.filter(function (n) { return n.post_id; }).map(function (n) { return n.post_id; });
-    if (ids.length) {
-      var q = await db.from('posts').select('id,body').in('id', ids);
-      (q.data || []).forEach(function (p) { quotes[p.id] = p.body; });
+    if (r.error) {
+      /* Fallback to old query if grouped RPC is not deployed yet. */
+      r = await db.from('notifications')
+        .select('*, actor:profiles!notifications_actor_fkey(id,handle,name,avatar_url,verified,is_company,is_platform,is_bot)')
+        .eq('user_id', my.id).order('created_at', { ascending: false }).limit(60);
+      if (token !== painting) return;
+      if (r.error) { host.innerHTML = broke(H.trouble(r.error, '')); return; }
+      renderFlatNotifications(host, r.data || []);
+      twem(host);
+      if (unread) { await db.rpc('notes_read_all'); unread = 0; paintRail(); }
+      return;
     }
-    if (token !== painting) return;
 
+    var data = r.data || {};
+    var rows = data.notifications || [];
+
+    /* Filter. */
+    if (noteFilter !== 'all') {
+      rows = rows.filter(function (n) {
+        return n.kinds && n.kinds.indexOf(noteFilter) !== -1;
+      });
+    }
+
+    renderGroupedNotifications(host, rows);
+    twem(host);
+
+    /* Wire filter buttons. */
+    el('noteFilters').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-nf]');
+      if (!btn) return;
+      noteFilter = btn.dataset.nf;
+      viewNotifications();
+    });
+
+    if (unread) {
+      await db.rpc('notes_read_all');
+      unread = 0;
+      paintRail();
+    }
+  }
+
+  function renderGroupedNotifications(host, rows) {
+    host.innerHTML = rows.length ? rows.map(function (n) {
+      var name = n.actor_name || n.actor_handle || 'Someone';
+      var kinds = n.kinds || [n.kind];
+      var primary = kinds[0];
+      var to = n.post_id ? 'post/' + n.post_id : (n.actor_handle || 'home');
+      var countBadge = n.total > 1
+        ? '<span class="hd-note-group-count">' + n.total + '</span>' : '';
+      var pills = kinds.length > 1
+        ? '<span class="hd-note-kinds">' + kinds.map(function (k) {
+            return '<span class="hd-note-kind-pill">' + ic(NOTE_ICONS[k] || 'info') + ' ' + esc(NOTE_WORDS[k] || k) + '</span>';
+          }).join('') + '</span>' : '';
+      var text = kinds.length === 1 ? esc(NOTE_WORDS[primary] || 'did something') : '';
+      return '<a class="nb-card nb-card--tight hd-note hd-note-group' + (n.unread ? ' is-new' : '') +
+        '" href="' + url(to) + '" data-r>' +
+        '<span class="hd-note-ic" data-k="' + esc(primary) + '">' +
+          countBadge +
+          ic(NOTE_ICONS[primary] || 'info') + '</span>' +
+        '<span class="hd-note-txt"><p><b>' + esc(name) + '</b> ' + text + '</p>' +
+        pills +
+        (n.post_body ? '<p class="hd-note-quote">' + esc(String(n.post_body).slice(0, 160)) + '</p>' : '') +
+        '<span class="hd-note-when">' + esc(H.when(n.first_at || n.last_at)) + '</span></span></a>';
+    }).join('') : empty('Nothing yet', 'Likes, relays, replies and follows land here.');
+  }
+
+  function renderFlatNotifications(host, rows) {
     host.innerHTML = rows.length ? rows.map(function (n) {
       var a = n.actor || {};
       var text = NOTE_WORDS[n.kind] || 'did something';
       var to = n.post_id ? 'post/' + n.post_id : (a.handle || 'home');
       return '<a class="nb-card nb-card--tight hd-note' + (n.read_at ? '' : ' is-new') + '" href="' + url(to) + '" data-r>' +
         '<span class="hd-note-ic" data-k="' + esc(n.kind) + '">' +
-          ic(n.kind === 'endorse' ? 'heart' : n.kind === 'relay' ? 'relay' : n.kind === 'follow' ? 'follow'
-             : n.kind === 'mention' ? 'quill' : n.kind === 'verify' ? 'tick' : 'comment') + '</span>' +
+          ic(NOTE_ICONS[n.kind] || 'info') + '</span>' +
         '<span class="hd-note-txt"><p><b>' + esc(a.name || a.handle || 'Someone') + '</b> ' + esc(text) + '</p>' +
-        (quotes[n.post_id] ? '<p class="hd-note-quote">' + esc(String(quotes[n.post_id]).slice(0, 160)) + '</p>' : '') +
+        (n.meta?.post_body ? '<p class="hd-note-quote">' + esc(String(n.meta.post_body).slice(0, 160)) + '</p>' : '') +
         '<span class="hd-note-when">' + esc(H.when(n.created_at)) + '</span></span></a>';
     }).join('') : empty('Nothing yet', 'Likes, relays, replies and follows land here.');
-
-    twem(host);
-    if (unread) {
-      await db.rpc('notes_read_all');
-      unread = 0;
-      paintRail();
-    }
   }
 
   async function viewBookmarks() {
@@ -1495,7 +1594,7 @@
           '<h2 class="hd-prof-name">' + esc(p.name || p.handle) + badges(p) + '</h2>' +
           '<p class="hd-prof-at">' + H.tag(p.handle, 'hd-at--lg') +
             (p.is_company ? '<span class="hd-kind">' + ic('building') + ' Company</span>' : '') +
-            (p.is_bot ? '<span class="hd-kind hd-kind--bot">' + ic('robot') + ' Automated</span>' : '') + '</p>' +
+            '</p>' +
           (p.headline ? '<p class="hd-prof-head">' + esc(p.headline) + '</p>' : '') +
           (p.bio ? '<p class="hd-prof-bio">' + body(p.bio) + '</p>' : '') +
           '<p class="hd-prof-meta">' +
@@ -1812,7 +1911,7 @@
   function novaTurn(t) {
     return '<div class="hd-nova-turn hd-nova-turn--' + (t.role === 'you' ? 'nova' : 'me') + '">' +
       (t.role === 'you'
-        ? novaArt('hd-nova-av', 30)
+        ? novaAv('hd-nova-av-grad', 30)
         : H.avatar(my, 'hd-av--sm')) +
       '<div class="hd-nova-said">' + body(t.text) + '</div></div>';
   }
@@ -1826,17 +1925,47 @@
     var id = box && box.getAttribute('data-post');
     if (!id) return;
 
-    var r = await db.from('posts').select('body, author:profiles!posts_author_fkey(handle,name)')
+    var r = await db.from('posts').select('body, created_at, endorse_count, reply_count, relay_count, author:profiles!posts_author_fkey(id,handle,name,avatar_url,follower_count,verified,is_company)')
       .eq('id', id).maybeSingle();
     if (r.error || !r.data) return U.toast('That post could not be read.', 'bad');
-    var p = r.data, who = (p.author && (p.author.name || p.author.handle)) || 'Someone';
+    var p = r.data, a = p.author || {};
+    var who = a.name || a.handle || 'Someone';
+    var avatar = H.avatar(a, 'hd-av--md');
+    var verified = a.verified ? ' <span class="hd-badge hd-badge--ver">' + ic('tick') + '</span>' : '';
+    var company = a.is_company ? ' <span class="hd-badge hd-badge--co">' + ic('building') + '</span>' : '';
 
     U.sheet({
-      title: 'Ask Supernova',
+      title: '',
       html:
-        '<blockquote class="hd-nova-quote"><b>' + esc(who) + '</b><p>' + body(p.body) + '</p></blockquote>' +
-        '<div class="hd-nova-answer" id="novaAns" aria-live="polite">' +
-          '<span class="hd-nova-dots"><i></i><i></i><i></i></span></div>' +
+        '<div class="hd-nova-post-card">' +
+          '<div class="hd-nova-post-head">' +
+            '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-av">' + avatar + '</a>' +
+            '<div class="hd-nova-post-who">' +
+              '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-name">' + esc(who) + verified + company + '</a>' +
+              '<span class="hd-nova-post-handle">' + H.tag(a.handle || '') + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="hd-nova-post-body">' + body(p.body) + '</div>' +
+          '<div class="hd-nova-post-meta">' +
+            '<span>' + esc(H.when(p.created_at)) + '</span>' +
+            '<span class="hd-dot">&middot;</span>' +
+            '<span>' + num(p.endorse_count || 0) + ' likes</span>' +
+            '<span class="hd-dot">&middot;</span>' +
+            '<span>' + num(p.reply_count || 0) + ' replies</span>' +
+            (a.follower_count ? '<span class="hd-dot">&middot;</span><span>' + num(a.follower_count) + ' followers</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="hd-nova-explain">' +
+          '<div class="hd-nova-explain-head">' +
+            novaAv('hd-nova-explain-av', 36) +
+            '<div class="hd-nova-explain-who">' +
+              '<span class="hd-nova-explain-name">Supernova</span>' +
+              '<span class="hd-nova-explain-sub">by Swiftaw</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="hd-nova-answer" id="novaAns" aria-live="polite">' +
+            '<span class="hd-nova-dots"><i></i><i></i><i></i></span></div>' +
+        '</div>' +
         '<div class="hd-ask-foot"><button class="nb-btn nb-btn--ghost" type="button" data-no>Close</button>' +
         '<a class="nb-btn nb-btn--primary" href="' + url('supernova') + '" data-r>Keep asking</a></div>',
       wire: function (api) {
@@ -1870,7 +1999,7 @@
     if (ready.error || !ready.data) {
       col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
         '<div class="nb-card nb-card--lg hd-nova-off">' +
-          novaArt('hd-nova-mark', 62) +
+          novaAv('hd-nova-mark-grad', 62) +
           '<h2 class="nb-h3">Supernova is not answering yet</h2>' +
           '<p>Hereld reaches Supernova through Swiftaw, and Swiftaw has not pointed it at a model yet. ' +
           'Nothing you type would go anywhere, so there is nothing to type into.</p>' +
@@ -1884,7 +2013,7 @@
         '<div class="hd-nova-talk" id="novaTalk" aria-live="polite">' +
           (novaTalk.length ? novaTalk.map(novaTurn).join('') :
             '<div class="nb-card hd-nova-hello">' +
-              novaArt('hd-nova-mark', 48) +
+              novaAv('hd-nova-hello-av', 48) +
               '<p>Ask about a post, a word you have not met, or anything else. ' +
               'Supernova cannot post, follow or moderate for you, and it will say so rather than pretend.</p>' +
             '</div>') +
@@ -1915,7 +2044,7 @@
     function paint() {
       talk.innerHTML = novaTalk.map(novaTurn).join('') +
         (busy ? '<div class="hd-nova-turn hd-nova-turn--nova hd-nova-wait">' +
-          novaArt('hd-nova-av', 30) +
+          novaAv('hd-nova-av-grad', 30) +
           '<div class="hd-nova-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div></div>' : '');
       twem(talk);
       talk.scrollTop = talk.scrollHeight;
