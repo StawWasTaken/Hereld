@@ -2,48 +2,50 @@
 <html lang="en" data-nb="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Hereld</title>
 <meta name="description" content="Hereld, the professional network by Swiftaw.">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0C0F15">
+
+<script>
+(function () {
+  var b = '/';
+  if (/\.github\.io$/i.test(location.hostname)) {
+    var s = location.pathname.split('/');
+    if (s[1] && s[1].indexOf('.') < 0) b = '/' + s[1] + '/';
+  }
+  document.write('<base href="' + b + '">');
+})();
+</script>
 <link rel="icon" type="image/png" href="Hereld%20favicon.png">
 <link rel="apple-touch-icon" href="Hereld%20favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/hereld-nb.css?v=1">
-<link rel="stylesheet" href="css/hereld.css?v=1">
+<link rel="stylesheet" href="css/hereld-nb.css?v=2">
+<link rel="stylesheet" href="css/hereld.css?v=2">
 </head>
 <body class="hd-app">
 
-<a class="nb-skip" href="#col">Skip to the feed</a>
-
-<div class="nb-rainbaw" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-
-<div class="hd-shell">
-  <aside class="hd-rail" id="rail"></aside>
-  <main class="hd-col" id="col">
-    <header class="hd-col-head"><div><h1>Feed</h1></div></header>
-    <div class="hd-feed">
-      <article class="hd-post hd-skel" aria-hidden="true">
-        <div class="hd-post-top">
-          <span class="nb-skel nb-skel--av"></span>
-          <div class="hd-post-who"><span class="nb-skel nb-skel--line" style="width:44%"></span></div>
-        </div>
-        <p class="hd-post-body">
-          <span class="nb-skel nb-skel--line"></span>
-          <span class="nb-skel nb-skel--line" style="width:72%"></span>
-        </p>
-      </article>
-    </div>
-  </main>
-  <aside class="hd-aside" id="aside"></aside>
+<div class="hd-splash" id="splash">
+  <div class="hd-splash-in">
+    <img src="Hereld%20logomark.png" alt="Hereld" width="84" height="84">
+    <span class="hd-splash-bar" aria-hidden="true"><i></i></span>
+    <span class="nb-sr">Loading Hereld</span>
+  </div>
 </div>
 
-<nav class="hd-bar" id="bar" aria-label="Hereld"></nav>
+<noscript>
+  <div class="hd-boot-bad">
+    <h1>Hereld needs JavaScript</h1>
+    <p>The feed, the composer and everything else here are drawn in the browser.
+      Turn JavaScript on for this site and reload.</p>
+  </div>
+</noscript>
 
-<script src="css/hereld-account.js?v=1"></script>
-<script src="css/hereld-app.js?v=1" defer></script>
+<script src="css/hereld-account.js?v=2"></script>
+<script src="css/hereld-ui.js?v=2"></script>
+<script src="css/hereld-app.js?v=2" defer></script>
 </body>
 </html>

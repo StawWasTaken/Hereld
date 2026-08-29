@@ -2,17 +2,27 @@
 <html lang="en" data-nb="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Join Hereld</title>
 <meta name="description" content="Claim a handle on Hereld, the professional network by Swiftaw.">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0C0F15">
+<script>
+(function () {
+  var b = '/';
+  if (/\.github\.io$/i.test(location.hostname)) {
+    var s = location.pathname.split('/');
+    if (s[1] && s[1].indexOf('.') < 0) b = '/' + s[1] + '/';
+  }
+  document.write('<base href="' + b + '">');
+})();
+</script>
 <link rel="icon" type="image/png" href="Hereld%20favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/hereld-nb.css?v=1">
-<link rel="stylesheet" href="css/hereld.css?v=1">
+<link rel="stylesheet" href="css/hereld-nb.css?v=2">
+<link rel="stylesheet" href="css/hereld.css?v=2">
 <style>
 .jn-fields { display: flex; flex-direction: column; gap: 16px; }
 .jn-foot { margin-top: 20px; display: flex; align-items: center; gap: 14px; }
@@ -29,7 +39,7 @@
 
 <main class="hd-gate">
   <div class="hd-gate-card">
-    <a class="jn-back nb-btn nb-btn--ghost nb-btn--sm" href="index.html">Back to Hereld</a>
+    <a class="jn-back nb-btn nb-btn--ghost nb-btn--sm" href="index">Back to Hereld</a>
 
     <div class="hd-gate-head">
       <span class="hd-mark" style="margin:0 auto"><img src="HereldAt.png" alt=""></span>
@@ -48,7 +58,7 @@
           <div class="nb-field" id="fHandle">
             <label class="nb-label" for="handle">Handle</label>
             <div class="hd-handle-row">
-              <span class="at" aria-hidden="true">@</span>
+              <span class="hd-handle-at" aria-hidden="true"><i class="hd-at"></i></span><span class="nb-sr">@</span>
               <input class="nb-input" id="handle" type="text" maxlength="20" autocomplete="username"
                      placeholder="yourhandle" spellcheck="false" autocapitalize="off">
             </div>
@@ -88,13 +98,13 @@
   </div>
 </main>
 
-<script src="css/hereld-account.js?v=1"></script>
+<script src="css/hereld-account.js?v=2"></script>
 <script>
 (function () {
   'use strict';
   var H = window.Hereld;
   var qs = new URLSearchParams(location.search);
-  var next = qs.get('next') || 'app.html';
+  var next = qs.get('next') || 'home';
   var mode = qs.get('mode') === 'in' ? 'in' : 'up';
 
   function el(id) { return document.getElementById(id); }
@@ -189,7 +199,7 @@
         '<p class="nb-muted" style="margin-top:12px;line-height:1.65">' +
         'We sent a confirmation link to <b>' + H.esc(email) + '</b>. Open it and ' +
         '@' + H.esc(handle.value) + ' is yours.</p>' +
-        '<div style="margin-top:20px"><a class="nb-btn nb-btn--sm" href="index.html">Back to Hereld</a></div></div>';
+        '<div style="margin-top:20px"><a class="nb-btn nb-btn--sm" href="index">Back to Hereld</a></div></div>';
     } catch (err) {
       stop(H.trouble(err, 'That did not work.'));
     }

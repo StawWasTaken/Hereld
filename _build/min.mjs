@@ -143,5 +143,24 @@ for (const job of JOBS) {
     built++;
   }
 }
+// Clean URLs on static hosting. GitHub Pages resolves /explore to explore.html,
+// so every route the application answers needs a file of that name, and they
+// are all the same document. 404.html carries the routes with a variable in
+// them (/post/<id>, /<handle>), which no fixed filename can cover.
+const ROUTES = [
+  'home', 'explore', 'search', 'notifications', 'bookmarks',
+  'supernova', 'profile', 'staff', '404'
+];
+const appHtml = fs.readFileSync(path.join(ROOT, 'app.html'), 'utf8');
+for (const r of ROUTES) {
+  const p = path.join(ROOT, r + '.html');
+  const cur = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
+  if (cur === appHtml) continue;
+  if (CHECK) { console.error('stale: ' + r + '.html'); stale++; continue; }
+  fs.writeFileSync(p, appHtml);
+  console.log('copied app.html -> ' + r + '.html');
+  built++;
+}
+
 if (CHECK && stale) process.exit(1);
 if (!CHECK) console.log(built ? built + ' file(s) built' : 'up to date');

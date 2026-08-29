@@ -5,7 +5,7 @@ var SUPA_URL = 'https://brgwymecsgjmuubfmast.supabase.co';
 var SUPA_KEY = 'sb_publishable__yhsh8Ck_OLfGTPG9DlEsg_Gh9S12L9';
 var SUPA_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
 var AUTH_KEY = 'hereld-auth';
-var JOIN_PAGE = 'join.html';
+var JOIN_PAGE = 'join';
 var db = null, user = null, me = null, isReady = false;
 var readyCbs = [], changeCbs = [];
 window.Hereld = {
@@ -24,6 +24,8 @@ esc: esc,
 when: when,
 hue: hue,
 avatar: avatar,
+at: at,
+tag: tag,
 trouble: trouble
 };
 function esc(s) {
@@ -57,6 +59,13 @@ return '<span class="' + c + '" data-hue="' + hue(handle) + '" ' +
 }
 return '<span class="' + c + '" data-hue="' + hue(handle) + '" aria-hidden="true">' +
 esc(String(name).trim().charAt(0).toUpperCase() || '?') + '</span>';
+}
+function at(cls) {
+return '<i class="hd-at' + (cls ? ' ' + cls : '') + '" aria-hidden="true"></i>' +
+'<span class="nb-sr">@</span>';
+}
+function tag(handle, cls) {
+return at(cls) + esc(handle || '');
 }
 function trouble(err, fallback) {
 var m = (err && (err.message || err.error_description)) || '';
@@ -112,7 +121,7 @@ fire();
 }
 function require_() {
 if (user) return true;
-var back = location.pathname.split('/').pop() + location.search;
+var back = location.pathname.split('/').pop().replace(/\.html$/, '') + location.search;
 location.replace(JOIN_PAGE + '?next=' + encodeURIComponent(back));
 return false;
 }

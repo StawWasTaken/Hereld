@@ -17,6 +17,8 @@
      .require()        send a signed-out visitor to the join page
      .esc(s)           html-escape
      .when(iso)        short relative time
+     .at()             the Hereld mark, drawn in place of an @
+     .tag(handle)      the mark followed by a handle
 */
 (function () {
   'use strict';
@@ -26,7 +28,7 @@
   var SUPA_KEY = 'sb_publishable__yhsh8Ck_OLfGTPG9DlEsg_Gh9S12L9';
   var SUPA_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
   var AUTH_KEY = 'hereld-auth';
-  var JOIN_PAGE = 'join.html';
+  var JOIN_PAGE = 'join';
 
   var db = null, user = null, me = null, isReady = false;
   var readyCbs = [], changeCbs = [];
@@ -47,6 +49,8 @@
     when: when,
     hue: hue,
     avatar: avatar,
+    at: at,
+    tag: tag,
     trouble: trouble
   };
 
@@ -87,6 +91,19 @@
     }
     return '<span class="' + c + '" data-hue="' + hue(handle) + '" aria-hidden="true">' +
       esc(String(name).trim().charAt(0).toUpperCase() || '?') + '</span>';
+  }
+
+  /* Hereld's mark is a horn with an @ coiled inside it, so a handle is
+     written with the mark rather than a typed @. It is a mask, so it inherits
+     the colour of the text around it. The @ still goes to a screen reader,
+     because "staw" and "@staw" are not the same thing said aloud. */
+  function at(cls) {
+    return '<i class="hd-at' + (cls ? ' ' + cls : '') + '" aria-hidden="true"></i>' +
+           '<span class="nb-sr">@</span>';
+  }
+
+  function tag(handle, cls) {
+    return at(cls) + esc(handle || '');
   }
 
   /* Supabase speaks in constraint names. People do not. */
@@ -154,7 +171,7 @@
 
   function require_() {
     if (user) return true;
-    var back = location.pathname.split('/').pop() + location.search;
+    var back = location.pathname.split('/').pop().replace(/\.html$/, '') + location.search;
     location.replace(JOIN_PAGE + '?next=' + encodeURIComponent(back));
     return false;
   }
