@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en" data-nb="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your profile - Hereld</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0C0F15">
+<link rel="icon" type="image/png" href="Hereld%20favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/hereld-nb.css?v=1">
+<link rel="stylesheet" href="css/hereld.css?v=1">
+<style>
+.st-wrap { max-width: 640px; margin: 0 auto; padding: 26px 20px 80px; }
+.st-fields { display: flex; flex-direction: column; gap: 18px; }
+.st-face { display: flex; align-items: center; gap: 18px; }
+.st-face-do { display: flex; flex-direction: column; gap: 9px; }
+.st-face-do .nb-hint { margin: 0; }
+.st-count { font-family: var(--nb-font-mono); font-size: 12px; color: var(--nb-fg-muted); }
+.st-foot { display: flex; align-items: center; gap: 14px; margin-top: 24px; }
+.st-danger { margin-top: 22px; }
+.st-handle { font-family: var(--nb-font-mono); font-size: 15px; }
+</style>
+</head>
+<body>
+
+<div class="nb-rainbaw" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+
+<div class="st-wrap">
+  <header class="hd-col-head" style="margin-bottom:20px">
+    <a class="nb-icon-btn hd-back" href="app.html" aria-label="Back to Hereld">
+      <svg viewBox="0 0 448 512" aria-hidden="true"><path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.2 288 416 288c17.7 0 32-14.3 32-32s-14.3-32-32-32l-306.7 0L214.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg>
+    </a>
+    <div><h1>Your profile</h1><p class="sub">What people see when they read you</p></div>
+  </header>
+
+  <div id="body">
+    <div class="nb-card nb-card--lg">
+      <span class="nb-skel nb-skel--line" style="width:38%"></span>
+    </div>
+  </div>
+</div>
+
+<template id="tpl">
+  <form class="nb-card nb-card--lg" id="form">
+    <div class="st-fields">
+      <div class="st-face">
+        <span id="faceHost"></span>
+        <div class="st-face-do">
+          <input type="file" id="pick" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          <button type="button" class="nb-btn nb-btn--sm" id="pickGo">Change picture</button>
+          <p class="nb-hint">PNG, JPEG, WebP or GIF, up to 2 MB.</p>
+        </div>
+      </div>
+
+      <div class="nb-field">
+        <span class="nb-label">Handle</span>
+        <p class="st-handle" id="handleOut"></p>
+        <p class="nb-hint">A handle is permanent. It is on every post you have made.</p>
+      </div>
+
+      <div class="nb-field">
+        <label class="nb-label" for="name">Name</label>
+        <input class="nb-input" id="name" type="text" maxlength="50" autocomplete="name">
+      </div>
+
+      <div class="nb-field">
+        <label class="nb-label" for="headline">What you do</label>
+        <input class="nb-input" id="headline" type="text" maxlength="120" placeholder="One line, under your name on every post">
+        <p class="nb-hint"><span class="st-count" id="cHeadline"></span></p>
+      </div>
+
+      <div class="nb-field">
+        <label class="nb-label" for="bio">About you</label>
+        <textarea class="nb-textarea" id="bio" maxlength="400" placeholder="A short paragraph on your profile."></textarea>
+        <p class="nb-hint"><span class="st-count" id="cBio"></span></p>
+      </div>
+
+      <div class="nb-field">
+        <label class="nb-label" for="location">Where you are</label>
+        <input class="nb-input" id="location" type="text" maxlength="60" placeholder="City, country">
+      </div>
+
+      <div class="nb-field">
+        <label class="nb-label" for="website">Website</label>
+        <input class="nb-input" id="website" type="url" maxlength="120" placeholder="https://">
+      </div>
+    </div>
+
+    <div class="nb-alert nb-alert--error hd-say" id="say" hidden></div>
+    <div class="nb-alert nb-alert--ok hd-say" id="ok" hidden>Saved.</div>
+
+    <div class="st-foot">
+      <span class="hd-busy" id="busy" hidden><span class="nb-loader nb-loader--sm"></span> Saving</span>
+      <button type="submit" class="nb-btn nb-btn--primary" id="save">Save changes</button>
+      <a class="nb-btn nb-btn--ghost" href="app.html">Cancel</a>
+    </div>
+  </form>
+</template>
+
+<script src="css/hereld-account.js?v=1"></script>
+<script>
+(function () {
+  'use strict';
+  var H = window.Hereld;
+  function el(id) { return document.getElementById(id); }
+
+  H.ready(async function () {
+    if (!H.db()) {
+      el('body').innerHTML = '<div class="nb-alert nb-alert--error">Hereld could not be reached. Reload the page.</div>';
+      return;
+    }
+    if (!H.require()) return;
+
+    var db = H.db();
+    var me = H.me();
+    if (!me) {
+      el('body').innerHTML = '<div class="nb-alert nb-alert--error">There is no profile on this account yet.</div>';
+      return;
+    }
+
+    el('body').innerHTML = '';
+    el('body').appendChild(document.getElementById('tpl').content.cloneNode(true));
+
+    el('faceHost').innerHTML = H.avatar(me, 'hd-av--lg');
+    el('handleOut').textContent = '@' + me.handle;
+    el('name').value = me.name || '';
+    el('headline').value = me.headline || '';
+    el('bio').value = me.bio || '';
+    el('location').value = me.location || '';
+    el('website').value = me.website || '';
+
+    function counter(id, out, max) {
+      var f = el(id), c = el(out);
+      var tick = function () { c.textContent = f.value.length + ' / ' + max; };
+      f.addEventListener('input', tick);
+      tick();
+    }
+    counter('headline', 'cHeadline', 120);
+    counter('bio', 'cBio', 400);
+
+    var say = el('say'), ok = el('ok'), busy = el('busy'), save = el('save');
+    function fail(m) { say.textContent = m; say.hidden = false; ok.hidden = true; busy.hidden = true; save.disabled = false; }
+
+    el('pickGo').addEventListener('click', function () { el('pick').click(); });
+
+    el('pick').addEventListener('change', async function () {
+      var f = this.files && this.files[0];
+      if (!f) return;
+      if (f.size > 2 * 1024 * 1024) return fail('That picture is over 2 MB.');
+      say.hidden = true; ok.hidden = true; busy.hidden = false;
+
+      var ext = (f.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
+      var path = me.id + '/avatar.' + (ext || 'png');
+      var up = await db.storage.from('avatars').upload(path, f, { upsert: true, contentType: f.type });
+      if (up.error) return fail(H.trouble(up.error, 'The picture did not upload.'));
+
+      var pub = db.storage.from('avatars').getPublicUrl(path);
+      var url = pub.data.publicUrl + '?t=' + Date.now();
+      var w = await db.from('profiles').update({ avatar_url: url }).eq('id', me.id);
+      busy.hidden = true;
+      if (w.error) return fail(H.trouble(w.error, 'The picture uploaded but did not save.'));
+      me.avatar_url = url;
+      el('faceHost').innerHTML = H.avatar(me, 'hd-av--lg');
+      ok.textContent = 'Picture changed.';
+      ok.hidden = false;
+    });
+
+    el('form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var site = el('website').value.trim();
+      if (site && !/^https?:\/\//i.test(site)) site = 'https://' + site;
+
+      say.hidden = true; ok.hidden = true; busy.hidden = false; save.disabled = true;
+      var w = await db.from('profiles').update({
+        name: el('name').value.trim(),
+        headline: el('headline').value.trim(),
+        bio: el('bio').value.trim(),
+        location: el('location').value.trim(),
+        website: site
+      }).eq('id', me.id);
+      busy.hidden = true;
+      if (w.error) return fail(H.trouble(w.error, 'That did not save.'));
+      await H.refreshMe();
+      save.disabled = false;
+      ok.textContent = 'Saved.';
+      ok.hidden = false;
+      el('website').value = site;
+    });
+
+    var danger = document.createElement('div');
+    danger.className = 'nb-card st-danger';
+    danger.innerHTML = '<h2 class="nb-h4">Signing out</h2>' +
+      '<p class="nb-muted" style="font-size:14px;line-height:1.6;margin:8px 0 16px">' +
+      'This signs you out of Hereld on this device. Your Swiftaw and Fortized ' +
+      'accounts are untouched.</p>' +
+      '<button type="button" class="nb-btn nb-btn--sm nb-btn--red" id="out">Sign out of Hereld</button>';
+    el('body').appendChild(danger);
+    document.getElementById('out').addEventListener('click', function () {
+      H.signOut().then(function () { location.href = 'index.html'; });
+    });
+  });
+})();
+</script>
+</body>
+</html>

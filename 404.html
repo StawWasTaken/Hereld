@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en" data-nb="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>404 - Hereld</title>
+<meta name="description" content="Nobody answered that horn.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0C0F15">
+<link rel="icon" type="image/png" href="Hereld%20favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/hereld-nb.css?v=1">
+<link rel="stylesheet" href="css/hereld.css?v=1">
+<style>
+.nf-wrap {
+  display: flex; align-items: center; justify-content: center;
+  padding: clamp(48px, 9vw, 110px) 0;
+  position: relative; overflow: hidden;
+}
+[data-nb="dark"] .nb-dots {
+  background-image: radial-gradient(rgba(255,255,255,.28) 1.6px, transparent 1.6px);
+}
+.nf-wrap .nb-dots {
+  position: absolute; inset: auto -30px -20px auto;
+  width: 300px; height: 200px; opacity: .5;
+}
+.nf-card {
+  position: relative; z-index: 2;
+  max-width: 660px; width: 100%;
+  text-align: center;
+  padding: clamp(30px, 4.4vw, 54px);
+}
+.nf-num {
+  font-family: var(--nb-font-display); font-weight: 400; font-synthesis: none;
+  font-size: clamp(96px, 20vw, 190px); line-height: .86;
+  letter-spacing: -.04em;
+  color: var(--nb-blue);
+  -webkit-text-stroke: 3px var(--nb-ink);
+  transform: rotate(-2.5deg);
+  margin-bottom: clamp(14px, 2vw, 24px);
+}
+.nf-card h1 { font-size: clamp(24px, 3vw, 34px); margin-bottom: 12px; }
+.nf-card h1 .dot { color: var(--nb-red); }
+.nf-card p { color: var(--nb-fg-muted); max-width: 44ch; margin: 0 auto 26px; }
+.nf-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.nf-links { margin-top: 30px; padding-top: 22px; border-top: var(--nb-bd-thin); }
+.nf-links .lbl {
+  display: block; margin-bottom: 12px;
+  font-family: var(--nb-font-head); font-weight: 700; font-size: 12px;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--nb-fg-muted);
+}
+.nf-links .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+</style>
+</head>
+<body>
+
+<div class="nb-rainbaw" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+
+<nav class="nb-nav" id="nav">
+  <div class="nb-nav-in">
+    <a href="index.html" class="hd-brand" aria-label="Hereld">
+      <img src="Hereld%20logomark.png" alt="Hereld">
+    </a>
+    <span class="nb-nav-spacer"></span>
+    <div class="nb-nav-actions">
+      <a class="nb-btn nb-btn--ghost nb-btn--sm" href="join.html?mode=in">Sign in</a>
+      <a class="nb-btn nb-btn--primary nb-btn--sm" href="join.html">Join Hereld</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <div class="nb-wrap">
+    <div class="nf-wrap">
+      <span class="nb-dots" aria-hidden="true"></span>
+      <div class="nb-card nb-card--lg nf-card">
+        <div class="nf-num">404</div>
+        <h1 class="nb-h2">Nobody answered that horn<span class="dot">.</span></h1>
+        <p>The page is not here. It may have been a handle that changed, a post
+        that was taken down, or a link that was never right.</p>
+        <div class="nf-actions">
+          <a class="nb-btn nb-btn--primary" href="index.html">Back to Hereld</a>
+          <a class="nb-btn nb-btn--ghost" href="app.html#/explore">Search posts</a>
+        </div>
+        <div class="nf-links">
+          <span class="lbl">Or go straight to</span>
+          <div class="row">
+            <a class="nb-tag" href="app.html#/home">Feed</a>
+            <a class="nb-tag" href="join.html">Join</a>
+            <a class="nb-tag" href="https://swiftaw.com/" rel="noopener">Swiftaw</a>
+            <a class="nb-tag" href="https://fortized.com" rel="noopener">Fortized</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="nb-footer">
+  <div class="nb-wrap">
+    <div class="nb-footer-base">
+      <span>© 2026 Swiftaw</span>
+      <span>Make It Matter.</span>
+    </div>
+  </div>
+  <div class="nb-rainbaw" aria-hidden="true" style="margin-top:26px;"><i></i><i></i><i></i><i></i><i></i></div>
+</footer>
+
+<script src="css/hereld-base.js?v=1" defer></script>
+</body>
+</html>

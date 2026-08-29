@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" data-nb="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join Hereld</title>
+<meta name="description" content="Claim a handle on Hereld, the professional network by Swiftaw.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0C0F15">
+<link rel="icon" type="image/png" href="Hereld%20favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/hereld-nb.css?v=1">
+<link rel="stylesheet" href="css/hereld.css?v=1">
+<style>
+.jn-fields { display: flex; flex-direction: column; gap: 16px; }
+.jn-foot { margin-top: 20px; display: flex; align-items: center; gap: 14px; }
+.jn-foot .nb-btn { flex: 1; }
+.jn-free { font-size: 13px; }
+.jn-free.ok  { color: var(--nb-green); }
+.jn-free.bad { color: var(--nb-red); }
+.jn-back { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 22px; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="nb-rainbaw" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+
+<main class="hd-gate">
+  <div class="hd-gate-card">
+    <a class="jn-back nb-btn nb-btn--ghost nb-btn--sm" href="index.html">Back to Hereld</a>
+
+    <div class="hd-gate-head">
+      <span class="hd-mark" style="margin:0 auto"><img src="HereldAt.png" alt=""></span>
+      <h1 class="nb-h2" id="gateTitle">Claim your handle</h1>
+      <p class="nb-muted" id="gateLede">Free, and it takes a minute. A Hereld account is separate from your Swiftaw and Fortized accounts.</p>
+    </div>
+
+    <div class="nb-card nb-card--lg">
+      <form id="form" novalidate>
+        <div class="jn-fields">
+          <div class="nb-field" id="fName">
+            <label class="nb-label" for="name">Your name</label>
+            <input class="nb-input" id="name" type="text" maxlength="50" autocomplete="name" placeholder="How you want to be listed">
+          </div>
+
+          <div class="nb-field" id="fHandle">
+            <label class="nb-label" for="handle">Handle</label>
+            <div class="hd-handle-row">
+              <span class="at" aria-hidden="true">@</span>
+              <input class="nb-input" id="handle" type="text" maxlength="20" autocomplete="username"
+                     placeholder="yourhandle" spellcheck="false" autocapitalize="off">
+            </div>
+            <p class="nb-hint jn-free" id="freeSay">Three to twenty characters: letters, numbers and underscores.</p>
+          </div>
+
+          <div class="nb-field">
+            <label class="nb-label" for="email">Email</label>
+            <input class="nb-input" id="email" type="email" autocomplete="email" placeholder="you@example.com">
+          </div>
+
+          <div class="nb-field">
+            <label class="nb-label" for="pw">Password</label>
+            <input class="nb-input" id="pw" type="password" autocomplete="current-password" placeholder="At least eight characters">
+          </div>
+        </div>
+
+        <div class="nb-alert nb-alert--error hd-say" id="say" hidden></div>
+
+        <div class="jn-foot">
+          <span class="hd-busy" id="busy" hidden><span class="nb-loader nb-loader--sm"></span> Working</span>
+          <button type="submit" class="nb-btn nb-btn--primary nb-btn--block" id="go">Create my account</button>
+        </div>
+      </form>
+
+      <p class="hd-gate-swap">
+        <span id="swapText">Already on Hereld?</span>
+        <a href="#" id="swap"><b>Sign in instead</b></a>
+      </p>
+    </div>
+
+    <p class="nb-muted" style="font-size:12.5px;line-height:1.6;text-align:center;margin-top:20px">
+      By joining you accept the
+      <a href="https://swiftaw.com/legal/terms-of-service">Terms of Service</a> and the
+      <a href="https://swiftaw.com/legal/privacy-policy">Privacy Policy</a>.
+    </p>
+  </div>
+</main>
+
+<script src="css/hereld-account.js?v=1"></script>
+<script>
+(function () {
+  'use strict';
+  var H = window.Hereld;
+  var qs = new URLSearchParams(location.search);
+  var next = qs.get('next') || 'app.html';
+  var mode = qs.get('mode') === 'in' ? 'in' : 'up';
+
+  function el(id) { return document.getElementById(id); }
+  var form = el('form'), go = el('go'), say = el('say'), busy = el('busy');
+  var handle = el('handle'), freeSay = el('freeSay');
+
+  function paint() {
+    var up = mode === 'up';
+    el('gateTitle').textContent = up ? 'Claim your handle' : 'Sign in to Hereld';
+    el('gateLede').textContent = up
+      ? 'Free, and it takes a minute. A Hereld account is separate from your Swiftaw and Fortized accounts.'
+      : 'Welcome back. Your handle is waiting where you left it.';
+    el('fName').hidden = !up;
+    el('fHandle').hidden = !up;
+    go.textContent = up ? 'Create my account' : 'Sign in';
+    el('pw').setAttribute('autocomplete', up ? 'new-password' : 'current-password');
+    el('swapText').textContent = up ? 'Already on Hereld?' : 'No account yet?';
+    el('swap').innerHTML = '<b>' + (up ? 'Sign in instead' : 'Claim a handle') + '</b>';
+    say.hidden = true;
+  }
+
+  el('swap').addEventListener('click', function (e) {
+    e.preventDefault();
+    mode = mode === 'up' ? 'in' : 'up';
+    paint();
+  });
+
+  handle.addEventListener('input', function () {
+    handle.value = handle.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+  });
+
+  var checkT = null;
+  handle.addEventListener('input', function () {
+    clearTimeout(checkT);
+    var v = handle.value;
+    freeSay.className = 'nb-hint jn-free';
+    if (v.length < 3) {
+      freeSay.textContent = 'Three to twenty characters: letters, numbers and underscores.';
+      return;
+    }
+    freeSay.textContent = 'Checking…';
+    checkT = setTimeout(async function () {
+      var db = H.db();
+      if (!db) { freeSay.textContent = ''; return; }
+      var r = await db.rpc('handle_free', { p_handle: v });
+      if (handle.value !== v) return;
+      if (r.error) { freeSay.textContent = ''; return; }
+      freeSay.textContent = r.data ? '@' + v + ' is free.' : '@' + v + ' is taken.';
+      freeSay.className = 'nb-hint jn-free ' + (r.data ? 'ok' : 'bad');
+    }, 350);
+  });
+
+  function stop(msg) {
+    say.textContent = msg;
+    say.hidden = false;
+    busy.hidden = true;
+    go.disabled = false;
+  }
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var email = el('email').value.trim();
+    var pw = el('pw').value;
+
+    if (!email || email.indexOf('@') < 1) return stop('That does not look like an email address.');
+    if (pw.length < 8) return stop('Passwords need at least eight characters.');
+
+    if (mode === 'up') {
+      if (!/^[a-z0-9_]{3,20}$/.test(handle.value)) {
+        return stop('A handle is three to twenty characters: letters, numbers and underscores.');
+      }
+      if (!el('name').value.trim()) return stop('Put a name in, even a short one.');
+    }
+
+    say.hidden = true; busy.hidden = false; go.disabled = true;
+
+    try {
+      if (mode === 'in') {
+        await H.signIn(email, pw);
+        location.replace(next);
+        return;
+      }
+      var out = await H.signUp({
+        email: email, password: pw,
+        handle: handle.value, name: el('name').value.trim()
+      });
+      if (out.session) { location.replace(next); return; }
+      document.querySelector('.hd-gate-card').innerHTML =
+        '<div class="nb-card nb-card--lg" style="text-align:center">' +
+        '<h1 class="nb-h3">Check your email</h1>' +
+        '<p class="nb-muted" style="margin-top:12px;line-height:1.65">' +
+        'We sent a confirmation link to <b>' + H.esc(email) + '</b>. Open it and ' +
+        '@' + H.esc(handle.value) + ' is yours.</p>' +
+        '<div style="margin-top:20px"><a class="nb-btn nb-btn--sm" href="index.html">Back to Hereld</a></div></div>';
+    } catch (err) {
+      stop(H.trouble(err, 'That did not work.'));
+    }
+  });
+
+  H.ready(function () {
+    if (!H.db()) { stop('Hereld could not be reached. Reload and try again.'); return; }
+    if (H.user()) { location.replace(next); return; }
+    paint();
+  });
+
+  paint();
+})();
+</script>
+</body>
+</html>
