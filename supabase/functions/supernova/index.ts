@@ -178,7 +178,7 @@ async function notes(c: Config) {
       'carry straight on from there in the same sentence. Say only what the ' +
       'contributions say; add nothing of your own and no opinion about whether ' +
       'the post is good or bad. Where they disagree, say they disagree. Under ' +
-      'eighty words. No dashes.';
+      'eighty words. No dashes. ' + (c.system_note || '');
 
     const asked =
       'The post said:\n' + (post?.body || '').slice(0, 900) +

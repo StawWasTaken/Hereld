@@ -24,6 +24,7 @@
     { id: 'notes',     label: 'Community notes',  ic: 'file',     min: 'moderator' },
     { id: 'companies', label: 'Companies',        ic: 'building', min: 'admin' },
     { id: 'bots',      label: 'Seed accounts',    ic: 'robot',    min: 'admin' },
+    { id: 'nova',      label: 'Supernova',        mark: true,     min: 'superadmin' },
     { id: 'staff',     label: 'Staff',            ic: 'shield',   min: 'superadmin' },
     { id: 'platform',  label: 'Platform account', ic: 'tick',     min: 'superadmin' },
     { id: 'settings',  label: 'Settings',         ic: 'gear',     min: 'admin' },
@@ -118,8 +119,13 @@
 
   function shellHTML(page) {
     var nav = PAGES.filter(function (p) { return atLeast(p.min); }).map(function (p) {
+      /* Supernova is drawn with its own mark rather than a stand-in glyph, the
+         same way it is in the app's own navigation. */
+      var glyph = p.mark
+        ? '<img class="hd-stf-nav-mark" src="' + url('Supernova%20mark.png') + '" alt="" width="17" height="17">'
+        : ic(p.ic);
       return '<button class="hd-stf-nav-i' + (p.id === page ? ' is-on' : '') + '" type="button" data-page="' + p.id + '">' +
-        ic(p.ic) + '<span>' + esc(p.label) + '</span></button>';
+        glyph + '<span>' + esc(p.label) + '</span></button>';
     }).join('');
 
     return '<div class="hd-stf">' +
@@ -605,9 +611,9 @@
           ((flag.bots_active && flag.bots_active.number) || 0) + '">' +
         '<button class="nb-btn nb-btn--primary" type="submit">Set</button>' +
       '</form>' +
-      '<div class="nb-alert nb-alert--info hd-stf-note">Seed accounts need a server to write anything. ' +
-        'Hereld is served as static files today, so nothing here can post on its own until that exists. ' +
-        'These controls are the switches that server will read.</div>' +
+      '<div class="nb-alert nb-alert--info hd-stf-note">Nothing here writes anything on its own. ' +
+        'A seed account acts only when the server runs, the system above is on, the account is active, ' +
+        'its cooldown has passed and Supernova has a key set. Any one of those missing and the account stays quiet.</div>' +
       '<h3 class="hd-stf-sub">Accounts</h3><div class="hd-stf-rows">' + rows + '</div>';
 
     var form = node.querySelector('#stfBotN');
@@ -616,6 +622,131 @@
       var n = Math.max(0, parseInt(node.querySelector('#stfBotNi').value, 10) || 0);
       if (await call('staff_set_flag', { p_key: 'bots_active', p_number: n }, 'Set. Nothing was deleted.')) render();
     });
+  }
+
+  /* ── Supernova ──────────────────────────────────────────────────────────
+     Where the provider key is set. The key goes in and never comes back: the
+     database hands this page the last four characters and nothing else, so a
+     console left open on a screen gives away no more than a receipt does. */
+
+  var PROVIDERS = [
+    ['anthropic', 'Anthropic'],
+    ['openai', 'OpenAI'],
+    ['groq', 'Groq'],
+    ['mistral', 'Mistral']
+  ];
+
+  async function pageNova(host) {
+    host.innerHTML = box('Supernova',
+      'The model behind Ask Supernova, the community note summaries and what the seed accounts write.',
+      '<div id="stfNova">' + loading() + '</div>');
+
+    var node = host.querySelector('#stfNova');
+    var r = await db.rpc('ai_config_state');
+    if (r.error) { node.innerHTML = broke(why(r.error)); return; }
+    var c = r.data || {};
+
+    var opts = PROVIDERS.map(function (p) {
+      return '<option value="' + p[0] + '"' + (c.provider === p[0] ? ' selected' : '') + '>' + esc(p[1]) + '</option>';
+    }).join('');
+
+    var live = !!(c.has_key && c.model);
+
+    node.innerHTML =
+      '<div class="hd-stf-switch' + (live ? '' : ' hd-stf-switch--bad') + '">' +
+        '<div><b>' + (live ? 'Answering' : 'Not answering yet') + '</b>' +
+        '<small>' + (c.has_key
+          ? 'A key ending ' + esc(c.key_tail) + ' is set' + (c.model ? ' and Hereld is asking ' + esc(c.model) + '.' : ', but no model is named yet.')
+          : 'Until a key is set, Ask Supernova says so instead of opening a box that goes nowhere.') +
+        '</small></div>' +
+        (c.updated_at ? '<span class="hd-stf-tag">Changed ' + esc(stamp(c.updated_at)) + '</span>' : '') +
+      '</div>' +
+
+      '<form class="hd-stf-form" id="stfNovaF">' +
+        '<div class="nb-field"><label class="nb-label" for="stfNovaP">Provider</label>' +
+          '<select class="nb-select" id="stfNovaP">' + opts + '</select></div>' +
+
+        '<div class="nb-field"><label class="nb-label" for="stfNovaM">Model</label>' +
+          '<input class="nb-input" id="stfNovaM" type="text" maxlength="80" placeholder="model id" value="' + esc(c.model || '') + '">' +
+          '<span class="nb-hint">Written exactly as the provider writes it. Hereld sends it through unchanged.</span></div>' +
+
+        '<div class="nb-field"><label class="nb-label" for="stfNovaK">Key ' +
+          '<span class="nb-hint">' + (c.has_key ? 'Leave blank to keep the one that is set' : 'Required') + '</span></label>' +
+          '<input class="nb-input" id="stfNovaK" type="password" autocomplete="off" spellcheck="false" maxlength="300" ' +
+            'placeholder="' + (c.has_key ? 'Ends ' + esc(c.key_tail) : 'Paste the provider key') + '">' +
+          '<span class="nb-hint">Kept in a row no browser can read, including this one. It is sent to the provider by the server and nowhere else.</span></div>' +
+
+        '<div class="nb-field"><label class="nb-label" for="stfNovaN">House note</label>' +
+          '<textarea class="nb-input" id="stfNovaN" rows="5" maxlength="1200" ' +
+            'placeholder="What Supernova should know about Hereld before it answers anything.">' + esc(c.system_note || '') + '</textarea>' +
+          '<span class="nb-hint">Goes in front of every answer, every note summary and everything a seed account writes.</span></div>' +
+
+        '<div class="hd-stf-form-acts">' +
+          '<button class="nb-btn nb-btn--primary" type="submit">Save</button>' +
+          (c.has_key ? '<button class="nb-btn nb-btn--red" type="button" id="stfNovaX">Remove the key</button>' : '') +
+        '</div>' +
+      '</form>' +
+
+      '<h3 class="hd-stf-sub">Recent calls</h3>' +
+      '<div id="stfNovaCalls">' + loading() + '</div>';
+
+    node.querySelector('#stfNovaF').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var key = node.querySelector('#stfNovaK').value.trim();
+      var model = node.querySelector('#stfNovaM').value.trim();
+      if (!model) { U.toast('Name a model first.', 'bad'); return; }
+      if (!key && !c.has_key) { U.toast('No key is set, so one has to go in.', 'bad'); return; }
+
+      var ok = await call('ai_config_set', {
+        p_provider: node.querySelector('#stfNovaP').value,
+        p_model: model,
+        p_key: key,
+        p_note: node.querySelector('#stfNovaN').value.trim()
+      }, key ? 'Saved. The key cannot be read back.' : 'Saved.');
+      if (ok) render();
+    });
+
+    var x = node.querySelector('#stfNovaX');
+    if (x) x.addEventListener('click', async function () {
+      var ok = await U.ask({
+        title: 'Remove the key',
+        line: 'Ask Supernova stops answering, note summaries stop being written and the seed accounts fall quiet. Nothing else changes.',
+        yes: 'Remove it', bad: true
+      });
+      if (!ok) return;
+      if (await call('ai_config_clear', {}, 'Removed.')) render();
+    });
+
+    novaCalls(node.querySelector('#stfNovaCalls'));
+  }
+
+  async function novaCalls(node) {
+    if (!node) return;
+    var r = await db.from('ai_calls').select('*').order('created_at', { ascending: false }).limit(25);
+    if (r.error) { node.innerHTML = broke(why(r.error)); return; }
+    if (!r.data.length) { node.innerHTML = empty('Nothing has been asked yet.'); return; }
+
+    var KIND = { ask: 'Asked', note_summary: 'Note summary', bot_post: 'Seed post', bot_reply: 'Seed reply' };
+
+    var ids = r.data.map(function (x) { return x.asked_by; }).filter(Boolean);
+    var byId = {};
+    if (ids.length) {
+      var pr = await db.from('profiles').select('id,handle,name,avatar_url').in('id', ids);
+      if (!pr.error) pr.data.forEach(function (p) { byId[p.id] = p; });
+    }
+
+    node.innerHTML = '<div class="hd-stf-log">' + r.data.map(function (x) {
+      var p = byId[x.asked_by];
+      return '<div class="hd-stf-log-i">' +
+        '<span class="hd-stf-log-k">' + esc(KIND[x.kind] || x.kind) + '</span>' +
+        '<span class="hd-stf-log-b">' +
+          '<b>' + esc(p ? (p.name || p.handle) : 'Hereld itself') + '</b>' +
+          (x.model ? ' <span class="hd-dot">&middot;</span> ' + esc(x.model) : '') +
+          (x.ok ? '' : ' <span class="hd-stf-log-r">' + esc(x.detail || 'failed') + '</span>') +
+        '</span>' +
+        '<span class="hd-stf-log-t">' + esc(stamp(x.created_at)) + '</span>' +
+      '</div>';
+    }).join('') + '</div>';
   }
 
   function switchRow(key, title, line, f, bad) {
@@ -782,7 +913,7 @@
 
   var PAINT = {
     dash: pageDash, users: pageUsers, posts: pagePosts, reports: pageReports,
-    notes: pageNotes, companies: pageCompanies, bots: pageBots, staff: pageStaff,
+    notes: pageNotes, companies: pageCompanies, bots: pageBots, nova: pageNova, staff: pageStaff,
     platform: pagePlatform, settings: pageSettings, log: pageLog
   };
 

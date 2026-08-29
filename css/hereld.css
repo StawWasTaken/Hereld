@@ -757,6 +757,7 @@ color: var(--nb-fg-muted); border: 2px solid transparent;
 transition: background var(--nb-fast) var(--nb-ease), color var(--nb-fast) var(--nb-ease);
 }
 .hd-stf-nav-i svg { width: 16px; height: 16px; flex: none; }
+.hd-stf-nav-mark { width: 17px; height: 17px; flex: none; display: block; }
 .hd-stf-nav-i:hover { background: var(--nb-surface); color: var(--nb-fg); }
 .hd-stf-nav-i.is-on {
 background: var(--nb-blue); color: var(--nb-ink);
@@ -860,6 +861,9 @@ padding: 13px 0; border-bottom: var(--nb-bd-thin);
 .hd-stf-switch--bad b { color: var(--nb-red); }
 .hd-stf-when { margin: 0 0 12px; font-size: 11.5px; color: var(--nb-surface-fg-muted); }
 .hd-stf-note { margin: 14px 0 0; font-size: 13px; line-height: 1.55; }
+.hd-stf-form { display: flex; flex-direction: column; gap: 18px; margin-top: 18px; }
+.hd-stf-form textarea.nb-input { resize: vertical; min-height: 96px; }
+.hd-stf-form-acts { display: flex; gap: 10px; flex-wrap: wrap; padding-top: 2px; }
 .hd-stf-log { display: flex; flex-direction: column; }
 .hd-stf-log-i {
 display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
