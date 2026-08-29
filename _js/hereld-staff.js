@@ -607,7 +607,11 @@
       switchRow('bots_emergency', 'Emergency stop', 'Setting this on deactivates every seed account and turns the system off.', flag.bots_emergency, true) +
       '<form class="hd-stf-search" id="stfBotN">' +
         '<label class="nb-label" for="stfBotNi">Accounts allowed to take part</label>' +
-        '<input class="nb-input" id="stfBotNi" type="number" min="0" max="' + Math.max(total, 0) + '" value="' +
+        /* No ceiling. This is how many accounts may take part, not how many
+           exist, so it can be set before any are made and the count simply
+           takes effect as they are. A max tied to the number that exist
+           locks the field shut while none do. */
+        '<input class="nb-input" id="stfBotNi" type="number" min="0" step="1" inputmode="numeric" value="' +
           ((flag.bots_active && flag.bots_active.number) || 0) + '">' +
         '<button class="nb-btn nb-btn--primary" type="submit">Set</button>' +
       '</form>' +
