@@ -81,7 +81,7 @@
     </div>
 
     <p class="nb-muted" style="font-size:12.5px;line-height:1.6;text-align:center;margin-top:20px">
-      By joining you accept the
+      <span id="legalLead">By joining you accept the</span>
       <a href="https://swiftaw.com/legal/terms-of-service">Terms of Service</a> and the
       <a href="https://swiftaw.com/legal/privacy-policy">Privacy Policy</a>.
     </p>
@@ -113,6 +113,7 @@
     el('pw').setAttribute('autocomplete', up ? 'new-password' : 'current-password');
     el('swapText').textContent = up ? 'Already on Hereld?' : 'No account yet?';
     el('swap').innerHTML = '<b>' + (up ? 'Sign in instead' : 'Claim a handle') + '</b>';
+    el('legalLead').textContent = up ? 'By joining you accept the' : 'Your use of Hereld is covered by the';
     say.hidden = true;
   }
 
