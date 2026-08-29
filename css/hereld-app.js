@@ -7,8 +7,8 @@ var esc = U.esc, ic = U.icon;
 var MAX = 600;
 var TWEMOJI = 'https://cdn.jsdelivr.net/npm/@twemoji/api@15.1.0/dist/twemoji.min.js';
 var TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/';
-var WITH_AUTHOR = '*, author:profiles!posts_author_fkey(id,handle,name,headline,avatar_url,verified,is_company,is_platform,is_bot,banned)';
-var mine = { endorsed: {}, relayed: {}, saved: {}, following: {} };
+var WITH_AUTHOR = '*, author:profiles!posts_author_fkey(id,handle,name,headline,avatar_url,verified,is_company,is_platform,is_bot,banned,parent_id,follower_count)';
+var mine = { liked: {}, relayed: {}, saved: {}, following: {} };
 var staffRole = null;
 var twemojiAsked = false;
 function twem(node) {
@@ -50,22 +50,58 @@ function link(path, text, cls, extra) {
 return '<a href="' + url(path) + '" data-r' + (cls ? ' class="' + cls + '"' : '') +
 (extra || '') + '>' + text + '</a>';
 }
-function body(text) {
-var out = esc(text || '');
+var PIC_RE = /https?:\/\/[^\s<]+?\.(?:png|jpe?g|webp|gif|avif)(?:\?[^\s<]*)?/gi;
+var VID_RE = /https?:\/\/[^\s<]+?\.(?:mp4|webm|mov)(?:\?[^\s<]*)?/gi;
+function mediaOf(text) {
+var out = [], seen = {}, s = String(text || '');
+s.replace(PIC_RE, function (u) { if (!seen[u]) { seen[u] = 1; out.push({ kind: 'pic', url: u }); } return u; });
+s.replace(VID_RE, function (u) { if (!seen[u]) { seen[u] = 1; out.push({ kind: 'vid', url: u }); } return u; });
+return out;
+}
+function mediaHTML(list) {
+if (!list || !list.length) return '';
+var few = list.slice(0, 4);
+return '<div class="hd-shots hd-shots--' + few.length + '">' + few.map(function (m, i) {
+if (m.kind === 'vid') {
+return '<video class="hd-shot hd-shot--vid" src="' + esc(m.url) + '" controls playsinline preload="metadata"></video>';
+}
+return '<button class="hd-shot-btn" type="button" data-shot="' + esc(m.url) + '" data-shot-i="' + i + '" aria-label="Open picture">' +
+'<img class="hd-shot" src="' + esc(m.url) + '" alt="" loading="lazy" decoding="async"></button>';
+}).join('') + '</div>';
+}
+function body(text, o) {
+o = o || {};
+var out = esc(String(text == null ? '' : text).replace(/[\u0000-\u0002]/g, ''));
+var kept = [];
+function park(html) { kept.push(html); return '\u0001' + (kept.length - 1) + '\u0001'; }
+if (!o.keepMedia) {
+out = out.replace(PIC_RE, '').replace(VID_RE, '');
+}
+out = out.replace(/`([^`\n]+)`/g, function (m, c) { return park('<code class="hd-code">' + c + '</code>'); });
 out = out.replace(/\bhttps?:\/\/[^\s<]+/g, function (u) {
 var trim = u.replace(/[.,;:!?)\]]+$/, '');
 var tail = u.slice(trim.length);
-return '<a href="' + trim + '" target="_blank" rel="noopener nofollow">' +
-esc(trim.replace(/^https?:\/\/(www\.)?/, '')) + '</a>' + tail;
+return park('<a href="' + trim + '" target="_blank" rel="noopener nofollow">' +
+esc(trim.replace(/^https?:\/\/(www\.)?/, '')) + '</a>') + tail;
 });
 out = out.replace(/(^|[\s(])@([a-z0-9_]{3,20})\b/gi, function (m, pre, h) {
-return pre + '<a href="' + url(h.toLowerCase()) + '" data-r class="hd-mention">' +
-H.at() + esc(h) + '</a>';
+return pre + park('<a href="' + url(h.toLowerCase()) + '" data-r data-card="' + esc(h.toLowerCase()) +
+'" class="hd-mention">' + H.tag(h) + '</a>');
 });
 out = out.replace(/(^|[\s(])#([a-z0-9_]{2,30})\b/gi, function (m, pre, t) {
-return pre + '<a href="' + url('search?q=' + encodeURIComponent('#' + t)) + '" data-r class="hd-tag-link">#' + esc(t) + '</a>';
+return pre + park('<a href="' + url('search?q=' + encodeURIComponent('#' + t)) +
+'" data-r class="hd-tag-link">#' + esc(t) + '</a>');
 });
-return out.replace(/\n/g, '<br>');
+out = out.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+out = out.replace(/(^|[^*\w])\*([^*\n]+)\*(?![*\w])/g, '$1<i>$2</i>');
+out = out.replace(/(^|[^_\w])_([^_\n]+)_(?![_\w])/g, '$1<i>$2</i>');
+out = out.replace(/~~([^~\n]+)~~/g, '<s>$1</s>');
+out = out.replace(/(^|<br>)&gt;\s?([^\n]*)/g, function (m, pre, line) {
+return pre + '<span class="hd-said">' + line + '</span>';
+});
+out = out.replace(/\n/g, '<br>');
+out = out.replace(/\u0001(\d+)\u0001/g, function (m, i) { return kept[+i]; });
+return out.replace(/(<br>\s*){3,}/g, '<br><br>').replace(/^(<br>)+|(<br>)+$/g, '');
 }
 function num(n) {
 n = Number(n || 0);
@@ -75,19 +111,35 @@ return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
 }
 function badges(p) {
 var out = '';
-if (p.is_platform) out += '<span class="hd-badge hd-badge--plat" title="Official Hereld account">' + ic('shield') + '</span>';
-else if (p.verified) out += '<span class="hd-badge hd-badge--ver" title="Verified company">' + ic('tick') + '</span>';
-if (p.is_bot) out += '<span class="hd-badge hd-badge--bot" title="Automated account">' + ic('robot') + '<span class="nb-sr">Automated account</span></span>';
+if (p.is_platform) {
+out += '<span class="hd-badge hd-badge--plat" title="Official Hereld account">' + ic('shield') +
+'<span class="nb-sr">Official Hereld account</span></span>';
+} else if (p.verified) {
+out += p.is_company
+? '<span class="hd-badge hd-badge--co" title="Verified company">' + ic('verifiedco') +
+'<span class="nb-sr">Verified company</span></span>'
+: '<span class="hd-badge hd-badge--ver" title="Verified account">' + ic('verified') +
+'<span class="nb-sr">Verified account</span></span>';
+}
+if (p.parent) {
+out += '<a class="hd-badge hd-badge--par" href="' + url(p.parent.handle) + '" data-r ' +
+'title="Part of ' + esc(p.parent.name || p.parent.handle) + '">' +
+H.avatar(p.parent, 'hd-av--pin' + (p.parent.is_company ? ' hd-av--sq' : '')) +
+'<span class="nb-sr">Part of ' + esc(p.parent.name || p.parent.handle) + '</span></a>';
+}
 return out;
 }
 function avatarOf(p, cls) {
 return H.avatar(p, (cls || '') + (p && p.is_company ? ' hd-av--sq' : ''));
 }
 function nameLine(p, stamp, extra) {
+var count = p.follower_count == null ? '' :
+'<span class="hd-who-fol">' + num(p.follower_count) + ' follower' + (p.follower_count === 1 ? '' : 's') + '</span>';
 return '<span class="hd-who">' +
-link(p.handle, '<b>' + esc(p.name || p.handle) + '</b>', 'hd-who-name') + badges(p) +
-'<span class="hd-who-at">' + H.tag(p.handle) + '</span>' +
-(stamp ? '<span class="hd-dot">·</span><span class="hd-when">' + esc(stamp) + '</span>' : '') +
+link(p.handle, '<b>' + esc(p.name || p.handle) + '</b>', 'hd-who-name', ' data-card="' + esc(p.handle || '') + '"') +
+badges(p) +
+link(p.handle, H.tag(p.handle), 'hd-who-at', ' data-card="' + esc(p.handle || '') + '"') + count +
+(stamp ? '<span class="hd-dot">&middot;</span><span class="hd-when">' + esc(stamp) + '</span>' : '') +
 (extra || '') + '</span>';
 }
 function act(kind, ico, label, count, on, extra) {
@@ -102,7 +154,7 @@ encodeURIComponent('Explain this Hereld post in plain language:\n\n' + (p.body |
 return '<div class="hd-acts" data-id="' + p.id + '">' +
 act('reply',  'comment',  'Reply',   p.reply_count,   false, 'data-do="reply"') +
 act('relay',  'relay',    'Relay',   p.relay_count,   mine.relayed[p.id],  'data-do="relay"') +
-act('endorse','heart',    'Endorse', p.endorse_count, mine.endorsed[p.id], 'data-do="endorse"') +
+act('like',   'heart',    'Like',    p.endorse_count, mine.liked[p.id],    'data-do="like"') +
 act('views',  'chart',    'Views',   p.view_count,    false, 'data-do="views"') +
 act('save',   'bookmark', mine.saved[p.id] ? 'Saved' : 'Save', null, mine.saved[p.id], 'data-do="save"') +
 act('share',  'share',    'Share',   null, false, 'data-do="share"') +
@@ -117,29 +169,35 @@ function card(p, o) {
 o = o || {};
 var a = p.author || {};
 var lead = '';
-if (p.relayed_by) {
-lead = '<div class="hd-lead">' + ic('relay') +
-link(p.relayed_by.handle, esc(p.relayed_by.name || p.relayed_by.handle)) + ' relayed this</div>';
-}
 var note = p.note ? '<div class="hd-cnote">' +
 '<b>' + ic('info') + ' Community note</b><p>' + body(p.note.body) + '</p>' +
 (p.note.source ? '<a href="' + esc(p.note.source) + '" target="_blank" rel="noopener nofollow">Source</a>' : '') +
 '</div>' : '';
-var quoted = p.quote ? '<div class="hd-quote">' +
+if (p.relayed_by) {
+lead = '<div class="hd-lead">' + ic('relay') +
+link(p.relayed_by.handle, esc(p.relayed_by.name || p.relayed_by.handle)) + ' relayed this</div>';
+} else if (p.reply_at) {
+lead = '<div class="hd-lead">' + ic('comment') + ' Replying to ' +
+link(p.reply_at.handle, H.tag(p.reply_at.handle), 'hd-lead-at') + '</div>';
+}
+var quoted = p.quote ? '<div class="hd-quote" data-open="' + p.quote.id + '">' +
 '<div class="hd-quote-top">' + avatarOf(p.quote.author, 'hd-av--xs') +
 nameLine(p.quote.author, H.when(p.quote.created_at)) + '</div>' +
-'<p>' + body(p.quote.body) + '</p></div>' : '';
-return '<article class="nb-card hd-post' + (o.lead ? ' hd-post--lead' : '') + '" data-post="' + p.id + '" data-author="' + esc(a.handle || '') + '">' +
+'<p>' + body(p.quote.body) + '</p>' + mediaHTML(mediaOf(p.quote.body).slice(0, 1)) + '</div>' : '';
+var shots = mediaHTML(mediaOf(p.body));
+var said = body(p.body);
+return '<article class="nb-card hd-post' + (o.lead ? ' hd-post--lead' : '') + '" data-post="' + p.id +
+'" data-author="' + esc(a.handle || '') + '"' + (o.lead ? '' : ' data-open="' + p.id + '" tabindex="0" role="link"') + '>' +
 lead +
 '<div class="hd-post-top">' +
-'<button class="hd-av-btn" type="button" data-face="' + esc(a.avatar_url || '') + '" data-who="' + esc(a.handle || '') + '">' +
-avatarOf(a) + '</button>' +
+'<a class="hd-av-btn" href="' + url(a.handle || '') + '" data-r data-card="' + esc(a.handle || '') + '" ' +
+'aria-label="' + esc(a.name || a.handle || '') + '">' + avatarOf(a) + '</a>' +
 '<div class="hd-post-who">' + nameLine(a, H.when(p.created_at)) +
 (a.headline ? '<i class="hd-head">' + esc(a.headline) + '</i>' : '') +
 '</div>' +
 '</div>' +
-(p.body ? '<p class="hd-post-body">' + body(p.body) + '</p>' : '') +
-quoted + note + acts(p) +
+(said ? '<p class="hd-post-body">' + said + '</p>' : '') +
+shots + quoted + note + acts(p) +
 '</article>';
 }
 function feedHTML(rows, o) {
@@ -175,7 +233,7 @@ db.from('endorsements').select('post_id').eq('user_id', my.id).in('post_id', ids
 db.from('posts').select('relay_of').eq('author', my.id).in('relay_of', ids),
 db.from('bookmarks').select('post_id').eq('user_id', my.id).in('post_id', ids)
 ]);
-(got[0].data || []).forEach(function (r) { mine.endorsed[r.post_id] = true; });
+(got[0].data || []).forEach(function (r) { mine.liked[r.post_id] = true; });
 (got[1].data || []).forEach(function (r) { mine.relayed[r.relay_of] = true; });
 (got[2].data || []).forEach(function (r) { mine.saved[r.post_id] = true; });
 }
@@ -208,11 +266,36 @@ var by = {};
 rows.forEach(function (p) { if (by[p.id]) p.note = by[p.id]; });
 return rows;
 }
+async function attachReplies(rows) {
+var need = rows.filter(function (p) { return p.reply_to && !p.reply_at; })
+.map(function (p) { return p.reply_to; });
+if (!need.length) return rows;
+var r = await db.from('posts')
+.select('id, author:profiles!posts_author_fkey(id,handle,name)').in('id', need);
+var by = {};
+(r.data || []).forEach(function (x) { if (x.author) by[x.id] = x.author; });
+rows.forEach(function (p) { if (by[p.reply_to]) p.reply_at = by[p.reply_to]; });
+return rows;
+}
+async function attachParents(rows) {
+var need = [], seen = {};
+rows.forEach(function (p) {
+var a = p.author;
+if (a && a.parent_id && !seen[a.parent_id]) { seen[a.parent_id] = 1; need.push(a.parent_id); }
+});
+if (!need.length) return rows;
+var r = await db.from('profiles').select('id,handle,name,avatar_url,is_company').in('id', need);
+var by = {};
+(r.data || []).forEach(function (x) { by[x.id] = x; });
+rows.forEach(function (p) {
+if (p.author && p.author.parent_id && by[p.author.parent_id]) p.author.parent = by[p.author.parent_id];
+});
+return rows;
+}
 async function hydrate(rows) {
 rows = rows || [];
 rows = await attachRelays(rows);
-await attachNotes(rows);
-await markMine(rows);
+await Promise.all([attachNotes(rows), attachReplies(rows), attachParents(rows), markMine(rows)]);
 return rows;
 }
 var seen = {}, pending = [], seenT = null, watcher = null;
@@ -362,7 +445,7 @@ pic.addEventListener('change', function () {
 var f = pic.files && pic.files[0];
 pic.value = '';
 if (!f) return;
-if (f.size > 4 * 1024 * 1024) return warn('That picture is over 4 MB. Try a smaller one.');
+if (f.size > 24 * 1024 * 1024) return warn('That picture is over 24 MB. Try a smaller one.');
 media = f;
 var read = new FileReader();
 read.onload = function () {
@@ -442,19 +525,19 @@ if (!n) return;
 var was = Number(String(n.textContent).replace(/[^\d]/g, '')) || 0;
 n.textContent = num(Math.max(0, was + by));
 }
-async function endorse(btn) {
+async function like(btn) {
 if (needAccount()) return;
 var id = btn.closest('[data-post]').getAttribute('data-post');
 var on = btn.classList.toggle('is-on');
 bump(btn, on ? 1 : -1);
-mine.endorsed[id] = on;
+mine.liked[id] = on;
 var r = on
 ? await db.from('endorsements').insert({ user_id: my.id, post_id: id })
 : await db.from('endorsements').delete().eq('user_id', my.id).eq('post_id', id);
 if (r.error) {
 btn.classList.toggle('is-on', !on);
 bump(btn, on ? -1 : 1);
-mine.endorsed[id] = !on;
+mine.liked[id] = !on;
 U.toast('That did not save.', 'bad');
 }
 }
@@ -728,12 +811,89 @@ if (!r.error) node.remove();
 U.menu(btn, items);
 }
 var peopleCache = {};
-async function person(handle) {
-if (peopleCache[handle]) return peopleCache[handle];
-var r = await db.from('profiles').select('*').eq('handle', String(handle).toLowerCase()).maybeSingle();
-if (r.error || !r.data) { U.toast('That account could not be found.', 'bad'); return null; }
-peopleCache[handle] = r.data;
+async function person(handle, quiet) {
+var key = String(handle || '').toLowerCase();
+if (peopleCache[key]) return peopleCache[key];
+var r = await db.from('profiles').select('*').eq('handle', key).maybeSingle();
+if (r.error || !r.data) {
+if (!quiet) U.toast('That account could not be found.', 'bad');
+return null;
+}
+peopleCache[key] = r.data;
 return r.data;
+}
+var cardBox = null, cardFor = null, cardIn = null, cardOut = null;
+function cardNode() {
+if (cardBox) return cardBox;
+cardBox = document.createElement('div');
+cardBox.className = 'nb-card hd-pcard';
+cardBox.hidden = true;
+cardBox.addEventListener('mouseenter', function () { clearTimeout(cardOut); });
+cardBox.addEventListener('mouseleave', hideCard);
+document.body.appendChild(cardBox);
+return cardBox;
+}
+function hideCard() {
+clearTimeout(cardIn); clearTimeout(cardOut);
+cardOut = setTimeout(function () {
+if (!cardBox) return;
+cardBox.hidden = true;
+cardBox.classList.remove('is-in');
+cardFor = null;
+}, 180);
+}
+function placeCard(anchor) {
+var box = cardNode(), r = anchor.getBoundingClientRect();
+box.hidden = false;
+var w = box.offsetWidth || 300, h = box.offsetHeight || 180;
+var left = Math.min(Math.max(10, r.left), window.innerWidth - w - 10);
+var top = r.bottom + 10;
+if (top + h > window.innerHeight - 10 && r.top - h - 10 > 10) top = r.top - h - 10;
+box.style.left = Math.round(left + window.scrollX) + 'px';
+box.style.top = Math.round(top + window.scrollY) + 'px';
+}
+async function showCard(anchor, handle) {
+var key = String(handle || '').toLowerCase();
+if (!key || key === cardFor) { clearTimeout(cardOut); return; }
+var box = cardNode();
+cardFor = key;
+var p = peopleCache[key] || await person(key, true);
+if (!p || cardFor !== key) return;
+var isMe = my && my.id === p.id;
+box.innerHTML =
+'<div class="hd-pcard-top">' +
+link(p.handle, avatarOf(p, 'hd-av--lg'), 'hd-pcard-face') +
+(isMe ? link('settings', 'Edit profile', 'nb-btn nb-btn--ghost nb-btn--sm')
+: (my ? '<button class="nb-btn nb-btn--sm ' + (mine.following[p.id] ? 'nb-btn--ghost' : 'nb-btn--primary') +
+'" type="button" data-follow="' + p.id + '">' + (mine.following[p.id] ? 'Following' : 'Follow') + '</button>'
+: link('join', 'Follow', 'nb-btn nb-btn--primary nb-btn--sm'))) +
+'</div>' +
+'<p class="hd-pcard-name">' + link(p.handle, '<b>' + esc(p.name || p.handle) + '</b>') + badges(p) + '</p>' +
+'<p class="hd-pcard-at">' + H.tag(p.handle) + '</p>' +
+(p.headline ? '<p class="hd-pcard-head">' + esc(p.headline) + '</p>' : '') +
+(p.bio ? '<p class="hd-pcard-bio">' + body(p.bio) + '</p>' : '') +
+'<p class="hd-pcard-counts">' +
+'<span><b>' + num(p.following_count) + '</b> Following</span>' +
+'<span><b>' + num(p.follower_count) + '</b> Followers</span>' +
+'</p>';
+twem(box);
+placeCard(anchor);
+requestAnimationFrame(function () { box.classList.add('is-in'); });
+}
+function wireCards() {
+document.addEventListener('mouseover', function (e) {
+var a = e.target.closest && e.target.closest('[data-card]');
+if (!a) return;
+clearTimeout(cardIn); clearTimeout(cardOut);
+cardIn = setTimeout(function () { showCard(a, a.getAttribute('data-card')); }, 420);
+});
+document.addEventListener('mouseout', function (e) {
+var a = e.target.closest && e.target.closest('[data-card]');
+if (!a) return;
+clearTimeout(cardIn);
+hideCard();
+});
+window.addEventListener('scroll', function () { if (cardBox && !cardBox.hidden) hideCard(); }, true);
 }
 var col, aside, rail, bar;
 var painting = 0;
@@ -801,9 +961,10 @@ watchViews(feed);
 function personRow(p) {
 var on = mine.following[p.handle];
 return '<div class="nb-card nb-card--tight hd-person" data-person="' + p.id + '" data-handle="' + esc(p.handle) + '">' +
-'<button class="hd-av-btn" type="button" data-face="' + esc(p.avatar_url || '') + '">' + avatarOf(p, 'hd-av--sm') + '</button>' +
-'<div class="hd-person-txt">' + link(p.handle, '<b>' + esc(p.name || p.handle) + '</b>' + badges(p)) +
-'<i>' + H.tag(p.handle) + '</i>' +
+'<a class="hd-av-btn" href="' + url(p.handle) + '" data-r data-card="' + esc(p.handle) + '" aria-hidden="true" tabindex="-1">' +
+avatarOf(p, 'hd-av--sm') + '</a>' +
+'<div class="hd-person-txt">' + link(p.handle, '<b>' + esc(p.name || p.handle) + '</b>' + badges(p), '', ' data-card="' + esc(p.handle) + '"') +
+'<i>' + link(p.handle, H.tag(p.handle)) + '</i>' +
 (p.headline ? '<p>' + esc(p.headline) + '</p>' : '') + '</div>' +
 (my && p.id !== my.id
 ? '<button class="nb-btn nb-btn--sm ' + (on ? 'nb-btn--ghost' : 'nb-btn--primary') + '" type="button" data-follow="' + p.id + '">' +
@@ -842,7 +1003,7 @@ twem(col);
 watchViews(col);
 }
 var NOTE_WORDS = {
-endorse: 'endorsed your post',
+endorse: 'liked your post',
 relay: 'relayed your post',
 reply: 'replied to you',
 follow: 'started following you',
@@ -882,7 +1043,7 @@ ic(n.kind === 'endorse' ? 'heart' : n.kind === 'relay' ? 'relay' : n.kind === 'f
 '<span class="hd-note-txt"><p><b>' + esc(a.name || a.handle || 'Someone') + '</b> ' + esc(text) + '</p>' +
 (quotes[n.post_id] ? '<p class="hd-note-quote">' + esc(String(quotes[n.post_id]).slice(0, 160)) + '</p>' : '') +
 '<span class="hd-note-when">' + esc(H.when(n.created_at)) + '</span></span></a>';
-}).join('') : empty('Nothing yet', 'Endorsements, relays, replies and follows land here.');
+}).join('') : empty('Nothing yet', 'Likes, relays, replies and follows land here.');
 twem(host);
 if (unread) {
 await db.rpc('notes_read_all');
@@ -1138,7 +1299,6 @@ aside.innerHTML =
 '<a href="https://swiftaw.com/legal/terms-of-service">Terms</a>' +
 '<a href="https://swiftaw.com/legal/privacy-policy">Privacy</a>' +
 '<a href="https://swiftaw.com/">Swiftaw</a>' +
-'<a href="https://fortized.com">Fortized</a>' +
 '<span>© 2026 Swiftaw</span></nav>';
 var got = await Promise.all([
 db.rpc('horn_line', { p_limit: 6 }),
@@ -1239,9 +1399,27 @@ window.scrollTo(0, 0);
 return;
 }
 var b = e.target.closest && e.target.closest('button');
+if (!b && !(e.target.closest && e.target.closest('a, input, textarea, video, label'))) {
+var opener = e.target.closest && e.target.closest('[data-open]');
+if (opener) {
+if (!window.getSelection || String(window.getSelection()) === '') {
+go('post/' + opener.getAttribute('data-open'));
+}
+return;
+}
+}
 if (!b) return;
 if (b.hasAttribute('data-back')) { history.length > 1 ? history.back() : go('home'); return; }
 if (b.hasAttribute('data-retry')) { render(); return; }
+var shot = b.getAttribute('data-shot');
+if (shot) {
+var box = b.closest('.hd-shots');
+var all = box ? [].slice.call(box.querySelectorAll('[data-shot]')).map(function (n) {
+return n.getAttribute('data-shot');
+}) : [shot];
+U.look(all, +(b.getAttribute('data-shot-i') || 0), 'Picture');
+return;
+}
 var face = b.getAttribute('data-face');
 if (face !== null && b.classList.contains('hd-av-btn')) {
 if (face) U.look([face], 0, 'Profile picture');
@@ -1249,10 +1427,8 @@ return;
 }
 var cover = b.getAttribute('data-cover');
 if (cover) { U.look([cover], 0, 'Banner'); return; }
-var img = e.target.closest && e.target.closest('.hd-post-body img, .hd-shot');
-if (img) { U.look([img.src], 0, 'Picture'); return; }
 var doing = b.getAttribute('data-do');
-if (doing === 'endorse') return endorse(b);
+if (doing === 'like') return like(b);
 if (doing === 'relay') return relay(b);
 if (doing === 'save') return save(b);
 if (doing === 'share') return share(b);
@@ -1317,6 +1493,11 @@ e.preventDefault();
 var q = f.querySelector('input').value.trim();
 if (q) go('search?q=' + encodeURIComponent(q));
 }
+});
+document.addEventListener('keydown', function (e) {
+if (e.key !== 'Enter') return;
+var o = e.target.closest && e.target.closest('[data-open][tabindex]');
+if (o && e.target === o) { e.preventDefault(); go('post/' + o.getAttribute('data-open')); }
 });
 window.addEventListener('popstate', function () { render(); });
 document.addEventListener('keydown', function (e) {
@@ -1383,7 +1564,6 @@ var lift = el('splash');
 document.body.classList.add('hd-app');
 document.body.innerHTML =
 '<a class="nb-skip" href="#col">Skip to the content</a>' +
-'<div class="nb-rainbaw" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>' +
 '<div class="hd-shell">' +
 '<aside class="hd-rail" id="rail"></aside>' +
 '<main class="hd-col" id="col" tabindex="-1"></main>' +
@@ -1415,6 +1595,7 @@ return;
 }
 shell();
 wire();
+wireCards();
 await Promise.all([countNotes(), whoAmIOnStaff()]);
 await render();
 paintAside();

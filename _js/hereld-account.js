@@ -93,17 +93,20 @@
       esc(String(name).trim().charAt(0).toUpperCase() || '?') + '</span>';
   }
 
-  /* Hereld's mark is a horn with an @ coiled inside it, so a handle is
-     written with the mark rather than a typed @. It is a mask, so it inherits
-     the colour of the text around it. The @ still goes to a screen reader,
-     because "staw" and "@staw" are not the same thing said aloud. */
+  /* A handle is written with the mark rather than a typed @. It is drawn
+     inline at the size of the text and inherits its colour, so it sits on the
+     same baseline as the letters after it. The @ still goes to a screen
+     reader, because "staw" and "@staw" are not the same thing said aloud. */
+  var AT_PATH = 'M256 64C150 64 64 150 64 256s86 192 192 192c17.7 0 32 14.3 32 32s-14.3 32-32 32C114.6 512 0 397.4 0 256S114.6 0 256 0 512 114.6 512 256l0 32c0 53-43 96-96 96-29.3 0-55.6-13.2-73.2-33.9-22.8 21-53.3 33.9-86.8 33.9-70.7 0-128-57.3-128-128s57.3-128 128-128c27.9 0 53.7 8.9 74.7 24.1 5.7-5 13.1-8.1 21.3-8.1 17.7 0 32 14.3 32 32l0 112c0 17.7 14.3 32 32 32s32-14.3 32-32l0-32c0-106-86-192-192-192zm64 192a64 64 0 1 0 -128 0 64 64 0 1 0 128 0z';
+
   function at(cls) {
-    return '<i class="hd-at' + (cls ? ' ' + cls : '') + '" aria-hidden="true"></i>' +
+    return '<svg class="hd-at' + (cls ? ' ' + cls : '') + '" viewBox="0 0 512 512" ' +
+           'aria-hidden="true" focusable="false"><path d="' + AT_PATH + '"/></svg>' +
            '<span class="nb-sr">@</span>';
   }
 
   function tag(handle, cls) {
-    return at(cls) + esc(handle || '');
+    return at(cls) + '<span class="hd-at-h">' + esc(handle || '') + '</span>';
   }
 
   /* Supabase speaks in constraint names. People do not. */
