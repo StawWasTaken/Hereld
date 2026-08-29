@@ -1078,12 +1078,12 @@ display: inline-flex; align-items: center; gap: 1px;
 .hd-acct-now { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--nb-blue); }
 .hd-acct-go > svg { width: 16px; height: 16px; flex: none; fill: currentColor; opacity: .55; }
 .hd-acct-x { flex: none; align-self: center; }
-.hd-count {
+.hd-count-btn {
 background: none; border: 0; padding: 0; cursor: pointer; font: inherit;
 color: var(--nb-surface-fg-muted);
 }
-.hd-count:hover { color: var(--nb-surface-fg); text-decoration: underline; }
-.hd-count b { color: var(--nb-surface-fg); font-family: var(--nb-font-head); font-weight: 700; }
+.hd-count-btn:hover { color: var(--nb-surface-fg); text-decoration: underline; }
+.hd-count-btn b { color: var(--nb-surface-fg); font-family: var(--nb-font-head); font-weight: 700; }
 .hd-standing { display: flex; flex-wrap: wrap; gap: 7px; margin: 11px 0 0; }
 .hd-chip {
 padding: 3px 10px; font-size: 12px; font-weight: 700;
@@ -1110,3 +1110,9 @@ grid-template-columns: 1fr 1fr 1fr auto;
 .hd-assoc-add { grid-template-columns: 1fr; }
 .hd-person-do { width: 100%; }
 }
+.hd-compose-as {
+display: flex; align-items: center; gap: 10px; margin: 12px 0 0;
+font-size: 12px; font-weight: 700; letter-spacing: .06em;
+text-transform: uppercase; color: var(--nb-surface-fg-muted);
+}
+.hd-compose-as select { flex: 1; min-width: 0; }

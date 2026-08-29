@@ -541,6 +541,15 @@
 
   var composeSeq = 0;
 
+  /* The accounts this one holds. Read once a session, and only for a company,
+     since nothing else can hold an account. */
+  var held = [];
+  async function loadHeld() {
+    if (!my || !my.is_company) { held = []; return; }
+    var r = await db.from('profiles').select('id,handle,name').eq('parent_id', my.id).limit(50);
+    held = (r.data || []);
+  }
+
   function composerHTML(o) {
     o = o || {};
     var id = 'c' + (++composeSeq);
@@ -551,6 +560,15 @@
           'placeholder="' + esc(o.placeholder || 'What is worth saying?') + '"></textarea>' +
       '</div>' +
       '<div class="hd-compose-media" hidden></div>' +
+      /* Only drawn once this account is known to hold others. Until then
+         there is nothing to choose between. */
+      (held.length
+        ? '<label class="hd-compose-as"><span>Post as</span><select class="nb-select" data-as>' +
+            '<option value="' + my.id + '">' + esc(my.name || my.handle) + '</option>' +
+            held.map(function (h) {
+              return '<option value="' + h.id + '">' + esc(h.name || h.handle) + '</option>';
+            }).join('') + '</select></label>'
+        : '') +
       '<div class="hd-compose-foot">' +
         '<div class="hd-compose-tools">' +
           '<label class="nb-icon-btn hd-compose-tool" data-tip="Add a picture">' + ic('image') +
@@ -643,11 +661,25 @@
           text = (text ? text + '\n' : '') + pub.data.publicUrl;
         }
 
-        var row = { author: my.id, body: text };
-        if (o.replyTo) row.reply_to = o.replyTo;
-        if (o.quoteOf) row.relay_of = o.quoteOf;
+        var asSel = form.querySelector('[data-as]');
+        var asId = asSel ? asSel.value : my.id;
 
-        var r = await db.from('posts').insert(row).select(WITH_AUTHOR).single();
+        var r;
+        if (asId && asId !== my.id) {
+          /* Writing as an account this one holds. The row policy will not
+             allow it, and should not: the function checks the tie instead. */
+          var made = await db.rpc('post_as', {
+            p_as: asId, p_body: text,
+            p_reply_to: o.replyTo || null, p_relay_of: o.quoteOf || null
+          });
+          if (made.error) throw made.error;
+          r = await db.from('posts').select(WITH_AUTHOR).eq('id', made.data).single();
+        } else {
+          var row = { author: my.id, body: text };
+          if (o.replyTo) row.reply_to = o.replyTo;
+          if (o.quoteOf) row.relay_of = o.quoteOf;
+          r = await db.from('posts').insert(row).select(WITH_AUTHOR).single();
+        }
         if (r.error) throw r.error;
 
         ta.value = ''; media = null; tray.hidden = true; tray.innerHTML = '';
@@ -1536,7 +1568,7 @@
   }
 
   function countBtn(p, kind, n, label) {
-    return '<button class="hd-count" type="button" data-list="' + kind + '" data-list-of="' + p.id +
+    return '<button class="hd-count-btn" type="button" data-list="' + kind + '" data-list-of="' + p.id +
       '" data-list-who="' + esc(p.handle) + '"><b>' + num(n || 0) + '</b> ' + label + '</button>';
   }
 
@@ -2312,6 +2344,7 @@
       b.disabled = false;
       if (r.error) { asSay.textContent = H.trouble(r.error, 'That did not go through.'); asSay.hidden = false; return; }
       asSay.hidden = true;
+      loadHeld();
       paintAssoc();
     });
 
@@ -2704,7 +2737,7 @@
     shell();
     wire();
     wireCards();
-    await Promise.all([countNotes(), whoAmIOnStaff()]);
+    await Promise.all([countNotes(), whoAmIOnStaff(), loadHeld()]);
     await render();
     paintAside();
     splashOff();
