@@ -55,7 +55,7 @@ create policy post_media_delete_own on public.post_media for delete to authentic
 
 -- Staff can edit any media (for moderation).
 drop policy if exists post_media_staff on public.post_media;
-create policy post_media_staff on all to authenticated
+create policy post_media_staff on public.post_media for all to authenticated
   using (public.is_staff()) with check (public.is_staff());
 
 -- Write media metadata for a post the author just created. The client sends
