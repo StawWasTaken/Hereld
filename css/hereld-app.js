@@ -49,7 +49,12 @@ return '<img class="hd-nva' + (cls ? ' ' + cls : '') + '" src="' + url('Supernov
 '" alt="" height="' + h + '" width="' + Math.round(h * MARK_W / MARK_H) + '">';
 }
 function novaAv(cls, h) {
-return '<span class="hd-nova-av-wrap' + (cls ? ' ' + cls : '') + '" style="width:' + h + 'px;height:' + h + 'px">' +
+var id = 'novaAv' + Math.random().toString(36).slice(2, 8);
+setTimeout(function () {
+var el = document.getElementById(id);
+if (el) el.classList.add('is-revealed');
+}, 1900);
+return '<span class="hd-nova-av-wrap' + (cls ? ' ' + cls : '') + '" id="' + id + '" style="width:' + h + 'px;height:' + h + 'px">' +
 novaArt('hd-nva--grad', h) + '</span>';
 }
 function go(path, replace) {

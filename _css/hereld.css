@@ -766,17 +766,50 @@ body.hd-wide .hd-aside { display: none; }
 }
 
 /* ── Supernova gradient avatar ──────────────────────────────────────────── */
+/* ── Supernova gradient avatar ─────────────────────────────────────────────
+   The mark PNG is transparent. The gradient sits ON TOP via mix-blend-mode
+   so it tints the visible parts of the image. A glow breathes behind it. */
 .hd-nova-av-wrap {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
   border-radius: 50%; overflow: hidden; flex: none;
+  background: #fff;
+}
+/* Glow halo behind the avatar. */
+.hd-nova-av-wrap::before {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,0,51,.35), rgba(62,207,110,.25), rgba(44,175,252,.2), transparent 70%);
+  filter: blur(6px); z-index: 0;
+  animation: hdNovaGlow 3s ease-in-out infinite alternate;
+}
+/* Gradient overlay ON TOP of the image. */
+.hd-nova-av-wrap::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; z-index: 2;
   background: linear-gradient(135deg, #ff0033, #3ecf6e, #2caffc, #fff93e, #ff77e4);
   background-size: 300% 300%;
-  animation: hdNovaGrad 6s ease infinite;
+  mix-blend-mode: multiply;
+  opacity: 0;  /* hidden until reveal */
+  animation: hdNovaReveal 1.8s cubic-bezier(.22,1,.36,1) forwards, hdNovaGrad 6s ease 1.8s infinite;
 }
+/* The mark image sits behind the gradient overlay. */
 .hd-nva--grad {
   position: relative; z-index: 1;
   width: 100%; height: 100%; object-fit: contain;
-  mix-blend-mode: screen; opacity: .9;
+  filter: grayscale(1) brightness(1.4);
+  transition: filter 1.8s ease;
+}
+/* Once the gradient is revealed, restore original colors. */
+.hd-nova-av-wrap.is-revealed .hd-nva--grad { filter: none; }
+/* Breathe glow. */
+@keyframes hdNovaGlow {
+  0%   { opacity: .5; transform: scale(1); }
+  100% { opacity: 1; transform: scale(1.06); }
+}
+/* Sweep-to-reveal: gradient slides up from bottom, element grows then shrinks. */
+@keyframes hdNovaReveal {
+  0%   { opacity: 0; background-position: 50% 150%; transform: scale(1); }
+  40%  { opacity: .7; background-position: 50% 60%; transform: scale(1.08); }
+  70%  { opacity: .9; background-position: 50% 20%; transform: scale(1.04); }
+  100% { opacity: 1; background-position: 50% 0%; transform: scale(1); }
 }
 @keyframes hdNovaGrad {
   0%   { background-position: 0% 50%; }
@@ -784,7 +817,8 @@ body.hd-wide .hd-aside { display: none; }
   100% { background-position: 0% 50%; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hd-nova-av-wrap { animation: none; }
+  .hd-nova-av-wrap::before, .hd-nova-av-wrap::after { animation: none; opacity: 1; }
+  .hd-nva--grad { filter: none; }
 }
 
 /* ── Supernova post card (opens from the mark on a post) ───────────────── */

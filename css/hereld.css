@@ -629,21 +629,48 @@ margin: 12px 0 0; text-align: center; font-size: 12.5px; color: var(--nb-fg-mute
 .hd-nova-av-wrap {
 position: relative; display: inline-flex; align-items: center; justify-content: center;
 border-radius: 50%; overflow: hidden; flex: none;
+background: #fff;
+}
+.hd-nova-av-wrap::before {
+content: ''; position: absolute; inset: -6px; border-radius: 50%;
+background: radial-gradient(circle, rgba(255,0,51,.35), rgba(62,207,110,.25), rgba(44,175,252,.2), transparent 70%);
+filter: blur(6px); z-index: 0;
+animation: hdNovaGlow 3s ease-in-out infinite alternate;
+}
+.hd-nova-av-wrap::after {
+content: ''; position: absolute; inset: 0; border-radius: 50%; z-index: 2;
 background: linear-gradient(135deg, #ff0033, #3ecf6e, #2caffc, #fff93e, #ff77e4);
 background-size: 300% 300%;
-animation: hdNovaGrad 6s ease infinite;
+mix-blend-mode: multiply;
+opacity: 0;
+animation: hdNovaReveal 1.8s cubic-bezier(.22,1,.36,1) forwards, hdNovaGrad 6s ease 1.8s infinite;
 }
 .hd-nva--grad {
 position: relative; z-index: 1;
 width: 100%; height: 100%; object-fit: contain;
-mix-blend-mode: screen; opacity: .9;
+filter: grayscale(1) brightness(1.4);
+transition: filter 1.8s ease;
+}
+.hd-nova-av-wrap.is-revealed .hd-nva--grad { filter: none; }
+@keyframes hdNovaGlow {
+0%   { opacity: .5; transform: scale(1); }
+100% { opacity: 1; transform: scale(1.06); }
+}
+@keyframes hdNovaReveal {
+0%   { opacity: 0; background-position: 50% 150%; transform: scale(1); }
+40%  { opacity: .7; background-position: 50% 60%; transform: scale(1.08); }
+70%  { opacity: .9; background-position: 50% 20%; transform: scale(1.04); }
+100% { opacity: 1; background-position: 50% 0%; transform: scale(1); }
 }
 @keyframes hdNovaGrad {
 0%   { background-position: 0% 50%; }
 50%  { background-position: 100% 50%; }
 100% { background-position: 0% 50%; }
 }
-@media (prefers-reduced-motion: reduce) { .hd-nova-av-wrap { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+.hd-nova-av-wrap::before, .hd-nova-av-wrap::after { animation: none; opacity: 1; }
+.hd-nva--grad { filter: none; }
+}
 .hd-nova-post-card {
 padding: 16px; margin-bottom: 14px;
 border: var(--nb-bd-thin); border-radius: var(--nb-r);
