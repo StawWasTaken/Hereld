@@ -1330,3 +1330,42 @@ label.nb-btn { display: inline-flex; align-items: center; justify-content: cente
 .hd-acct-now { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--nb-blue); }
 .hd-acct-go > svg { width: 16px; height: 16px; flex: none; fill: currentColor; opacity: .55; }
 .hd-acct-x { flex: none; align-self: center; }
+
+/* Followers, following and associated accounts open rather than link, so the
+   count reads as text and behaves as a button. */
+.hd-count {
+  background: none; border: 0; padding: 0; cursor: pointer; font: inherit;
+  color: var(--nb-surface-fg-muted);
+}
+.hd-count:hover { color: var(--nb-surface-fg); text-decoration: underline; }
+.hd-count b { color: var(--nb-surface-fg); font-family: var(--nb-font-head); font-weight: 700; }
+
+.hd-standing { display: flex; flex-wrap: wrap; gap: 7px; margin: 11px 0 0; }
+.hd-chip {
+  padding: 3px 10px; font-size: 12px; font-weight: 700;
+  color: var(--nb-surface-fg-muted);
+  background: var(--nb-surface-2);
+  border: var(--nb-bd-thin); border-radius: var(--nb-r-pill);
+}
+
+.hd-assoc-one span { display: flex; flex-direction: column; line-height: 1.25; }
+.hd-assoc-one i {
+  font-style: normal; font-weight: 500; font-size: 11px;
+  color: var(--nb-surface-fg-muted);
+}
+
+.hd-list { display: flex; flex-direction: column; gap: 10px; }
+.hd-modal-line { margin: 0 0 14px; color: var(--nb-surface-fg-muted); font-size: 13.5px; }
+
+.hd-person-do { display: flex; gap: 8px; flex: none; }
+.hd-set-checks { display: flex; flex-direction: column; gap: 13px; }
+.hd-assoc-add {
+  display: grid; gap: 12px; align-items: end; margin-bottom: 16px;
+  grid-template-columns: 1fr 1fr 1fr auto;
+}
+.hd-assoc-add .nb-btn { margin-bottom: 1px; }
+#assocBody { display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 700px) {
+  .hd-assoc-add { grid-template-columns: 1fr; }
+  .hd-person-do { width: 100%; }
+}

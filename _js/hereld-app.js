@@ -1427,11 +1427,14 @@
     var counts = await Promise.all([
       my ? db.from('follows').select('follower').eq('follower', my.id).eq('following', p.id).maybeSingle() : Promise.resolve({}),
       my ? db.from('blocks').select('blocked').eq('blocker', my.id).eq('blocked', p.id).maybeSingle() : Promise.resolve({}),
-      p.is_company ? db.from('associations').select('member:profiles!associations_member_fkey(handle,name,avatar_url,verified,is_company)')
-        .eq('company', p.id).eq('state', 'accepted').limit(12) : Promise.resolve({})
+      db.rpc('affiliates_of', { p_id: p.id }),
+      my ? db.rpc('relation_with', { p_id: p.id }) : Promise.resolve({})
     ]);
     if (token !== painting) return;
 
+    /* A list the account has switched off comes back as an error, not as an
+       empty list. Nothing here says which it was. */
+    var assoc = (counts[2] && counts[2].data) || [];
     var following = !!(counts[0] && counts[0].data);
     var blocked = !!(counts[1] && counts[1].data);
     mine.following[p.handle] = following;
@@ -1471,10 +1474,12 @@
             (p.industry ? '<span>' + ic('building') + esc(p.industry) + '</span>' : '') +
           '</p>' +
           '<p class="hd-count-row">' +
-            link('@' + p.handle, '<b>' + num(p.following_count) + '</b> following') +
-            link('@' + p.handle, '<b>' + num(p.follower_count) + '</b> follower' + (p.follower_count === 1 ? '' : 's')) +
+            countBtn(p, 'following', p.following_count, 'following') +
+            countBtn(p, 'followers', p.follower_count, 'follower' + (p.follower_count === 1 ? '' : 's')) +
+            (assoc.length ? countBtn(p, 'affiliated', assoc.length, 'associated') : '') +
           '</p>' +
-          (counts[2] && counts[2].data && counts[2].data.length ? assocHTML(counts[2].data) : '') +
+          standingHTML(counts[3] && counts[3].data) +
+          (assoc.length ? assocHTML(assoc) : '') +
         '</div>' +
       '</div>' + tabsHTML +
       '<div class="hd-feed" id="feed">' + skeletons(3) + '</div>';
@@ -1524,10 +1529,54 @@
 
   function assocHTML(list) {
     return '<div class="hd-assoc"><h3>' + ic('users') + ' Associated accounts</h3><div class="hd-assoc-row">' +
-      list.map(function (a) {
-        var m = a.member || {};
-        return link(m.handle, avatarOf(m, 'hd-av--sm') + '<span>' + esc(m.name || m.handle) + '</span>', 'hd-assoc-one');
+      list.slice(0, 12).map(function (m) {
+        return link('@' + m.handle, avatarOf(m, 'hd-av--sm') +
+          '<span>' + esc(m.name || m.handle) + (m.role ? '<i>' + esc(m.role) + '</i>' : '') + '</span>', 'hd-assoc-one');
       }).join('') + '</div></div>';
+  }
+
+  function countBtn(p, kind, n, label) {
+    return '<button class="hd-count" type="button" data-list="' + kind + '" data-list-of="' + p.id +
+      '" data-list-who="' + esc(p.handle) + '"><b>' + num(n || 0) + '</b> ' + label + '</button>';
+  }
+
+  /* Where the reader stands with this account. Only what is true is drawn:
+     an account nobody follows either way says nothing at all. */
+  function standingHTML(r) {
+    if (!r) return '';
+    var bits = [];
+    if (r.follows_me) bits.push(r.i_follow ? 'Follows you back' : 'Follows you');
+    if (r.common) bits.push(num(r.common) + ' associated account' + (r.common === 1 ? '' : 's') + ' in common');
+    if (!bits.length) return '';
+    return '<p class="hd-standing">' + bits.map(function (b) {
+      return '<span class="hd-chip">' + esc(b) + '</span>';
+    }).join('') + '</p>';
+  }
+
+  /* Followers, following and associated accounts all read the same way, so
+     they are one card with the list swapped underneath. */
+  var LIST_TITLE = { followers: 'Followers', following: 'Following', affiliated: 'Associated accounts' };
+
+  function listCard(kind, id, handle) {
+    var s = U.sheet({
+      title: LIST_TITLE[kind] || 'Accounts',
+      html: '<p class="hd-modal-line">' + H.tag(handle) + '</p><div class="hd-list" id="lsBody">' + skeletons(3) + '</div>'
+    });
+    var call = kind === 'affiliated'
+      ? db.rpc('affiliates_of', { p_id: id })
+      : db.rpc('follows_of', { p_id: id, p_side: kind === 'following' ? 'following' : 'followers' });
+
+    call.then(function (r) {
+      var box = s.q('#lsBody');
+      if (!box) return;
+      if (r.error) { box.innerHTML = broke('That list could not be opened.'); return; }
+      var rows = r.data || [];
+      box.innerHTML = rows.length ? rows.map(personRow).join('')
+        : empty('Nothing here yet', kind === 'affiliated'
+          ? 'No accounts are associated with this one.'
+          : kind === 'following' ? 'This account follows nobody yet.' : 'Nobody follows this account yet.');
+      twem(box);
+    });
   }
 
   function profileActs(p, isMe, following, blocked) {
@@ -1927,6 +1976,40 @@
           '<button type="button" class="nb-btn nb-btn--ghost nb-btn--sm" id="coOff" hidden>Turn it off</button>' +
         '</div>') +
 
+      setCard('Who can open your lists',
+        'These are on. Turning one off closes that list to everybody but you. ' +
+        'Nobody is told you turned it off; the list simply will not open.',
+        '<div class="hd-set-checks">' +
+          '<label class="nb-check"><input type="checkbox" id="sShowFol"' + (my.show_follows === false ? '' : ' checked') +
+            '><span class="nb-box"></span><span>Followers and following</span></label>' +
+          '<label class="nb-check"><input type="checkbox" id="sShowAff"' + (my.show_affiliates === false ? '' : ' checked') +
+            '><span class="nb-box"></span><span>Associated accounts</span></label>' +
+        '</div>' +
+        '<p class="nb-alert nb-alert--error hd-say" id="prSay" hidden></p>') +
+
+      setCard('Associated accounts',
+        my.is_company
+          ? 'Product accounts, regional accounts and the people who speak for this company. ' +
+            'An invitation only counts once the other account accepts it. You can post from an account you hold.'
+          : 'Companies that have asked to associate this account, and the ones it already belongs to. ' +
+            'Nothing appears on your profile until you accept.',
+        (my.is_company
+          ? '<form class="hd-assoc-add" id="assocAdd">' +
+              '<div class="nb-field"><label class="nb-label" for="aHandle">Handle</label>' +
+                '<input class="nb-input" id="aHandle" placeholder="handle" maxlength="20" autocomplete="off"></div>' +
+              '<div class="nb-field"><label class="nb-label" for="aRole">Role <span class="nb-hint">optional</span></label>' +
+                '<input class="nb-input" id="aRole" placeholder="Chief Safety Officer" maxlength="60"></div>' +
+              '<div class="nb-field"><label class="nb-label" for="aKind">Kind</label>' +
+                '<select class="nb-select" id="aKind">' +
+                  '<option value="person">A person who speaks for us</option>' +
+                  '<option value="account">An account we hold</option>' +
+                '</select></div>' +
+              '<button class="nb-btn nb-btn--primary nb-btn--sm" type="submit">Invite</button>' +
+            '</form>'
+          : '') +
+        '<div id="assocBody">' + skeletons(2) + '</div>' +
+        '<p class="nb-alert nb-alert--error hd-say" id="asSay" hidden></p>') +
+
       setCard('Signing out',
         'This ends the session for this account on this device. Any other account signed in here stays. ' +
         'Your Swiftaw and Fortized accounts are separate and are untouched.',
@@ -2120,6 +2203,118 @@
       if (sure) company(false);
     });
 
+    /* Lists */
+    var prSay = el('prSay');
+    function privacy(field, box) {
+      box.addEventListener('change', async function () {
+        var patch = {};
+        patch[field] = box.checked;
+        var r = await db.from('profiles').update(patch).eq('id', my.id);
+        if (r.error) {
+          box.checked = !box.checked;
+          prSay.textContent = H.trouble(r.error, 'That did not save.');
+          prSay.hidden = false;
+          return;
+        }
+        prSay.hidden = true;
+        my[field] = box.checked;
+        U.toast(box.checked ? 'That list is open again.' : 'That list is closed.');
+      });
+    }
+    privacy('show_follows', el('sShowFol'));
+    privacy('show_affiliates', el('sShowAff'));
+
+    /* Associated accounts */
+    var asSay = el('asSay');
+
+    async function paintAssoc() {
+      var box = el('assocBody');
+      if (!box) return;
+      var r = await db.from('associations')
+        .select('company,member,role,kind,state,' +
+          'co:profiles!associations_company_fkey(id,handle,name,avatar_url,verified,is_company,is_platform,is_bot),' +
+          'me:profiles!associations_member_fkey(id,handle,name,avatar_url,verified,is_company,is_platform,is_bot)')
+        .or('company.eq.' + my.id + ',member.eq.' + my.id)
+        .limit(100);
+      if (r.error) { box.innerHTML = broke(H.trouble(r.error, 'That list did not load.')); return; }
+
+      var rows = r.data || [];
+      if (!rows.length) {
+        box.innerHTML = empty('Nothing yet', my.is_company
+          ? 'Invite an account by its handle and it appears here once accepted.'
+          : 'A company that wants to associate this account will show up here.');
+        return;
+      }
+      box.innerHTML = rows.map(function (a) {
+        var them = a.company === my.id ? a.me : a.co;
+        var theirs = a.company !== my.id;
+        var waiting = a.state !== 'accepted';
+        var note = waiting
+          ? (theirs ? 'Wants to associate this account' : 'Invited, waiting on them')
+          : (a.role || (a.kind === 'account' ? 'An account you hold' : 'Associated'));
+        return '<div class="nb-card nb-card--tight hd-person">' +
+          '<a class="hd-av-btn" href="' + who(them.handle) + '" data-r aria-hidden="true" tabindex="-1">' +
+            avatarOf(them, 'hd-av--sm') + '</a>' +
+          '<div class="hd-person-txt"><b>' + esc(them.name || them.handle) + '</b>' + badges(them) +
+            '<i>' + H.tag(them.handle) + '</i><p>' + esc(note) + '</p></div>' +
+          (waiting && theirs
+            ? '<span class="hd-person-do">' +
+                '<button class="nb-btn nb-btn--primary nb-btn--sm" type="button" data-assoc-yes="' + a.company + '">Accept</button>' +
+                '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-assoc-no="' + a.company + '">Decline</button>' +
+              '</span>'
+            : '<button class="nb-btn nb-btn--red nb-btn--sm" type="button" data-assoc-end="' +
+                a.company + '|' + a.member + '">' + (waiting ? 'Withdraw' : 'End') + '</button>') +
+          '</div>';
+      }).join('');
+      twem(box);
+    }
+    paintAssoc();
+
+    var addForm = el('assocAdd');
+    if (addForm) addForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var h = el('aHandle').value.trim().replace(/^@/, '').toLowerCase();
+      if (!h) return;
+      var btn = addForm.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      var r = await db.rpc('affiliate_invite', {
+        p_handle: h, p_role: el('aRole').value.trim(), p_kind: el('aKind').value
+      });
+      btn.disabled = false;
+      if (r.error) { asSay.textContent = H.trouble(r.error, 'That invitation did not go out.'); asSay.hidden = false; return; }
+      asSay.hidden = true;
+      el('aHandle').value = ''; el('aRole').value = '';
+      U.toast('Invitation sent. It counts once they accept.');
+      paintAssoc();
+    });
+
+    el('assocBody').addEventListener('click', async function (e) {
+      var b = e.target.closest && e.target.closest('button');
+      if (!b) return;
+      var yes = b.getAttribute('data-assoc-yes');
+      var no = b.getAttribute('data-assoc-no');
+      var end = b.getAttribute('data-assoc-end');
+      var r;
+      b.disabled = true;
+      if (yes || no) {
+        r = await db.rpc('affiliate_answer', { p_company: yes || no, p_yes: !!yes });
+      } else if (end) {
+        var sure = await U.ask({
+          title: 'End this association',
+          line: 'It comes off both profiles. Either account can be invited again later.',
+          yes: 'End it', bad: true
+        });
+        if (!sure) { b.disabled = false; return; }
+        var pair = end.split('|');
+        r = await db.rpc('affiliate_remove', { p_company: pair[0], p_member: pair[1] });
+      } else { b.disabled = false; return; }
+
+      b.disabled = false;
+      if (r.error) { asSay.textContent = H.trouble(r.error, 'That did not go through.'); asSay.hidden = false; return; }
+      asSay.hidden = true;
+      paintAssoc();
+    });
+
     el('setOut').addEventListener('click', async function () {
       var others = H.roster().filter(function (a) { return !a.current; }).length;
       var sure = await U.ask({
@@ -2262,6 +2457,11 @@
       }
       var cover = b.getAttribute('data-cover');
       if (cover) { U.look([cover], 0, 'Banner'); return; }
+
+      var listKind = b.getAttribute('data-list');
+      if (listKind) {
+        return listCard(listKind, b.getAttribute('data-list-of'), b.getAttribute('data-list-who'));
+      }
 
       var noteOn = b.getAttribute('data-note');
       if (noteOn) return askNote(noteOn);
