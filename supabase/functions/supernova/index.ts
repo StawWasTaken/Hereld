@@ -175,17 +175,24 @@ async function gather(uid: string, question: string, postId?: string) {
       bits.push('The post in question:\n- @' + a.handle + ' (' + (a.name || a.handle) + ')' +
         (a.headline ? ', ' + a.headline : '') +
         ', followers ' + (a.follower_count || 0) + ', ' + (a.post_count || 0) + ' posts.' +
-        '\nPost: ' + String(p.body || '').replace(/\s+/g, ' ').slice(0, 400) +
+        '\nPost: ' + String(p.body || '').replace(/\s+/g, ' ').slice(0, 500) +
         '\nEngagement: ' + (p.endorse_count || 0) + ' likes, ' +
         (p.reply_count || 0) + ' replies, ' + (p.relay_count || 0) + ' reposts.');
 
+      if (ctx.chain?.length) {
+        bits.push('Full thread chain (oldest to newest):\n' + ctx.chain.map((c: any) =>
+          '- @' + c.author_handle + ' (' + (c.author_name || c.author_handle) + '): ' +
+          String(c.body || '').replace(/\s+/g, ' ').slice(0, 280)
+        ).join('\n'));
+      }
+
       if (ctx.parent) {
-        bits.push('It is a reply to:\n- @' + ctx.parent.author_handle +
-          ': ' + String(ctx.parent.body || '').replace(/\s+/g, ' ').slice(0, 280));
+        bits.push('Direct parent:\n- @' + ctx.parent.author_handle +
+          ': ' + String(ctx.parent.body || '').replace(/\s+/g, ' ').slice(0, 300));
       }
 
       if (ctx.thread?.length) {
-        bits.push('Replies to it:\n' + ctx.thread.map((r: any) =>
+        bits.push('Replies to this post (' + ctx.thread.length + '):\n' + ctx.thread.map((r: any) =>
           '- @' + r.author_handle + ': ' + String(r.body || '').replace(/\s+/g, ' ').slice(0, 200)
         ).join('\n'));
       }
@@ -195,7 +202,7 @@ async function gather(uid: string, question: string, postId?: string) {
       if (p) {
         bits.push('The post in question:\n' + said(p));
         const { data: kids } = await admin.from('posts').select(WITH_WHO)
-          .eq('reply_to', postId).order('created_at', { ascending: true }).limit(4);
+          .eq('reply_to', postId).order('created_at', { ascending: true }).limit(8);
         if (kids?.length) bits.push('Replies to it:\n' + kids.map(said).join('\n'));
       }
     }
@@ -247,7 +254,7 @@ async function gather(uid: string, question: string, postId?: string) {
 
 async function ask(req: Request, c: Config, uid: string) {
   const { turns, post } = await req.json().catch(() => ({ turns: [] }));
-  const talk = Array.isArray(turns) ? turns.slice(-12) : [];
+  const talk = Array.isArray(turns) ? turns.slice(-20) : [];
   if (!talk.length) return reply({ error: 'Nothing was asked.' }, 400);
 
   const { data: allow } = await admin.rpc('ai_allowance', { p_user: uid });
@@ -278,7 +285,7 @@ async function ask(req: Request, c: Config, uid: string) {
     : system;
 
   try {
-    const out = await think(c, system2, talk, 800);
+    const out = await think(c, system2, talk, 1200);
     await log(uid, 'ask', c.model, out);
     return reply({ text: out.text });
   } catch (e) {
@@ -328,14 +335,20 @@ async function mentions(c: Config) {
         (ctx.post.relay_count || 0) + ' reposts):\n' +
         String(ctx.post.body || '').replace(/\s+/g, ' ').slice(0, 600);
 
+      if (ctx.chain?.length) {
+        context += '\n\nFull conversation chain:\n' + ctx.chain.map((c: any) =>
+          '- @' + c.author_handle + ': ' + String(c.body || '').replace(/\s+/g, ' ').slice(0, 240)
+        ).join('\n');
+      }
+
       if (ctx.parent) {
-        context += '\n\nIt is a reply to:\n- @' + ctx.parent.author_handle +
-          ': ' + String(ctx.parent.body || '').replace(/\s+/g, ' ').slice(0, 280);
+        context += '\n\nDirect parent:\n- @' + ctx.parent.author_handle +
+          ': ' + String(ctx.parent.body || '').replace(/\s+/g, ' ').slice(0, 300);
       }
 
       if (ctx.thread?.length) {
         context += '\n\nOther replies in this thread:\n' + ctx.thread.map((r: any) =>
-          '- @' + r.author_handle + ': ' + String(r.body || '').replace(/\s+/g, ' ').slice(0, 160)
+          '- @' + r.author_handle + ': ' + String(r.body || '').replace(/\s+/g, ' ').slice(0, 200)
         ).join('\n');
       }
     } else {

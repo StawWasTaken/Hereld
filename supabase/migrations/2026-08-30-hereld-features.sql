@@ -517,6 +517,32 @@ grant execute on function public.cry_posts(text, int, timestamptz) to anon, auth
 -- Full post context: the post, its author, the thread, engagement numbers.
 create or replace function public.post_context(p_post uuid)
 returns jsonb language sql security definer set search_path = public stable as $$
+  with chain as (
+    select p.id, p.body, p.author, p.reply_to, p.created_at,
+           p.endorse_count, p.reply_count, p.relay_count, 0 as depth
+      from posts p where p.id = p_post
+    union all
+    select p.id, p.body, p.author, p.reply_to, p.created_at,
+           p.endorse_count, p.reply_count, p.relay_count, c.depth + 1
+      from posts p
+      join chain c on p.id = c.reply_to
+      where c.depth < 20
+  ),
+  root as (
+    select * from chain order by depth desc limit 1
+  ),
+  ancestors as (
+    select chain.* from chain where chain.depth > 0 order by chain.depth desc
+  ),
+  replies as (
+    select r.id, r.body, r.author, r.created_at, r.endorse_count, r.reply_count,
+           ra.handle as author_handle, ra.name as author_name
+      from posts r
+      join profiles ra on ra.id = r.author
+     where r.reply_to = p_post
+     order by r.created_at
+     limit 20
+  )
   select jsonb_build_object(
     'post', jsonb_build_object(
       'id', p.id, 'body', p.body, 'created_at', p.created_at,
@@ -533,23 +559,29 @@ returns jsonb language sql security definer set search_path = public stable as $
     ),
     'thread', (
       select coalesce(jsonb_agg(jsonb_build_object(
-        'id', r.id, 'body', r.body, 'author_handle', ra.handle,
-        'author_name', ra.name, 'created_at', r.created_at,
+        'id', r.id, 'body', r.body, 'author_handle', r.author_handle,
+        'author_name', r.author_name, 'created_at', r.created_at,
         'endorse_count', r.endorse_count
-      ) order by r.created_at), '[]'::jsonb)
-      from posts r
-      join profiles ra on ra.id = r.author
-      where r.reply_to = p.id
-      limit 20
+      )), '[]'::jsonb)
+      from replies r
     ),
-    'parent', case when p.reply_to is not null then (
+    'chain', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', anc.id, 'body', anc.body, 'author_handle', pa.handle,
+        'author_name', pa.name, 'created_at', anc.created_at,
+        'endorse_count', anc.endorse_count
+      ) order by anc.depth desc), '[]'::jsonb)
+      from ancestors anc
+      join profiles pa on pa.id = anc.author
+    ),
+    'parent', case when (select reply_to from root) is not null then (
       select jsonb_build_object(
-        'id', pp.id, 'body', pp.body, 'author_handle', pa.handle,
-        'author_name', pa.name, 'created_at', pp.created_at
+        'id', pp.id, 'body', pp.body, 'author_handle', pa2.handle,
+        'author_name', pa2.name, 'created_at', pp.created_at
       )
       from posts pp
-      join profiles pa on pa.id = pp.author
-      where pp.id = p.reply_to
+      join profiles pa2 on pa2.id = pp.author
+      where pp.id = (select reply_to from root)
     ) else null end
   )
   from posts p

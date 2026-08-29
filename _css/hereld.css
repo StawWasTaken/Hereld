@@ -847,21 +847,32 @@ body.hd-wide .hd-aside { display: none; }
 .hd-dot { opacity: .4; }
 
 /* ── Supernova answer section ──────────────────────────────────────────── */
-.hd-nova-explain {
-  padding: 16px; margin-bottom: 14px;
-  border: var(--nb-bd-thin); border-radius: var(--nb-r);
-  background: var(--nb-surface); border-left-width: var(--nb-bd-w);
-  border-left-color: var(--nb-red);
+.hd-nova-answer-box {
+  position: relative;
+  padding: 18px; margin-bottom: 14px;
+  border-radius: var(--nb-r);
+  background: linear-gradient(135deg, rgba(255,0,51,.06), rgba(62,207,110,.04), rgba(44,175,252,.06));
+  border: 1px solid rgba(255,0,51,.15);
+  overflow: hidden;
 }
-.hd-nova-explain-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.hd-nova-explain-av { width: 36px; height: 36px; }
-.hd-nova-explain-who { flex: 1; }
-.hd-nova-explain-name {
-  display: block; font-family: var(--nb-font-head); font-weight: 700; font-size: 14.5px;
+.hd-nova-answer-box::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, #ff0033, #3ecf6e, #2caffc, #fff93e, #ff77e4);
+  background-size: 200% 100%;
+  animation: hdNovaGrad 4s ease infinite;
 }
-.hd-nova-explain-sub { display: block; font-size: 12px; color: var(--nb-fg-muted); }
-.hd-nova-answer { font-size: 15px; line-height: 1.65; min-height: 24px; }
-.hd-nova-answer a { color: var(--nb-blue); }
+.hd-nova-answer-head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+}
+.hd-nova-answer-av { width: 32px; height: 32px; }
+.hd-nova-answer-label {
+  font-family: var(--nb-font-head); font-weight: 700; font-size: 14px;
+  background: linear-gradient(135deg, #ff0033, #3ecf6e, #2caffc);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hd-nova-answer-body { font-size: 15px; line-height: 1.65; min-height: 24px; }
+.hd-nova-answer-body a { color: var(--nb-blue); }
 .hd-nova-bad { margin: 0; color: var(--nb-red); }
 
 /* Old quote kept for reference / fallback. */

@@ -1620,15 +1620,12 @@ html:
 (a.follower_count ? '<span class="hd-dot">&middot;</span><span>' + num(a.follower_count) + ' followers</span>' : '') +
 '</div>' +
 '</div>' +
-'<div class="hd-nova-explain">' +
-'<div class="hd-nova-explain-head">' +
-novaAv('hd-nova-explain-av', 36) +
-'<div class="hd-nova-explain-who">' +
-'<span class="hd-nova-explain-name">Supernova</span>' +
-'<span class="hd-nova-explain-sub">by Swiftaw</span>' +
+'<div class="hd-nova-answer-box">' +
+'<div class="hd-nova-answer-head">' +
+novaAv('hd-nova-answer-av', 32) +
+'<span class="hd-nova-answer-label">Supernova</span>' +
 '</div>' +
-'</div>' +
-'<div class="hd-nova-answer" id="novaAns" aria-live="polite">' +
+'<div class="hd-nova-answer-body hd-nova-answer" id="novaAns" aria-live="polite">' +
 '<span class="hd-nova-dots"><i></i><i></i><i></i></span></div>' +
 '</div>' +
 '<div class="hd-ask-foot"><button class="nb-btn nb-btn--ghost" type="button" data-no>Close</button>' +
