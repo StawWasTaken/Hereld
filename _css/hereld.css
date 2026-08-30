@@ -319,6 +319,20 @@ body.hd-wide .hd-aside { display: none; }
 .hd-compose-tools { display: flex; gap: 6px; }
 .hd-compose-tool { width: 38px; height: 38px; cursor: pointer; }
 .hd-compose-tool svg { width: 17px; height: 17px; fill: currentColor; }
+.hd-emoji-pop {
+  position: absolute; bottom: 100%; left: 0; margin-bottom: 6px;
+  background: var(--nb-surface); border: var(--nb-bd-thin); border-radius: var(--nb-r);
+  box-shadow: 0 8px 30px rgba(0,0,0,.3); z-index: 100; padding: 8px; width: 280px;
+}
+.hd-emoji-grid {
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px;
+}
+.hd-emoji-btn {
+  width: 32px; height: 32px; border: none; background: none; cursor: pointer;
+  font-size: 20px; border-radius: 6px; display: grid; place-items: center;
+  transition: background .15s;
+}
+.hd-emoji-btn:hover { background: var(--nb-surface-alt); }
 .hd-count { margin-left: auto; font-family: var(--nb-font-mono); font-size: 13px; color: var(--nb-surface-fg-muted); font-variant-numeric: tabular-nums; }
 .hd-count.is-low { color: var(--nb-yellow); }
 .hd-count.is-over { color: var(--nb-red); }
