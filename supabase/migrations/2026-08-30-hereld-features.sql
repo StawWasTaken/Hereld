@@ -723,3 +723,21 @@ alter publication supabase_realtime add table public.notifications;
 
 -- Endorsements: like counts update live on posts.
 alter publication supabase_realtime add table public.endorsements;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 8. NOTES SUMMARISATION
+--
+-- The notes job is triggered by a cron job that calls the edge function:
+--   POST /functions/v1/supernova?job=notes
+--   Header: x-cron-secret: <YOUR HERELD_CRON_SECRET>
+--
+-- Set up in Supabase Dashboard > Database > Extensions: enable pg_cron.
+-- Then run:
+--   select cron.schedule('hereld-notes', '*/10 * * * $$', ...);
+--
+-- Or trigger manually from the dashboard SQL editor with:
+--   select net.http_post(
+--     url := 'https://brgwymecsgjmuubfmast.supabase.co/functions/v1/supernova?job=notes',
+--     headers := '{"content-type":"application/json","apikey":"<SERVICE_ROLE_KEY>","x-cron-secret":"<CRON_SECRET>"}'::jsonb
+--   );
+-- ═══════════════════════════════════════════════════════════════════════════

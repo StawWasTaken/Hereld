@@ -196,6 +196,18 @@ async function gather(uid: string, question: string, postId?: string) {
           '- @' + r.author_handle + ': ' + String(r.body || '').replace(/\s+/g, ' ').slice(0, 200)
         ).join('\n'));
       }
+
+      if (ctx.notes?.length) {
+        bits.push('Community notes on this post (' + ctx.notes.length + '):\n' + ctx.notes.map((n: any) =>
+          '- [' + (n.author_handle || 'anonymous') + '] ' + String(n.body || '').slice(0, 300) +
+          (n.source ? ' (source: ' + n.source + ')' : '')
+        ).join('\n'));
+      }
+
+      if (ctx.post?.disclosure?.length) {
+        const DISCLOSE_MAP: Record<string, string> = { paid: 'Paid partnership', ai: 'Made with AI' };
+        bits.push('Disclosures: ' + ctx.post.disclosure.map((d: string) => DISCLOSE_MAP[d] || d).join(', '));
+      }
     } else {
       /* Fallback to old approach. */
       const { data: p } = await admin.from('posts').select(WITH_WHO).eq('id', postId).maybeSingle();

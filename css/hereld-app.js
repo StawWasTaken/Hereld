@@ -2652,7 +2652,14 @@
     var verified = a.verified ? ' <span class="hd-badge hd-badge--ver">' + ic('verified') + '</span>' : '';
     var company = a.is_company ? ' <span class="hd-badge hd-badge--co">' + ic('verified') + '</span>' : '';
 
+    var turns = [{ role: 'them', text:
+      'Explain this post from Hereld in plain language, in under 120 words. ' +
+      'Say what it is about and anything a reader would need to know to follow it. ' +
+      'If it is too short or too vague to explain, say that instead of guessing.\n\n' +
+      who + ' posted:\n' + String(p.body || '') }];
+
     U.sheet({
+      wide: true,
       title: '',
       html:
         '<div class="hd-nova-post-card">' +
@@ -2673,34 +2680,89 @@
             (a.follower_count ? '<span class="hd-dot">&middot;</span><span>' + num(a.follower_count) + ' followers</span>' : '') +
           '</div>' +
         '</div>' +
-        '<div class="hd-nova-answer-box">' +
-          '<div class="hd-nova-answer-head">' +
-            novaAv('hd-nova-answer-av', 32) +
-            '<span class="hd-nova-answer-label">Supernova</span>' +
+        '<div class="hd-nova" style="margin-top:14px">' +
+          '<div class="hd-nova-talk" id="novaExplainTalk" aria-live="polite">' +
+            '<div class="hd-nova-turn">' +
+              novaAv('hd-nova-av-grad', 30) +
+              '<div class="hd-nova-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div>' +
+            '</div>' +
           '</div>' +
-          '<div class="hd-nova-answer-body hd-nova-answer" id="novaAns" aria-live="polite">' +
-            '<span class="hd-nova-dots"><i></i><i></i><i></i></span></div>' +
-        '</div>' +
-        '<div class="hd-ask-foot"><button class="nb-btn nb-btn--ghost" type="button" data-no>Close</button>' +
-        '<a class="nb-btn nb-btn--primary" href="' + url('supernova') + '" data-r>Keep asking</a></div>',
+          '<div class="hd-nova-ask">' +
+            '<textarea class="nb-input" rows="1" placeholder="Ask follow-up..." id="novaExplainInput"></textarea>' +
+            '<button class="nb-btn nb-btn--primary" type="button" id="novaExplainSend" disabled>' + ic('send') + '</button>' +
+          '</div>' +
+        '</div>',
       wire: function (api) {
-        api.q('[data-no]').addEventListener('click', api.close);
-        twem(api.body);
-        H.fn('supernova?job=ask', {
-          post: id,
-          turns: [{ role: 'them', text:
-            'Explain this post from Hereld in plain language, in under 120 words. ' +
-            'Say what it is about and anything a reader would need to know to follow it. ' +
-            'If it is too short or too vague to explain, say that instead of guessing.\n\n' +
-            who + ' posted:\n' + String(p.body || '') }]
-        }).then(function (out) {
-          var ans = api.q('#novaAns');
-          if (!ans) return;
-          ans.innerHTML = body(out.text || 'Nothing came back.');
-          twem(ans);
-        }).catch(function (err) {
-          var ans = api.q('#novaAns');
-          if (ans) ans.innerHTML = '<p class="hd-nova-bad">' + esc(err.message || 'Supernova could not answer that.') + '</p>';
+        var talk = api.q('#novaExplainTalk');
+        var input = api.q('#novaExplainInput');
+        var sendBtn = api.q('#novaExplainSend');
+        var busy = false;
+
+        input.addEventListener('input', function () {
+          sendBtn.disabled = !input.value.trim() || busy;
+          input.style.height = 'auto';
+          input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+        });
+
+        input.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
+        });
+
+        function addTurn(role, text) {
+          var div = document.createElement('div');
+          div.className = 'hd-nova-turn hd-nova-turn--' + (role === 'you' ? 'nova' : 'me');
+          div.innerHTML = (role === 'you' ? novaAv('hd-nova-av-grad', 30) : H.avatar(my, 'hd-av--sm')) +
+            '<div class="hd-nova-said">' + body(text) + '</div>';
+          talk.appendChild(div);
+          twem(div);
+          talk.scrollTop = talk.scrollHeight;
+        }
+
+        function addDots() {
+          var div = document.createElement('div');
+          div.className = 'hd-nova-turn';
+          div.id = 'novaExplainDots';
+          div.innerHTML = novaAv('hd-nova-av-grad', 30) +
+            '<div class="hd-nova-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div>';
+          talk.appendChild(div);
+          talk.scrollTop = talk.scrollHeight;
+        }
+
+        function removeDots() {
+          var d = talk.querySelector('#novaExplainDots');
+          if (d) d.remove();
+        }
+
+        sendBtn.addEventListener('click', async function () {
+          var txt = input.value.trim();
+          if (!txt || busy) return;
+          busy = true;
+          sendBtn.disabled = true;
+          input.value = '';
+          input.style.height = 'auto';
+          addTurn('you', txt);
+          turns.push({ role: 'them', text: txt });
+          addDots();
+          try {
+            var out = await H.fn('supernova?job=ask', { post: id, turns: turns });
+            removeDots();
+            addTurn('me', out.text || 'Nothing came back.');
+            turns.push({ role: 'you', text: out.text || '' });
+          } catch (e) {
+            removeDots();
+            addTurn('me', 'Supernova could not answer that.');
+          }
+          busy = false;
+          sendBtn.disabled = !input.value.trim();
+        });
+
+        H.fn('supernova?job=ask', { post: id, turns: turns }).then(function (out) {
+          removeDots();
+          addTurn('me', out.text || 'Nothing came back.');
+          turns.push({ role: 'you', text: out.text || '' });
+        }).catch(function () {
+          removeDots();
+          addTurn('me', 'Supernova could not answer that.');
         });
       }
     });
