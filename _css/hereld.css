@@ -55,7 +55,7 @@
   background: var(--nb-bg);
 }
 .hd-splash[hidden] { display: none; }
-.hd-splash img { width: min(272px, 62vw); height: auto; display: block; }
+.hd-splash img { width: min(272px, 62vw); height: auto; display: block; mix-blend-mode: multiply; filter: brightness(0) saturate(100%) invert(56%) sepia(43%) saturate(2443%) hue-rotate(167deg) brightness(100%) contrast(103%); }
 .hd-splash.is-done { opacity: 0; pointer-events: none; transition: opacity .34s var(--nb-ease); }
 
 /* ── LANDING ───────────────────────────────────────────────────────────── */
@@ -316,7 +316,7 @@ body.hd-wide .hd-aside { display: none; }
   margin-top: 14px; padding-top: 13px;
   border-top: var(--nb-bd-thin);
 }
-.hd-compose-tools { display: flex; gap: 6px; }
+.hd-compose-tools { display: flex; gap: 6px; flex-wrap: wrap; }
 .hd-compose-tool { width: 38px; height: 38px; cursor: pointer; }
 .hd-compose-tool svg { width: 17px; height: 17px; fill: currentColor; }
 .hd-emoji-pop {
@@ -410,8 +410,8 @@ body.hd-wide .hd-aside { display: none; }
 /* A product, regional or linked account carries the account it belongs to,
    pinned to the badges so it reads as part of the name. */
 .hd-badge--par { text-decoration: none; line-height: 0; }
-.hd-av--pin { width: 17px; height: 17px; font-size: 9px; border-width: 1.5px; }
-.hd-av--pin.hd-av--sq { border-radius: 4px; }
+.hd-av--pin { width: 18px; height: 18px; font-size: 9px; border-width: 1.5px; }
+.hd-av--pin.hd-av--sq { border-radius: 2px; }
 .hd-badge--par:hover .hd-av--pin { transform: translateY(-1px); }
 
 .hd-who-fol { font-size: 12.5px; color: var(--nb-surface-fg-muted); }
@@ -765,64 +765,77 @@ body.hd-wide .hd-aside { display: none; }
 .hd-act-nvm { height: 17px; }
 .hd-nav-nvm { height: 21px; }
 
-.hd-nova-off { text-align: center; }
+.hd-nova-off { text-align: center; padding: 60px 20px; }
 .hd-nova-mark { margin: 0 auto 18px; }
 .hd-nova-off p { max-width: 54ch; margin: 12px auto 0; font-size: 14.5px; line-height: 1.65; color: var(--nb-surface-fg-muted); }
 .hd-nova-acts { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 
-/* The chat. The column already scrolls, so the talk grows down the page
-   rather than inside a box of its own; the composer is what stays put. */
+/* The chat. */
 .hd-nova { padding: 0 4px 24px; }
-.hd-nova-talk { display: flex; flex-direction: column; gap: 16px; padding: 18px 0 20px; }
+.hd-nova-talk { display: flex; flex-direction: column; gap: 20px; padding: 24px 0 20px; }
 
-.hd-nova-hello { display: flex; align-items: flex-start; gap: 14px; text-align: left; }
+.hd-nova-hello {
+  display: flex; align-items: flex-start; gap: 16px; text-align: left;
+  padding: 20px; border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255,0,51,.04), rgba(62,207,110,.03), rgba(44,175,252,.05));
+  border: 1px solid rgba(44,175,252,.12);
+}
 .hd-nova-hello .hd-nova-mark { margin: 0; flex: none; }
-.hd-nova-hello p { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--nb-surface-fg-muted); }
+.hd-nova-hello p { margin: 0; font-size: 14.5px; line-height: 1.65; color: var(--nb-surface-fg-muted); }
 
 .hd-nova-turn { display: flex; align-items: flex-start; gap: 12px; }
 .hd-nova-turn--me { flex-direction: row-reverse; }
 .hd-nova-av { flex: none; }
 .hd-nova-turn .hd-av { flex: none; }
 .hd-nova-said {
-  max-width: 78%; padding: 12px 15px; font-size: 15px; line-height: 1.62;
-  border: var(--nb-bd-thin); border-radius: var(--nb-r);
-  background: var(--nb-surface); box-shadow: var(--nb-sh-sm);
+  max-width: 78%; padding: 14px 18px; font-size: 15px; line-height: 1.65;
+  border-radius: 18px; border: 1px solid transparent;
 }
-.hd-nova-turn--me .hd-nova-said { background: var(--nb-blue); color: var(--nb-ink); border-color: var(--nb-ink); }
-.hd-nova-turn--me .hd-nova-said a { color: var(--nb-ink); }
+.hd-nova-turn:not(.hd-nova-turn--me) .hd-nova-said {
+  background: var(--nb-surface); border-color: rgba(255,255,255,.06);
+  box-shadow: 0 2px 12px rgba(0,0,0,.15);
+  border-top-left-radius: 4px;
+}
+.hd-nova-turn--me .hd-nova-said {
+  background: linear-gradient(135deg, #1a6dd4, #2284f5);
+  color: #fff; border-color: transparent;
+  box-shadow: 0 2px 16px rgba(34,132,245,.25);
+  border-top-right-radius: 4px;
+}
+.hd-nova-turn--me .hd-nova-said a { color: #fff; }
 .hd-nova-said a { color: var(--nb-blue); }
 .hd-nova-said img.hd-em { vertical-align: -.16em; }
 
-.hd-nova-dots { display: inline-flex; gap: 5px; padding: 3px 0; }
+.hd-nova-dots { display: inline-flex; gap: 6px; padding: 4px 0; }
 .hd-nova-dots i {
-  width: 7px; height: 7px; border-radius: 50%; background: var(--nb-fg-muted);
-  animation: hdNovaDot 1.05s var(--nb-ease) infinite;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: linear-gradient(135deg, #ff0033, #2caffc);
+  animation: hdNovaDot 1.2s ease infinite;
 }
-.hd-nova-dots i:nth-child(2) { animation-delay: .16s; }
-.hd-nova-dots i:nth-child(3) { animation-delay: .32s; }
-@keyframes hdNovaDot { 0%, 60%, 100% { opacity: .3; } 30% { opacity: 1; } }
+.hd-nova-dots i:nth-child(2) { animation-delay: .18s; }
+.hd-nova-dots i:nth-child(3) { animation-delay: .36s; }
+@keyframes hdNovaDot { 0%, 60%, 100% { opacity: .25; transform: scale(.85); } 30% { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .hd-nova-dots i { animation: none; opacity: .55; } }
 
 .hd-nova-ask {
   position: sticky; bottom: 14px; z-index: 3;
-  display: flex; align-items: flex-end; gap: 10px; padding: 12px;
+  display: flex; align-items: flex-end; gap: 10px; padding: 14px;
+  border-radius: 16px;
+  background: var(--nb-surface); border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 4px 24px rgba(0,0,0,.3);
 }
 .hd-nova-ask textarea { flex: 1; resize: none; min-height: 44px; max-height: 200px; }
 .hd-nova-ask .nb-btn { flex: none; }
 .hd-nova-ask .nb-btn svg { width: 15px; height: 15px; fill: currentColor; }
 .hd-nova-fine {
-  margin: 12px 0 0; text-align: center; font-size: 12.5px; color: var(--nb-fg-muted);
+  margin: 14px 0 0; text-align: center; font-size: 12.5px; color: var(--nb-fg-muted);
 }
 
 /* ── Supernova gradient avatar ──────────────────────────────────────────── */
-/* ── Supernova gradient avatar ─────────────────────────────────────────────
-   The mark PNG is transparent. The gradient is masked to ONLY the visible
-   pixels of the PNG using CSS mask-image. No circle, no background. */
 .hd-nova-av-wrap {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
   flex: none;
 }
-/* Gradient layer — masked to the PNG's own pixels. */
 .hd-nva--grad {
   position: relative; width: 100%; height: 100%; object-fit: contain;
 }
@@ -831,11 +844,9 @@ body.hd-wide .hd-aside { display: none; }
   background: linear-gradient(135deg, #ff0033, #3ecf6e, #2caffc, #fff93e, #ff77e4);
   background-size: 300% 300%;
   mask-image: url('Supernova%20mark.png');
-  mask-size: contain;
-  mask-repeat: no-repeat;
+  mask-size: contain; mask-repeat: no-repeat;
   -webkit-mask-image: url('Supernova%20mark.png');
-  -webkit-mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat;
   opacity: 0;
   animation: hdNovaReveal 1.8s cubic-bezier(.22,1,.36,1) forwards, hdNovaGrad 6s ease 1.8s infinite;
 }
@@ -854,11 +865,12 @@ body.hd-wide .hd-aside { display: none; }
   .hd-nova-av-wrap::after { animation: none; opacity: 1; }
 }
 
-/* ── Supernova post card (opens from the mark on a post) ───────────────── */
+/* ── Supernova post card ──────────────────────────────────────────────── */
 .hd-nova-post-card {
-  padding: 16px; margin-bottom: 14px;
-  border: var(--nb-bd-thin); border-radius: var(--nb-r);
+  padding: 18px; margin-bottom: 14px;
+  border-radius: 16px;
   background: var(--nb-surface);
+  border: 1px solid rgba(255,255,255,.06);
 }
 .hd-nova-post-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .hd-nova-post-av { flex: none; text-decoration: none; color: inherit; }
@@ -870,7 +882,7 @@ body.hd-wide .hd-aside { display: none; }
 }
 .hd-nova-post-handle { display: block; font-size: 13px; color: var(--nb-fg-muted); }
 .hd-nova-post-body {
-  font-size: 15px; line-height: 1.6; margin-bottom: 10px;
+  font-size: 15px; line-height: 1.65; margin-bottom: 10px;
   overflow-wrap: break-word;
 }
 .hd-nova-post-meta {
@@ -882,20 +894,20 @@ body.hd-wide .hd-aside { display: none; }
 /* ── Supernova answer section ──────────────────────────────────────────── */
 .hd-nova-answer-box {
   position: relative;
-  padding: 18px; margin-bottom: 14px;
-  border-radius: var(--nb-r);
-  background: linear-gradient(135deg, rgba(255,0,51,.06), rgba(62,207,110,.04), rgba(44,175,252,.06));
-  border: 1px solid rgba(255,0,51,.15);
+  padding: 20px; margin-bottom: 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255,0,51,.05), rgba(62,207,110,.03), rgba(44,175,252,.06));
+  border: 1px solid rgba(44,175,252,.15);
   overflow: hidden;
 }
 .hd-nova-answer-box::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
   background: linear-gradient(90deg, #ff0033, #3ecf6e, #2caffc, #fff93e, #ff77e4);
   background-size: 200% 100%;
   animation: hdNovaGrad 4s ease infinite;
 }
 .hd-nova-answer-head {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
 }
 .hd-nova-answer-av { width: 32px; height: 32px; }
 .hd-nova-answer-label {
@@ -908,7 +920,6 @@ body.hd-wide .hd-aside { display: none; }
 .hd-nova-answer-body a { color: var(--nb-blue); }
 .hd-nova-bad { margin: 0; color: var(--nb-red); }
 
-/* Old quote kept for reference / fallback. */
 .hd-nova-quote {
   margin: 0 0 18px; padding: 13px 15px; border: var(--nb-bd-thin);
   border-left-width: var(--nb-bd-w); border-left-color: var(--nb-blue);
@@ -1699,33 +1710,40 @@ label.nb-btn { display: inline-flex; align-items: center; justify-content: cente
    not an icon, so it is never painted over. */
 .hd-compose-nvm { width: 19px; height: 19px; }
 .hd-nova-was {
-  margin: 0 0 14px; padding: 11px 13px;
-  background: var(--nb-surface-2); border: var(--nb-bd-thin);
-  border-radius: var(--nb-r-sm); font-size: 14px; white-space: pre-wrap;
+  margin: 0 0 14px; padding: 12px 14px;
+  background: var(--nb-surface); border: 1px solid rgba(255,255,255,.06);
+  border-radius: 12px; font-size: 14px; white-space: pre-wrap;
+  color: var(--nb-surface-fg-muted);
 }
-.hd-nova-ways { display: flex; flex-wrap: wrap; gap: 8px; }
+.hd-nova-ways { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .hd-nova-way {
   padding: 8px 14px;
   background: var(--nb-surface); color: var(--nb-surface-fg);
-  border: var(--nb-bd-thin); border-radius: var(--nb-r-pill);
+  border: 1px solid rgba(255,255,255,.08); border-radius: 10px;
   font-family: var(--nb-font-head); font-weight: 700; font-size: 13px;
-  cursor: pointer; transition: background var(--nb-fast), color var(--nb-fast);
+  cursor: pointer; transition: all .15s ease;
 }
-.hd-nova-way:hover { background: var(--nb-surface-2); }
-.hd-nova-way.is-on { background: var(--nb-blue); color: var(--nb-ink); }
+.hd-nova-way:hover { background: var(--nb-surface-2); border-color: rgba(255,255,255,.12); }
+.hd-nova-way.is-on {
+  background: linear-gradient(135deg, #1a6dd4, #2284f5);
+  color: #fff; border-color: transparent;
+  box-shadow: 0 2px 12px rgba(34,132,245,.25);
+}
 .hd-nova-out {
-  margin-top: 16px; padding: 13px;
-  background: var(--nb-surface-2); border: var(--nb-bd-w) solid var(--nb-ink);
-  border-radius: var(--nb-r-sm); box-shadow: var(--nb-sh-sm);
+  margin-top: 16px; padding: 14px;
+  background: linear-gradient(135deg, rgba(255,0,51,.04), rgba(62,207,110,.03), rgba(44,175,252,.05));
+  border: 1px solid rgba(44,175,252,.12);
+  border-radius: 12px;
 }
 .hd-nova-lb {
-  display: block; margin-bottom: 7px;
+  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
   font-family: var(--nb-font-head); font-weight: 700;
-  font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  font-size: 12px; letter-spacing: .05em; text-transform: uppercase;
   color: var(--nb-surface-fg-muted);
 }
-.hd-nova-line { margin: 0; font-size: 15px; white-space: pre-wrap; }
-.hd-nova-new { margin-top: 12px; }
+.hd-nova-lb svg { width: 14px; height: 14px; }
+.hd-nova-line { margin: 0; font-size: 15px; white-space: pre-wrap; line-height: 1.6; }
+.hd-nova-new { margin-top: 12px; font-size: 15px; line-height: 1.6; }
 
 /* Writing a poll. Two answers at least, four at most, and the answers are
    the poll: the question is the post above them. */
