@@ -252,6 +252,74 @@ async function gather(uid: string, question: string, postId?: string) {
 
 /* ── Ask Supernova ─────────────────────────────────────────────────────── */
 
+/* ── WORKING ON A DRAFT ─────────────────────────────────────────────────────
+   Rewrites what somebody has already written. It hands the words back and
+   stops there: nothing is posted, and the account is free to ignore it. */
+
+const WAYS: Record<string, string> = {
+  tidy:  'Fix the spelling, the grammar and the rhythm. Keep every point, keep the length, and keep it sounding like the same person.',
+  short: 'Cut it down. Keep the point and lose the padding. Aim for about half the words.',
+  plain: 'Say the same thing in plain words. No jargon, no buzzwords, nothing inflated.',
+  warm:  'Same point, warmer and more human. Do not make it soppy and do not add compliments that were not there.',
+  sharp: 'Same point, more direct and more confident. Do not make it rude and do not add claims that were not there.',
+  more:  'Draw the same point out a little further with what is already implied in it. Add nothing that is not.'
+};
+
+async function write(req: Request, c: Config, uid: string) {
+  const got = await req.json().catch(() => ({}));
+  const text = String(got?.text || '').trim();
+  const way = String(got?.way || 'tidy');
+  const how = String(got?.how || '').trim().slice(0, 200);
+  const cap = Math.min(Math.max(Number(got?.limit) || 600, 80), 600);
+
+  if (!text) return reply({ error: 'There is nothing to work on.' }, 400);
+  if (text.length > 4000) return reply({ error: 'That is too long to work on.' }, 400);
+
+  const { data: allow } = await admin.rpc('ai_allowance', { p_user: uid });
+  if (allow && (allow.used_hour >= allow.per_hour || allow.used_day >= allow.per_day)) {
+    return reply({ error: 'You have asked Supernova a lot today. Try again later.' }, 429);
+  }
+
+  const system =
+    'You rewrite short posts for Hereld, a public posting platform made by ' +
+    'Swiftaw. ' + HOUSE + ' ' +
+    'You are given a draft and a way to change it. Rewrite the draft that ' +
+    'way and return nothing else: no preamble, no explanation, no quotation ' +
+    'marks around it, no options to choose between. ' +
+    'Never add a fact, a number, a name, a link or a claim that is not ' +
+    'already in the draft. If the draft is wrong about something, leave it ' +
+    'wrong; that is the writer\'s to fix. ' +
+    'Keep the writer\'s own hashtags and @handles exactly as they are. ' +
+    'Never use an em dash; use a hyphen. ' +
+    'The result must be under ' + cap + ' characters. ' +
+    (c.system_note || '');
+
+  const asked = (WAYS[way] || WAYS.tidy) +
+    (how ? ' On top of that, the writer asks for this: ' + how +
+           ' Follow it unless it would mean inventing something, and never ' +
+           'write as a real named person unless that person is the writer.' : '');
+
+  try {
+    const out = await think(c, system, [
+      { role: 'user', text: asked + '\n\nThe draft:\n\n' + text }
+    ], 700);
+    /* A model that opens with "Sure, here you go" has answered the wrong
+       question. Take the words and leave the chat. */
+    const made = String(out.text || '').trim()
+      .replace(/^(sure|certainly|here('s| is)[^\n:]*|okay)[:,]?\s*/i, '')
+      .replace(/^["'“]|["'”]$/g, '')
+      .replace(/—/g, '-')
+      .trim()
+      .slice(0, cap);
+    if (!made) throw new Error('empty');
+    await log(uid, 'write', c.model, out);
+    return reply({ text: made });
+  } catch (e) {
+    await log(uid, 'write', c.model, null, false, String(e));
+    return reply({ error: 'Supernova could not work on that just now.' }, 502);
+  }
+}
+
 async function ask(req: Request, c: Config, uid: string) {
   const { turns, post } = await req.json().catch(() => ({ turns: [] }));
   const talk = Array.isArray(turns) ? turns.slice(-20) : [];
@@ -821,5 +889,6 @@ Deno.serve(async (req) => {
 
   const uid = await whoIsAsking(req);
   if (!uid) return reply({ error: 'Sign in first.' }, 401);
+  if (job === 'write') return await write(req, c, uid);
   return await ask(req, c, uid);
 });

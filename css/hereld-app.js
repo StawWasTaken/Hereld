@@ -16,7 +16,10 @@
   var TWEMOJI = 'https://cdn.jsdelivr.net/npm/@twemoji/api@15.1.0/dist/twemoji.min.js';
   var TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/';
 
-  var WITH_AUTHOR = '*, author:profiles!posts_author_fkey(id,handle,name,headline,avatar_url,verified,is_company,is_platform,is_bot,banned,parent_id,follower_count)';
+  var WITH_AUTHOR = '*, author:profiles!posts_author_fkey(id,handle,name,headline,avatar_url,verified,is_company,is_platform,is_bot,banned,parent_id,assoc_of,assoc_kind,assoc_role,follower_count)' +
+    /* Only whether there is a ballot. The counts come after the card is on
+       screen, so a feed of thirty is one round trip, not thirty-one. */
+    ', poll:polls(post_id)';
 
   /* What I have already done, so the buttons come up in the right state
      without one query per post. */
@@ -31,6 +34,10 @@
   var twemojiAsked = false;
   function twem(node) {
     if (!node) return;
+    /* Every freshly drawn node passes through here, which makes it the one
+       place a ballot can be filled in without thirteen callers remembering
+       to ask for it. */
+    if (typeof paintPolls === 'function') paintPolls(node);
     if (window.twemoji) {
       try {
         window.twemoji.parse(node, { folder: 'svg', ext: '.svg', className: 'hd-emo', base: TWEMOJI_BASE });
@@ -192,20 +199,38 @@
              '<span class="nb-sr">Official Hereld account</span></span>';
     } else if (p.verified) {
       out += p.is_company
-        ? '<span class="hd-badge hd-badge--co" title="Verified company">' + ic('verified') +
+        ? '<span class="hd-badge hd-badge--co" title="Verified company">' + ic('verifiedco') +
           '<span class="nb-sr">Verified company</span></span>'
         : '<span class="hd-badge hd-badge--ver" title="Verified account">' + ic('verified') +
           '<span class="nb-sr">Verified account</span></span>';
     }
-    /* A parent account carries the child it belongs to, so a regional or
-       product account can be traced back in one look. */
+    /* The company an account is associated with, beside the name like any
+       other mark. It reads differently for a person than for an account the
+       company holds, because those are not the same claim: one says who
+       somebody is there, the other says the company runs the account. */
     if (p.parent) {
       out += '<a class="hd-badge hd-badge--par" href="' + url(p.parent.handle) + '" data-r ' +
-        'title="Part of ' + esc(p.parent.name || p.parent.handle) + '">' +
+        'title="' + esc(assocWord(p)) + '">' +
         H.avatar(p.parent, 'hd-av--pin') +
-        '<span class="nb-sr">Part of ' + esc(p.parent.name || p.parent.handle) + '</span></a>';
+        '<span class="nb-sr">' + esc(assocWord(p)) + '</span></a>';
     }
     return out;
+  }
+
+  /* What the mark says when you rest on it. The role is the useful half, so
+     it leads where there is one. */
+  function assocWord(p) {
+    var co = (p.parent && (p.parent.name || p.parent.handle)) || 'a company';
+    var held = p.assoc_kind ? p.assoc_kind === 'account' : !!p.parent_id;
+    var what = held ? 'Account held by ' + co : 'Associated with ' + co;
+    return p.assoc_role ? p.assoc_role + ' - ' + what : what;
+  }
+
+  /* A name and the marks that belong to it, on one line. The marks have no
+     line box of their own, so left in ordinary inline flow they ride up over
+     the last letter - this keeps them beside it instead. */
+  function nameMark(p, txt) {
+    return '<span class="hd-nm"><b>' + esc(txt || p.name || p.handle) + '</b>' + badges(p) + '</span>';
   }
 
   function avatarOf(p, cls) {
@@ -300,15 +325,94 @@
           (a.headline ? '<i class="hd-head">' + esc(a.headline) + '</i>' : '') +
         '</div>' +
       '</div>' +
-      (p.is_paid_partnership || p.is_ai_generated
-        ? '<div class="hd-post-disclose">' +
-          (p.is_paid_partnership ? '<span class="hd-disclose">' + ic('info') + ' Paid partnership</span>' : '') +
-          (p.is_ai_generated ? '<span class="hd-disclose">' + ic('info') + ' Made with AI</span>' : '') +
-          '</div>'
+      discHTML(p.disclosure) +
+      (p.scheduled_for
+        ? '<p class="hd-planned">' + ic('clock') + ' Going out ' +
+          esc(new Date(p.scheduled_for).toLocaleString(undefined,
+            { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) +
+          '. Only you can see it until then.</p>'
         : '') +
       (said ? '<p class="hd-post-body">' + said + '</p>' : '') +
-      shots + quoted + note + acts(p) +
+      shots + pollHTML(p) + quoted + note +
+      scopeNote(p) + acts(p) +
     '</article>';
+  }
+
+  /* What the account said this post is. Drawn before the words, because
+     after them it would be a footnote to something already read. */
+  function discHTML(list) {
+    if (!list || !list.length) return '';
+    return '<p class="hd-disc">' + list.map(function (k) {
+      var d = DISCLOSE.filter(function (x) { return x.k === k; })[0];
+      return d ? '<span>' + ic('info') + esc(d.t) + '</span>' : '';
+    }).join('') + '</p>';
+  }
+
+  /* Said only where it changes what a reader can do. A post anyone may
+     answer says nothing at all. */
+  function scopeNote(p) {
+    if (!p.reply_scope || p.reply_scope === 'all') return '';
+    var s = scopeOf(p.reply_scope);
+    return '<p class="hd-scope-note">' + ic(s.i) + ' ' + esc(s.t) + ' can reply</p>';
+  }
+
+  /* The ballot. Its counts are read after the card is on screen, so a feed
+     of thirty posts is not thirty round trips before anything draws. */
+  function pollHTML(p) {
+    if (!p.poll && !p.has_poll) return '';
+    return '<div class="hd-poll" data-pollof="' + p.id + '"><div class="hd-poll-wait">' +
+      '<span class="nb-skel nb-skel--line"></span><span class="nb-skel nb-skel--line"></span></div></div>';
+  }
+
+  function pollBars(st, id) {
+    var opts = st.options || [];
+    var counts = st.counts || [];
+    var total = Number(st.total || 0);
+    var done = st.closed || st.mine != null;
+    var out = opts.map(function (t, i) {
+      var n = Number(counts[i] || 0);
+      var pc = total ? Math.round(n / total * 100) : 0;
+      if (!done) {
+        return '<button class="hd-poll-one" type="button" data-answer="' + i + '">' + esc(t) + '</button>';
+      }
+      return '<div class="hd-poll-done' + (st.mine === i ? ' is-mine' : '') + '">' +
+        '<span class="hd-poll-fill" style="width:' + pc + '%"></span>' +
+        '<span class="hd-poll-t">' + esc(t) + (st.mine === i ? ' ' + ic('tick') : '') + '</span>' +
+        '<span class="hd-poll-pc">' + pc + '%</span></div>';
+    }).join('');
+
+    var left = '';
+    if (st.closed) left = 'Closed';
+    else {
+      var ms = new Date(st.closes_at).getTime() - Date.now();
+      var hrs = Math.max(0, Math.round(ms / 3600000));
+      left = hrs >= 24 ? Math.round(hrs / 24) + (hrs < 48 ? ' day left' : ' days left')
+           : hrs >= 1 ? hrs + (hrs === 1 ? ' hour left' : ' hours left')
+           : 'Less than an hour left';
+    }
+    return out + '<p class="hd-poll-sum">' +
+      (total === 1 ? '1 answer' : num(total) + ' answers') + ' · ' + esc(left) + '</p>';
+  }
+
+  /* Fills in every ballot on screen that has not been filled in yet. */
+  async function paintPolls(root) {
+    var boxes = [].slice.call((root || document).querySelectorAll('[data-pollof]:not([data-done])'));
+    for (var i = 0; i < boxes.length; i++) {
+      var box = boxes[i];
+      box.setAttribute('data-done', '1');
+      var id = box.getAttribute('data-pollof');
+      var r = await db.rpc('poll_state', { p_post: id });
+      if (r.error || !r.data) { box.remove(); continue; }
+      box.innerHTML = pollBars(r.data, id);
+    }
+  }
+
+  async function answerPoll(box, id, choice) {
+    box.classList.add('is-busy');
+    var r = await db.rpc('poll_vote', { p_post: id, p_choice: choice });
+    box.classList.remove('is-busy');
+    if (r.error) return U.toast(H.trouble(r.error, 'That answer did not go through.'));
+    box.innerHTML = pollBars(r.data, id);
   }
 
   function feedHTML(rows, o) {
@@ -417,22 +521,45 @@
     return rows;
   }
 
-  /* One read for the parent of every account on screen, so a product or
-     regional account can show the company it belongs to. */
+  /* One read for the company behind every account on screen, so a product
+     account, a regional account or a named officer all show where they
+     belong. assoc_of, not parent_id: the second decides who may write in this
+     account's name, and a person's employer must never be handed that. */
   async function attachParents(rows) {
     var need = [], seen = {};
     rows.forEach(function (p) {
-      var a = p.author;
-      if (a && a.parent_id && !seen[a.parent_id]) { seen[a.parent_id] = 1; need.push(a.parent_id); }
+      var a = p.author, k = a && (a.assoc_of || a.parent_id);
+      if (k && !seen[k]) { seen[k] = 1; need.push(k); }
     });
     if (!need.length) return rows;
     var r = await db.from('profiles').select('id,handle,name,avatar_url,is_company').in('id', need);
     var by = {};
     (r.data || []).forEach(function (x) { by[x.id] = x; });
     rows.forEach(function (p) {
-      if (p.author && p.author.parent_id && by[p.author.parent_id]) p.author.parent = by[p.author.parent_id];
+      var a = p.author, k = a && (a.assoc_of || a.parent_id);
+      if (k && by[k]) a.parent = by[k];
     });
     return rows;
+  }
+
+  /* The same thing for a plain list of accounts rather than a list of posts.
+     One read for the lot, and it leaves the list alone when none of them is
+     associated with anybody. */
+  async function attachAssoc(people) {
+    var need = [], seen = {};
+    (people || []).forEach(function (p) {
+      var k = p && (p.assoc_of || p.parent_id);
+      if (k && !seen[k]) { seen[k] = 1; need.push(k); }
+    });
+    if (!need.length) return people;
+    var r = await db.from('profiles').select('id,handle,name,avatar_url,is_company').in('id', need);
+    var by = {};
+    (r.data || []).forEach(function (x) { by[x.id] = x; });
+    people.forEach(function (p) {
+      var k = p && (p.assoc_of || p.parent_id);
+      if (k && by[k]) p.parent = by[k];
+    });
+    return people;
   }
 
   async function hydrate(rows) {
@@ -562,6 +689,95 @@
     held = (r.data || []);
   }
 
+  /* ── Supernova on a draft ─────────────────────────────────────────────────
+     It never posts anything. It hands back words, and the account decides
+     whether to keep them. */
+
+  var NOVA_WAYS = [
+    { k: 'tidy',   t: 'Tidy it up' },
+    { k: 'short',  t: 'Make it shorter' },
+    { k: 'plain',  t: 'Say it plainly' },
+    { k: 'warm',   t: 'Warmer' },
+    { k: 'sharp',  t: 'Sharper' },
+    { k: 'more',   t: 'Say more of it' }
+  ];
+
+  function novaWrite(start, keep) {
+    var way = 'tidy';
+    var s = U.sheet({
+      title: 'Work on this',
+      html: '<p class="hd-modal-line">Supernova rewrites what you have written. Nothing goes out until you post it yourself.</p>' +
+        '<div class="hd-nova-was">' + esc(start) + '</div>' +
+        '<div class="hd-nova-ways">' + NOVA_WAYS.map(function (w) {
+          return '<button class="hd-nova-way' + (w.k === way ? ' is-on' : '') + '" type="button" data-w="' + w.k + '">' +
+            esc(w.t) + '</button>';
+        }).join('') + '</div>' +
+        '<div class="nb-field"><label class="nb-label" for="nvAs">Or say how ' +
+          '<span class="nb-hint">optional</span></label>' +
+          '<input class="nb-input" id="nvAs" maxlength="120" placeholder="As a shipping note. As if I were annoyed."></div>' +
+        '<div class="hd-modal-do">' +
+          '<button class="nb-btn nb-btn--primary" type="button" data-run>Rewrite it</button>' +
+          '<button class="nb-btn nb-btn--ghost" type="button" data-shut>Keep mine</button></div>' +
+        '<div class="hd-nova-out" data-out hidden></div>'
+    });
+
+    s.body.addEventListener('click', function (e) {
+      var w = e.target.closest('[data-w]');
+      if (!w) return;
+      way = w.getAttribute('data-w');
+      [].forEach.call(s.body.querySelectorAll('[data-w]'), function (b) {
+        b.classList.toggle('is-on', b === w);
+      });
+    });
+    s.q('[data-shut]').addEventListener('click', s.close);
+
+    var run = s.q('[data-run]');
+    run.addEventListener('click', async function () {
+      var out = s.q('[data-out]');
+      run.disabled = true;
+      run.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Working';
+      out.hidden = false;
+      out.innerHTML = '<div class="hd-nova-line"></div><div class="hd-nova-line"></div>';
+      try {
+        var got = await H.fn('supernova?job=write', {
+          text: start, way: way, how: (s.q('#nvAs').value || '').trim(), limit: MAX
+        });
+        var made = String((got && got.text) || '').trim();
+        if (!made) throw new Error('nothing came back');
+        out.innerHTML = '<p class="hd-nova-lb">' + ic('icon') + ' Supernova wrote this</p>' +
+          '<div class="hd-nova-new" data-new></div>' +
+          '<div class="hd-modal-do"><button class="nb-btn nb-btn--primary" type="button" data-use>Use this</button>' +
+            '<button class="nb-btn nb-btn--ghost" type="button" data-again>Try again</button></div>';
+        s.q('[data-new]').textContent = made;
+        s.q('[data-use]').addEventListener('click', function () { keep(made); s.close(); });
+        s.q('[data-again]').addEventListener('click', function () { out.hidden = true; });
+      } catch (err) {
+        out.innerHTML = '<p class="nb-note is-bad">' +
+          esc(H.trouble(err, 'Supernova could not work on that just now.')) + '</p>';
+      }
+      run.disabled = false;
+      run.textContent = 'Rewrite it';
+    });
+  }
+
+  /* Who is allowed into the thread. The wording is the whole explanation, so
+     nothing here needs a note underneath it. */
+  var SCOPES = [
+    { k: 'all',       t: 'Everyone',                   i: 'users' },
+    { k: 'following', t: 'Accounts you follow',        i: 'follow' },
+    { k: 'mentioned', t: 'Only accounts you mention',  i: 'at' },
+    { k: 'verified',  t: 'Verified accounts',          i: 'verified' }
+  ];
+  function scopeOf(k) {
+    for (var i = 0; i < SCOPES.length; i++) if (SCOPES[i].k === k) return SCOPES[i];
+    return SCOPES[0];
+  }
+
+  var DISCLOSE = [
+    { k: 'paid', t: 'Paid partnership', s: 'Someone paid for this, or gave you what it is about.' },
+    { k: 'ai',   t: 'Made with AI',     s: 'The words or the picture were made by a machine.' }
+  ];
+
   function composerHTML(o) {
     o = o || {};
     var id = 'c' + (++composeSeq);
@@ -569,13 +785,23 @@
       (o.replyTo ? '<p class="hd-compose-to">Replying to ' + H.tag(esc(o.toHandle || '')) + '</p>' : '') +
       '<div class="hd-compose-row">' + avatarOf(my) +
         '<textarea class="hd-compose-in" rows="' + (o.rows || 2) + '" maxlength="' + MAX + '" ' +
-          'placeholder="' + esc(o.placeholder || 'hear me out...') + '"></textarea>' +
+          'placeholder="' + esc(o.placeholder || 'What is worth saying?') + '"></textarea>' +
+      '</div>' +
+      /* What it will look like once it is out, drawn from the same renderer
+         the feed uses. It appears only once there is something to show that
+         plain text would not already say. */
+      '<div class="hd-compose-see" data-see hidden>' +
+        '<span class="hd-compose-see-lb">As it will read</span>' +
+        '<div class="hd-post-body" data-seen></div>' +
       '</div>' +
       '<div class="hd-compose-media" hidden></div>' +
-      '<div class="hd-compose-disclose">' +
-        '<label class="nb-check"><input type="checkbox" data-disc="paid"><span class="nb-box"></span><span>Paid partnership</span></label>' +
-        '<label class="nb-check"><input type="checkbox" data-disc="ai"><span class="nb-box"></span><span>Made with AI</span></label>' +
-      '</div>' +
+      '<div class="hd-compose-poll" data-poll hidden></div>' +
+      '<div class="hd-compose-flags" data-flags hidden></div>' +
+      /* A reply goes into somebody else's thread, so it is theirs to gate,
+         not yours. The control only belongs on a post of its own. */
+      (o.replyTo ? '' :
+        '<button class="hd-scope" type="button" data-scope>' + ic('users') +
+          '<span data-scope-t>Everyone can reply</span></button>') +
       /* Only drawn once this account is known to hold others. Until then
          there is nothing to choose between. */
       (held.length
@@ -591,8 +817,13 @@
             '<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden data-pic>' +
             '<span class="nb-sr">Add a picture</span></label>' +
           '<button class="nb-icon-btn hd-compose-tool" type="button" data-tag data-tip="Add a topic">' + ic('hash') + '</button>' +
-          '<button class="nb-icon-btn hd-compose-tool" type="button" data-emoji data-tip="Add an emoji">&#128578;</button>' +
-          '<button class="nb-icon-btn hd-compose-tool" type="button" data-rewrite data-tip="Work on this with Supernova">' + ic('sparkle') + '</button>' +
+          '<button class="nb-icon-btn hd-compose-tool" type="button" data-emoji data-tip="Add an emoji">' + ic('smile') + '</button>' +
+          (o.replyTo ? '' :
+            '<button class="nb-icon-btn hd-compose-tool" type="button" data-pollbtn data-tip="Ask a question">' + ic('chart') + '</button>' +
+            '<button class="nb-icon-btn hd-compose-tool" type="button" data-when data-tip="Send it later">' + ic('clock') + '</button>') +
+          '<button class="nb-icon-btn hd-compose-tool" type="button" data-disc data-tip="Say what this is">' + ic('info') + '</button>' +
+          '<button class="nb-icon-btn hd-compose-tool hd-compose-nv" type="button" data-nova data-tip="Ask Supernova to work on it">' +
+            novaMark('hd-compose-nvm') + '</button>' +
         '</div>' +
         '<span class="hd-count" data-count>' + MAX + '</span>' +
         '<button class="nb-btn nb-btn--primary nb-btn--sm" type="submit" disabled data-go>' +
@@ -610,12 +841,40 @@
     var say = form.querySelector('[data-say]');
     var tray = form.querySelector('.hd-compose-media');
     var pic = form.querySelector('[data-pic]');
+    var see = form.querySelector('[data-see]');
+    var seen = form.querySelector('[data-seen]');
+    var pollBox = form.querySelector('[data-poll]');
+    var flagBox = form.querySelector('[data-flags]');
     var media = null;
     var busy = false;
+
+    /* Everything the composer carries beyond its words. */
+    var scope = 'all';
+    var when = null;          /* a Date, or null for now */
+    var flags = [];           /* 'paid', 'ai' */
+    var poll = null;          /* { options: [], hours: n } */
 
     function grow() {
       ta.style.height = 'auto';
       ta.style.height = Math.min(ta.scrollHeight, 320) + 'px';
+    }
+
+    /* Anything the renderer would turn into something other than plain text.
+       Below that bar the preview would only repeat what is already on
+       screen, so it stays out of the way. */
+    var RICH = /(^|[\s(])[@#][a-z0-9_]/i;
+    function worthSeeing(t) {
+      return RICH.test(t) || /https?:\/\//i.test(t) ||
+        /\*\*[^*\n]+\*\*|(^|[^*\w])\*[^*\n]+\*|(^|[^_\w])_[^_\n]+_|~~[^~\n]+~~|`[^`\n]+`/.test(t) ||
+        /(^|\n)>/.test(t);
+    }
+
+    function preview() {
+      var t = ta.value;
+      if (!worthSeeing(t)) { see.hidden = true; seen.innerHTML = ''; return; }
+      see.hidden = false;
+      seen.innerHTML = body(t, { keepMedia: true });
+      twem(seen);
     }
 
     function tick() {
@@ -623,9 +882,176 @@
       count.textContent = left;
       count.classList.toggle('is-low', left <= 60);
       count.classList.toggle('is-over', left < 0);
-      go.disabled = busy || left < 0 || (!ta.value.trim() && !media);
+      go.disabled = busy || left < 0 || (!ta.value.trim() && !media && !poll);
+      go.textContent = when ? 'Schedule' : (o.label || 'Post');
       grow();
+      preview();
     }
+
+    /* ── The controls that hang off the composer ──────────────────────── */
+
+    function paintScope() {
+      var pill = form.querySelector('[data-scope]');
+      if (!pill) return;
+      var s = scopeOf(scope);
+      pill.innerHTML = ic(s.i) + '<span data-scope-t>' +
+        (s.k === 'all' ? 'Everyone can reply' : s.t + ' can reply') + '</span>';
+      pill.classList.toggle('is-set', s.k !== 'all');
+    }
+    paintScope();
+
+    var scopeBtn = form.querySelector('[data-scope]');
+    if (scopeBtn) scopeBtn.addEventListener('click', function () {
+      var s = U.sheet({
+        title: 'Who can reply',
+        html: '<p class="hd-modal-line">Anyone can see this post and pass it on. Only the accounts you pick can answer it.</p>' +
+          '<div class="hd-pick">' + SCOPES.map(function (x) {
+            return '<button class="hd-pick-one' + (x.k === scope ? ' is-on' : '') + '" type="button" data-k="' + x.k + '">' +
+              ic(x.i) + '<span>' + esc(x.t) + '</span>' + (x.k === scope ? ic('tick') : '') + '</button>';
+          }).join('') + '</div>'
+      });
+      s.body.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-k]');
+        if (!b) return;
+        scope = b.getAttribute('data-k');
+        paintScope(); s.close();
+      });
+    });
+
+    function paintFlags() {
+      var bits = [];
+      if (when) {
+        bits.push('<span class="hd-fchip">' + ic('clock') + 'Going out ' + esc(whenWord(when)) +
+          '<button type="button" data-off="when" aria-label="Send it now instead">' + ic('x') + '</button></span>');
+      }
+      flags.forEach(function (k) {
+        var d = DISCLOSE.filter(function (x) { return x.k === k; })[0];
+        if (!d) return;
+        bits.push('<span class="hd-fchip">' + ic('info') + esc(d.t) +
+          '<button type="button" data-off="' + k + '" aria-label="Take that off">' + ic('x') + '</button></span>');
+      });
+      flagBox.innerHTML = bits.join('');
+      flagBox.hidden = !bits.length;
+    }
+
+    flagBox.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-off]');
+      if (!b) return;
+      var k = b.getAttribute('data-off');
+      if (k === 'when') when = null;
+      else flags = flags.filter(function (x) { return x !== k; });
+      paintFlags(); tick();
+    });
+
+    function whenWord(d) {
+      var day = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+      var at = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      var today = new Date();
+      var same = d.toDateString() === today.toDateString();
+      return (same ? 'today' : day) + ' at ' + at;
+    }
+
+    var whenBtn = form.querySelector('[data-when]');
+    if (whenBtn) whenBtn.addEventListener('click', function () {
+      var soon = new Date(Date.now() + 60 * 60 * 1000);
+      soon.setSeconds(0, 0);
+      var val = new Date(soon.getTime() - soon.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      var s = U.sheet({
+        title: 'Send it later',
+        html: '<p class="hd-modal-line">It stays out of sight until then, and nobody but you can see it in the meantime.</p>' +
+          '<div class="nb-field"><label class="nb-label" for="wIn">Date and time</label>' +
+            '<input class="nb-input" id="wIn" type="datetime-local" data-focus value="' + esc(val) + '"></label></div>' +
+          '<p class="nb-note" data-wsay hidden></p>' +
+          '<div class="hd-modal-do"><button class="nb-btn nb-btn--primary" type="button" data-ok>Schedule it</button>' +
+            '<button class="nb-btn nb-btn--ghost" type="button" data-now>Send it now instead</button></div>'
+      });
+      s.q('[data-now]').addEventListener('click', function () { when = null; paintFlags(); tick(); s.close(); });
+      s.q('[data-ok]').addEventListener('click', function () {
+        var d = new Date(s.q('#wIn').value);
+        var bad = s.q('[data-wsay]');
+        if (isNaN(d.getTime()) || d.getTime() <= Date.now() + 60000) {
+          bad.hidden = false; bad.textContent = 'Pick a time at least a minute from now.'; return;
+        }
+        when = d; paintFlags(); tick(); s.close();
+      });
+    });
+
+    form.querySelector('[data-disc]').addEventListener('click', function () {
+      var s = U.sheet({
+        title: 'Say what this is',
+        html: '<p class="hd-modal-line">Both of these show on the post itself. Use them when they are true.</p>' +
+          DISCLOSE.map(function (d) {
+            return '<label class="nb-check hd-disc-one"><input type="checkbox" data-d="' + d.k + '"' +
+              (flags.indexOf(d.k) > -1 ? ' checked' : '') + '><span class="nb-box"></span>' +
+              '<span><b>' + esc(d.t) + '</b><i>' + esc(d.s) + '</i></span></label>';
+          }).join('') +
+          '<div class="hd-modal-do"><button class="nb-btn nb-btn--primary" type="button" data-ok>Done</button></div>'
+      });
+      s.q('[data-ok]').addEventListener('click', function () {
+        flags = [];
+        [].forEach.call(s.body.querySelectorAll('[data-d]'), function (c) {
+          if (c.checked) flags.push(c.getAttribute('data-d'));
+        });
+        paintFlags(); s.close();
+      });
+    });
+
+    /* ── The poll ─────────────────────────────────────────────────────── */
+
+    function paintPoll() {
+      if (!poll) { pollBox.hidden = true; pollBox.innerHTML = ''; return; }
+      pollBox.hidden = false;
+      pollBox.innerHTML = poll.options.map(function (v, i) {
+        return '<div class="hd-pollrow"><input class="nb-input" maxlength="40" data-o="' + i + '" ' +
+          'placeholder="Answer ' + (i + 1) + '" value="' + esc(v) + '">' +
+          (poll.options.length > 2
+            ? '<button class="nb-icon-btn" type="button" data-drop-o="' + i + '" aria-label="Remove this answer">' + ic('x') + '</button>'
+            : '') + '</div>';
+      }).join('') +
+      '<div class="hd-poll-foot">' +
+        (poll.options.length < 4
+          ? '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-add-o>Add an answer</button>' : '') +
+        '<label class="hd-poll-len"><span>Open for</span><select class="nb-select" data-len>' +
+          [[6, '6 hours'], [24, 'a day'], [72, 'three days'], [168, 'a week']].map(function (x) {
+            return '<option value="' + x[0] + '"' + (poll.hours === x[0] ? ' selected' : '') + '>' + x[1] + '</option>';
+          }).join('') + '</select></label>' +
+        '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-drop-poll>Remove poll</button>' +
+      '</div>';
+    }
+
+    pollBox.addEventListener('input', function (e) {
+      var o1 = e.target.getAttribute('data-o');
+      if (o1 != null && poll) poll.options[+o1] = e.target.value;
+      if (e.target.hasAttribute('data-len') && poll) poll.hours = +e.target.value;
+      tick();
+    });
+    pollBox.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b || !poll) return;
+      if (b.hasAttribute('data-add-o') && poll.options.length < 4) poll.options.push('');
+      else if (b.hasAttribute('data-drop-poll')) poll = null;
+      else if (b.hasAttribute('data-drop-o')) poll.options.splice(+b.getAttribute('data-drop-o'), 1);
+      else return;
+      paintPoll(); tick();
+      var first = pollBox.querySelector('input');
+      if (first) first.focus();
+    });
+
+    var pollBtn = form.querySelector('[data-pollbtn]');
+    if (pollBtn) pollBtn.addEventListener('click', function () {
+      poll = poll ? null : { options: ['', ''], hours: 24 };
+      paintPoll(); tick();
+      var first = pollBox.querySelector('input');
+      if (first) first.focus();
+    });
+
+    /* ── Supernova, on the words already written ──────────────────────── */
+
+    form.querySelector('[data-nova]').addEventListener('click', function () {
+      var startWith = ta.value.trim();
+      if (!startWith) { warn('Write something first and Supernova will work on that.'); return; }
+      novaWrite(startWith, function (out) { ta.value = out; tick(); ta.focus(); });
+    });
 
     ta.addEventListener('input', tick);
     ta.addEventListener('keydown', function (e) {
@@ -660,12 +1086,6 @@
       setTimeout(function () { document.addEventListener('click', closePop, { once: true }); }, 10);
     });
 
-    form.querySelector('[data-rewrite]').addEventListener('click', function () {
-      var text = ta.value.trim();
-      if (!text) { U.toast('Write something first, then I can help.'); return; }
-      openRewrite(text, function (rewritten) { ta.value = rewritten; tick(); ta.focus(); });
-    });
-
     pic.addEventListener('change', function () {
       var f = pic.files && pic.files[0];
       pic.value = '';
@@ -696,9 +1116,23 @@
       e.preventDefault();
       if (busy) return;
       var text = ta.value.trim();
-      if (!text && !media) return;
+      if (!text && !media && !poll) return;
+
+      var answers = null;
+      if (poll) {
+        answers = poll.options.map(function (v) { return v.trim(); }).filter(Boolean);
+        if (answers.length < 2) return warn('A poll needs at least two answers.');
+        var seenAns = {};
+        for (var ai = 0; ai < answers.length; ai++) {
+          var lower = answers[ai].toLowerCase();
+          if (seenAns[lower]) return warn('Two of those answers are the same.');
+          seenAns[lower] = 1;
+        }
+        if (!text) return warn('A poll needs a question. Write it above the answers.');
+      }
+
       busy = true; go.disabled = true; say.hidden = true;
-      go.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Posting';
+      go.innerHTML = '<span class="nb-loader nb-loader--sm"></span> ' + (when ? 'Scheduling' : 'Posting');
 
       try {
         if (media) {
@@ -718,29 +1152,36 @@
         if (asId && asId !== my.id) {
           /* Writing as an account this one holds. The row policy will not
              allow it, and should not: the function checks the tie instead. */
-          var discPaid = form.querySelector('[data-disc="paid"]');
-          var discAi = form.querySelector('[data-disc="ai"]');
           var made = await db.rpc('post_as', {
             p_as: asId, p_body: text,
             p_reply_to: o.replyTo || null, p_relay_of: o.quoteOf || null,
-            p_paid: discPaid ? discPaid.checked : false,
-            p_ai: discAi ? discAi.checked : false
+            p_scope: scope, p_disclosure: flags
           });
           if (made.error) throw made.error;
           r = await db.from('posts').select(WITH_AUTHOR).eq('id', made.data).single();
         } else {
-          var row = { author: my.id, body: text };
+          var row = { author: my.id, body: text, reply_scope: scope, disclosure: flags };
           if (o.replyTo) row.reply_to = o.replyTo;
           if (o.quoteOf) row.relay_of = o.quoteOf;
-          var discPaid = form.querySelector('[data-disc="paid"]');
-          var discAi = form.querySelector('[data-disc="ai"]');
-          if (discPaid && discPaid.checked) row.is_paid_partnership = true;
-          if (discAi && discAi.checked) row.is_ai_generated = true;
+          if (when) row.scheduled_for = when.toISOString();
           r = await db.from('posts').insert(row).select(WITH_AUTHOR).single();
         }
         if (r.error) throw r.error;
 
-        /* Save alt text and spoiler metadata if an image was attached. */
+        if (answers) {
+          /* The post is out. If the ballot will not attach, say so plainly
+             rather than leave a question standing with no way to answer it. */
+          var pr = await db.from('polls').insert({
+            post_id: r.data.id, options: answers,
+            closes_at: new Date(Date.now() + poll.hours * 3600 * 1000).toISOString()
+          });
+          if (pr.error) {
+            await db.from('posts').delete().eq('id', r.data.id);
+            throw pr.error;
+          }
+        }
+
+        /* What a picture says, and whether it opens covered. */
         if (media && r.data) {
           var altInput = tray.querySelector('[data-alt]');
           var spoilerInput = tray.querySelector('[data-spoiler]');
@@ -758,9 +1199,14 @@
         }
 
         ta.value = ''; media = null; tray.hidden = true; tray.innerHTML = '';
+        poll = null; when = null; flags = []; scope = 'all';
+        paintPoll(); paintFlags(); paintScope();
         tick();
-        U.toast(o.replyTo ? 'Reply posted.' : 'Posted.');
-        if (o.after) o.after(r.data);
+        U.toast(o.replyTo ? 'Reply posted.'
+          : (r.data.scheduled_for ? 'Scheduled. It goes out on its own.' : 'Posted.'));
+        /* A post held back is not in anybody's feed yet, so nothing is
+           handed on to be drawn there. */
+        if (o.after && !r.data.scheduled_for) o.after(r.data);
       } catch (err) {
         var m = String((err && err.message) || '');
         if (/may_post|row-level security/i.test(m)) warn('Your account cannot post right now.');
@@ -775,184 +1221,20 @@
     return { focus: function () { ta.focus(); } };
   }
 
-  function openRewrite(text, onAccept) {
-    var presets = [
-      { label: 'Tidy it up', prompt: 'Tidy this up. Fix grammar, improve flow, keep the meaning.' },
-      { label: 'Make it shorter', prompt: 'Make this shorter and tighter. Keep the core meaning.' },
-      { label: 'Say it plainly', prompt: 'Rewrite this in plain, simple language anyone can follow.' },
-      { label: 'Warmer', prompt: 'Rewrite this in a warmer, friendlier tone.' },
-      { label: 'Sharper', prompt: 'Rewrite this to be more direct and impactful.' },
-      { label: 'Say more of it', prompt: 'Expand on this. Add detail and depth while keeping the voice.' }
-    ];
-    var chosen = null;
-
-    function html() {
-      return '<div class="hd-rewrite">' +
-        '<p class="hd-rewrite-desc">Supernova rewrites what you have written. Nothing goes out until you post it yourself.</p>' +
-        '<div class="hd-rewrite-src">' + esc(text) + '</div>' +
-        '<div class="hd-rewrite-presets">' + presets.map(function (p, i) {
-          return '<button type="button" class="nb-btn nb-btn--sm hd-rewrite-preset" data-ri="' + i + '">' + p.label + '</button>';
-        }).join('') + '</div>' +
-        '<div class="nb-field"><label class="nb-label">Or say how <span class="nb-hint">optional</span></label>' +
-          '<textarea class="nb-textarea" id="rewriteHow" rows="2" maxlength="300" placeholder="As a shipping note. As if I were annoyed."></textarea></div>' +
-        '<div class="hd-rewrite-out" id="rewriteOut" hidden></div>' +
-        '<div class="hd-rewrite-btns">' +
-          '<button class="nb-btn nb-btn--primary nb-btn--sm" type="button" id="rewriteGo">' + ic('sparkle') + ' Rewrite it</button>' +
-          '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" id="rewriteKeep">Keep mine</button>' +
-        '</div></div>';
-    }
-
-    var s = U.sheet({
-      title: 'Work on this',
-      html: html(),
-      wire: function (api) {
-        var root = api.body;
-        var how = root.querySelector('#rewriteHow');
-        var out = root.querySelector('#rewriteOut');
-        var goBtn = root.querySelector('#rewriteGo');
-        var keepBtn = root.querySelector('#rewriteKeep');
-        var presetsEls = root.querySelectorAll('.hd-rewrite-preset');
-
-        presetsEls.forEach(function (el) {
-          el.addEventListener('click', function () {
-            var idx = parseInt(el.dataset.ri);
-            chosen = presets[idx];
-            presetsEls.forEach(function (b) { b.classList.remove('is-on'); });
-            el.classList.add('is-on');
-          });
-        });
-
-        goBtn.addEventListener('click', async function () {
-          var instruction = how.value.trim() || (chosen ? chosen.prompt : '');
-          if (!instruction) { U.toast('Pick a style or write how you want it.'); return; }
-          goBtn.disabled = true;
-          goBtn.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Rewriting';
-          out.hidden = false;
-          out.innerHTML = '<span class="nb-loader nb-loader--sm"></span>';
-          try {
-            var result = await H.fn('supernova?job=ask', {
-              turns: [{ role: 'them', text:
-                'Rewrite the following text. ' + instruction + '\n\n' +
-                'Return ONLY the rewritten text, nothing else. No quotes, no explanation.\n\n' +
-                'Text:\n' + text }]
-            });
-            var rewritten = (result.text || '').replace(/^["']|["']$/g, '').trim();
-            out.innerHTML = '<div class="hd-rewrite-result">' + esc(rewritten) + '</div>';
-            var acceptBtn = document.createElement('button');
-            acceptBtn.className = 'nb-btn nb-btn--primary nb-btn--sm';
-            acceptBtn.textContent = 'Use this';
-            acceptBtn.addEventListener('click', function () {
-              if (onAccept) onAccept(rewritten);
-              api.close();
-            });
-            out.appendChild(acceptBtn);
-          } catch (err) {
-            out.innerHTML = '<p class="nb-alert nb-alert--error">' + esc(String(err.message || 'That did not work.')) + '</p>';
-          }
-          goBtn.disabled = false;
-          goBtn.innerHTML = ic('sparkle') + ' Rewrite it';
-        });
-
-        keepBtn.addEventListener('click', function () { api.close(); });
-      }
-    });
-  }
-
-  /* ── Drafts ────────────────────────────────────────────────────────────── */
-
-  var DRAFTS_KEY = 'hereld_drafts';
-
-  function getDrafts() {
-    try { return JSON.parse(localStorage.getItem(DRAFTS_KEY) || '[]'); }
-    catch (e) { return []; }
-  }
-
-  function saveDraft(text, media) {
-    if (!text || !text.trim()) return;
-    var drafts = getDrafts();
-    drafts.unshift({ id: Date.now(), text: text.trim(), media: media || null, saved: new Date().toISOString() });
-    if (drafts.length > 20) drafts = drafts.slice(0, 20);
-    localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
-  }
-
-  function deleteDraft(id) {
-    var drafts = getDrafts().filter(function (d) { return d.id !== id; });
-    localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
-  }
-
   function openComposer(o) {
     o = o || {};
     var s = U.sheet({
       title: o.title || 'New post',
-      tools: '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-drafts>' + ic('bookmark') + ' Drafts</button>',
-      html: composerHTML(Object.assign({ rows: 4, placeholder: 'hear me out...' }, o)),
+      tools: '',
+      html: composerHTML(Object.assign({ rows: 4, placeholder: 'What is worth saying?' }, o)),
       wire: function (api) {
-        var form = api.q('.hd-compose');
-        var ta = form.querySelector('.hd-compose-in');
-        var c = wireComposer(form, Object.assign({}, o, {
+        var c = wireComposer(api.q('.hd-compose'), Object.assign({}, o, {
           after: function (row) { api.close(); if (o.after) o.after(row); }
         }));
-
-        /* Auto-save draft on close if there is text. */
-        var closed = false;
-        var origClose = api.close;
-        api.close = function () {
-          if (closed) return;
-          closed = true;
-          var text = ta.value.trim();
-          if (text && !o.replyTo) {
-            saveDraft(text);
-            U.toast('Draft saved.');
-          }
-          origClose.call(api);
-        };
-
-        /* Drafts button. */
-        var draftsBtn = api.body.querySelector('[data-drafts]');
-        if (draftsBtn) {
-          draftsBtn.addEventListener('click', function () { viewDrafts(api, ta); });
-        }
-
-        /* Load draft if passed. */
-        if (o.draftText) { ta.value = o.draftText; c.focus(); }
-
         setTimeout(c.focus, 60);
       }
     });
     return s;
-  }
-
-  function viewDrafts(parentApi, ta) {
-    var drafts = getDrafts();
-    U.sheet({
-      title: 'Drafts',
-      html: drafts.length
-        ? '<div class="hd-drafts">' + drafts.map(function (d) {
-            return '<div class="hd-draft" data-did="' + d.id + '">' +
-              '<p class="hd-draft-text">' + esc(d.text.slice(0, 200)) + (d.text.length > 200 ? '…' : '') + '</p>' +
-              '<div class="hd-draft-foot">' +
-                '<button class="nb-btn nb-btn--primary nb-btn--sm" type="button" data-load="' + d.id + '">Use</button>' +
-                '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-del="' + d.id + '">Delete</button>' +
-              '</div></div>';
-          }).join('') + '</div>'
-        : '<p class="nb-muted" style="padding:16px">No drafts yet.</p>',
-      wire: function (api) {
-        api.body.addEventListener('click', function (e) {
-          var load = e.target.closest('[data-load]');
-          var del = e.target.closest('[data-del]');
-          if (load) {
-            var d = drafts.find(function (d) { return d.id === parseInt(load.dataset.load); });
-            if (d && ta) { ta.value = d.text; ta.dispatchEvent(new Event('input')); }
-            api.close();
-          }
-          if (del) {
-            deleteDraft(parseInt(del.dataset.del));
-            api.close();
-            U.toast('Draft deleted.');
-          }
-        });
-      }
-    });
   }
 
   /* ── Acting on a post ───────────────────────────────────────────────────── */
@@ -1336,6 +1618,10 @@
       if (!quiet) U.toast('That account could not be found.', 'bad');
       return null;
     }
+    /* Resolved here rather than at each of the places that draw a person, so
+       the hover card and the profile page cannot end up disagreeing about
+       whether somebody wears the mark. */
+    await attachAssoc([r.data]);
     peopleCache[key] = r.data;
     return r.data;
   }
@@ -1398,7 +1684,7 @@
                       '" type="button" data-follow="' + p.id + '">' + (mine.following[p.id] ? 'Following' : 'Follow') + '</button>'
                     : link('join', 'Follow', 'nb-btn nb-btn--primary nb-btn--sm'))) +
       '</div>' +
-      '<p class="hd-pcard-name">' + link('@' + p.handle, '<b>' + esc(p.name || p.handle) + '</b>') + badges(p) + '</p>' +
+      '<p class="hd-pcard-name">' + link('@' + p.handle, nameMark(p)) + '</p>' +
       '<p class="hd-pcard-at">' + H.tag(p.handle) + '</p>' +
       (p.headline ? '<p class="hd-pcard-head">' + esc(p.headline) + '</p>' : '') +
       (p.bio ? '<p class="hd-pcard-bio">' + body(p.bio) + '</p>' : '') +
@@ -1504,9 +1790,9 @@
         '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
         '<input class="nb-input" type="search" name="q" placeholder="Search posts, people and topics" aria-label="Search">' +
       '</form>' +
-      '<section class="hd-block"><h2 class="hd-block-h">' + ic('hash') + ' ' + link('vibe', 'Vibe', 'hd-block-link') + '</h2>' +
+      '<section class="hd-block"><h2 class="hd-block-h">' + ic('hash') + ' The Cry</h2>' +
         '<div class="hd-chips" id="exTags">' + skeletons(0) + '<span class="nb-skel nb-skel--line" style="width:60%"></span></div></section>' +
-      '<section class="hd-block"><h2 class="hd-block-h">' + ic('users') + ' ' + link('who-to-follow', 'Worth following', 'hd-block-link') + '</h2>' +
+      '<section class="hd-block"><h2 class="hd-block-h">' + ic('users') + ' Worth following</h2>' +
         '<div class="hd-list" id="exWho"></div></section>' +
       '<section class="hd-block"><h2 class="hd-block-h">' + ic('quill') + ' Latest</h2>' +
         '<div class="hd-feed" id="feed">' + skeletons(3) + '</div></section>';
@@ -1519,19 +1805,18 @@
     ]);
     if (token !== painting) return;
 
-    var tags = (got[0].data && got[0].data.topics) || [];
-    el('exTags').innerHTML = got[0].error
-      ? '<p class="nb-muted">Vibe is not set up yet.</p>'
-      : tags.length
+    var tags = got[0].data || [];
+    el('exTags').innerHTML = tags.length
       ? tags.map(function (t) {
           return link('search?q=' + encodeURIComponent('#' + t.tag),
-            '<b>#' + esc(t.tag) + '</b><i>' + t.post_count + ' post' + (t.post_count === 1 ? '' : 's') +
-            ' · ' + t.author_count + ' ' + (t.author_count === 1 ? 'person' : 'people') + '</i>', 'hd-chip');
+            '<b>#' + esc(t.tag) + '</b><i>' + t.posts + ' post' + (t.posts === 1 ? '' : 's') +
+            ' · ' + t.people + ' ' + (t.people === 1 ? 'person' : 'people') + '</i>', 'hd-chip');
         }).join('')
-      : '<p class="nb-muted">No vibe yet. Put a # in a post and it starts one.</p>';
+      : '<p class="nb-muted">No topics yet. Put a # in a post and it starts one.</p>';
 
-    el('exWho').innerHTML = (got[1].data || []).length
-      ? (got[1].data).map(personRow).join('')
+    var who = await attachAssoc(got[1].data || []);
+    el('exWho').innerHTML = who.length
+      ? who.map(personRow).join('')
       : '<p class="nb-muted">Nobody to suggest yet.</p>';
 
     var feed = el('feed');
@@ -1543,40 +1828,12 @@
     watchViews(feed);
   }
 
-  async function viewVibe() {
-    col.innerHTML = head('Vibe', 'The vibe of the moment.') +
-      '<div class="hd-chips" id="trendTags">' + skeletons(0) + '</div>';
-    var token = painting;
-    var r = await db.rpc('the_cry', { p_limit: 20 });
-    if (token !== painting) return;
-    var tags = (r.data && r.data.topics) || [];
-    el('trendTags').innerHTML = tags.length
-      ? tags.map(function (t) {
-          return link('search?q=' + encodeURIComponent('#' + t.tag),
-            '<b>#' + esc(t.tag) + '</b><i>' + t.post_count + ' post' + (t.post_count === 1 ? '' : 's') +
-            ' · ' + t.author_count + ' ' + (t.author_count === 1 ? 'person' : 'people') + '</i>', 'hd-chip');
-        }).join('')
-      : '<p class="nb-muted">No topics yet. Put a # in a post and it starts one.</p>';
-  }
-
-  async function viewWhoToFollow() {
-    col.innerHTML = head('Worth following', 'People you might like.') +
-      '<div class="hd-list" id="whoList">' + skeletons(3) + '</div>';
-    var token = painting;
-    var r = await db.rpc('who_to_follow', { p_limit: 20 });
-    if (token !== painting) return;
-    var who = r.data || [];
-    el('whoList').innerHTML = who.length
-      ? who.map(personRow).join('')
-      : '<p class="nb-muted">Nobody to suggest yet.</p>';
-  }
-
   function personRow(p) {
     var on = mine.following[p.handle];
     return '<div class="nb-card nb-card--tight hd-person" data-person="' + p.id + '" data-handle="' + esc(p.handle) + '">' +
       '<a class="hd-av-btn" href="' + who(p.handle) + '" data-r data-card="' + esc(p.handle) + '" aria-hidden="true" tabindex="-1">' +
         avatarOf(p, 'hd-av--sm') + '</a>' +
-      '<div class="hd-person-txt">' + link('@' + p.handle, '<b>' + esc(p.name || p.handle) + '</b>' + badges(p), '', ' data-card="' + esc(p.handle) + '"') +
+      '<div class="hd-person-txt">' + link('@' + p.handle, nameMark(p), '', ' data-card="' + esc(p.handle) + '"') +
         '<i>' + link('@' + p.handle, H.tag(p.handle)) + '</i>' +
         (p.headline ? '<p>' + esc(p.headline) + '</p>' : '') + '</div>' +
       (my && p.id !== my.id
@@ -1603,7 +1860,7 @@
     ]);
     if (token !== painting) return;
 
-    var people = got[0].data || [];
+    var people = await attachAssoc(got[0].data || []);
     var rows = await hydrate(got[1].data || []);
     if (token !== painting) return;
 
@@ -1833,23 +2090,24 @@
               avatarOf(p, 'hd-av--xl') + '</button>' +
             '<div class="hd-prof-acts">' + profileActs(p, isMe, following, blocked) + '</div>' +
           '</div>' +
-          '<h2 class="hd-prof-name">' + esc(p.name || p.handle) + badges(p) + '</h2>' +
+          '<h2 class="hd-prof-name">' + nameMark(p) + '</h2>' +
           '<p class="hd-prof-at">' + H.tag(p.handle, 'hd-at--lg') +
-            (p.is_company ? '<span class="hd-kind">' + ic('building') + ' Company</span>' : '') +
-            '</p>' +
+            /* An automated account says so. Nothing else needs a capsule: the
+               mark carries a company, and its trade sits in the line below. */
+            (p.is_bot ? '<span class="hd-kind hd-kind--bot">' + ic('robot') + ' Automated</span>' : '') + '</p>' +
           (p.headline ? '<p class="hd-prof-head">' + esc(p.headline) + '</p>' : '') +
           (p.bio ? '<p class="hd-prof-bio">' + body(p.bio) + '</p>' : '') +
           '<p class="hd-prof-meta">' +
-            (p.location ? '<span>' + ic('mapmarker') + esc(p.location) + '</span>' : '') +
+            (p.location ? '<span>' + ic('compass') + esc(p.location) + '</span>' : '') +
             (p.website ? '<span>' + ic('link') + '<a href="' + esc(p.website) + '" target="_blank" rel="noopener nofollow">' +
               esc(p.website.replace(/^https?:\/\/(www\.)?/, '')) + '</a></span>' : '') +
             '<span>' + ic('clock') + 'Joined ' + esc(joined) + '</span>' +
             (p.industry ? '<span>' + ic('building') + esc(p.industry) + '</span>' : '') +
           '</p>' +
           '<p class="hd-count-row">' +
-            countBtn(p, 'following', p.following_count, 'following') +
-            countBtn(p, 'followers', p.follower_count, 'follower' + (p.follower_count === 1 ? '' : 's')) +
-            (assoc.length ? countBtn(p, 'affiliated', assoc.length, 'associated') : '') +
+            countBtn(p, 'following', p.following_count, 'Following') +
+            countBtn(p, 'followers', p.follower_count, 'Follower' + (p.follower_count === 1 ? '' : 's')) +
+            (assoc.length ? countBtn(p, 'affiliated', assoc.length, 'Associated') : '') +
           '</p>' +
           standingHTML(counts[3] && counts[3].data) +
           (assoc.length ? assocHTML(assoc) : '') +
@@ -1969,11 +2227,17 @@
       if (!box) return;
       if (r.error) { box.innerHTML = broke('That list could not be opened.'); return; }
       var rows = r.data || [];
-      box.innerHTML = rows.length ? rows.map(personRow).join('')
-        : empty('Nothing here yet', kind === 'affiliated'
+      if (!rows.length) {
+        box.innerHTML = empty('Nothing here yet', kind === 'affiliated'
           ? 'No accounts are associated with this one.'
           : kind === 'following' ? 'This account follows nobody yet.' : 'Nobody follows this account yet.');
-      twem(box);
+        return;
+      }
+      attachAssoc(rows).then(function () {
+        if (!s.q('#lsBody')) return;
+        box.innerHTML = rows.map(personRow).join('');
+        twem(box);
+      });
     });
   }
 
@@ -2124,18 +2388,30 @@
     var kids = await db.from('posts').select(WITH_AUTHOR).eq('reply_to', id)
       .order('created_at', { ascending: true }).limit(50);
     var replies = await hydrate(kids.data || []);
+
+    /* The author decides who answers. Ask before drawing the box, so nobody
+       writes a reply the server is only going to refuse. */
+    var mayReply = !my;
+    if (my) {
+      var ok = await db.rpc('can_reply', { p_parent: id });
+      mayReply = ok.error ? true : ok.data !== false;
+    }
     if (token !== painting) return;
 
     el('feed').innerHTML =
       (parent ? card(parent) + '<div class="hd-thread-line"></div>' : '') +
       card(main, { lead: true }) +
-      (my ? '<div class="nb-card hd-compose-card">' + composerHTML({
+      (my && mayReply ? '<div class="nb-card hd-compose-card">' + composerHTML({
         replyTo: id, toHandle: (main.author || {}).handle, label: 'Reply', placeholder: 'Write a reply'
       }) + '</div>' : '') +
+      (my && !mayReply
+        ? '<div class="nb-card hd-shut">' + ic(scopeOf(main.reply_scope).i) +
+          '<p>' + esc(scopeOf(main.reply_scope).t) + ' can reply to this. You can still pass it on.</p></div>'
+        : '') +
       (replies.length ? feedHTML(replies)
-        : '<div class="hd-sep-say">' + (my ? 'No replies yet. Yours would be the first.' : 'No replies yet.') + '</div>');
+        : '<div class="hd-sep-say">' + (my && mayReply ? 'No replies yet. Yours would be the first.' : 'No replies yet.') + '</div>');
 
-    if (my) {
+    if (my && mayReply) {
       wireComposer(col.querySelector('.hd-compose'), { replyTo: id, label: 'Reply', after: function () { viewThread(id); } });
     }
     twem(col);
@@ -2171,18 +2447,10 @@
       .eq('id', id).maybeSingle();
     if (r.error || !r.data) return U.toast('That post could not be read.', 'bad');
     var p = r.data, a = p.author || {};
-
-    /* Fetch media attached to this post. */
-    var mediaR = await db.from('post_media').select('url, alt_text, spoiler').eq('post_id', id).order('position');
-    var media = mediaR.data || [];
-    var mediaDesc = media.length
-      ? '\n\nPost has ' + media.length + ' image(s): ' + media.map(function (m, i) {
-          return 'Image ' + (i + 1) + (m.alt_text ? ' (alt text: ' + m.alt_text + ')' : '') + (m.spoiler ? ' [spoiler]' : '');
-        }).join('; ')
-      : '';
     var who = a.name || a.handle || 'Someone';
     var avatar = H.avatar(a, 'hd-av--md');
-    var verified = a.verified ? ' <span class="hd-badge hd-badge--' + (a.is_company ? 'co' : 'ver') + '">' + ic('verified') + '</span>' : '';
+    var verified = a.verified ? ' <span class="hd-badge hd-badge--ver">' + ic('tick') + '</span>' : '';
+    var company = a.is_company ? ' <span class="hd-badge hd-badge--co">' + ic('building') + '</span>' : '';
 
     U.sheet({
       title: '',
@@ -2191,7 +2459,7 @@
           '<div class="hd-nova-post-head">' +
             '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-av">' + avatar + '</a>' +
             '<div class="hd-nova-post-who">' +
-              '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-name">' + esc(who) + verified + '</a>' +
+              '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-name">' + esc(who) + verified + company + '</a>' +
               '<span class="hd-nova-post-handle">' + H.tag(a.handle || '') + '</span>' +
             '</div>' +
           '</div>' +
@@ -2224,7 +2492,7 @@
             'Explain this post from Hereld in plain language, in under 120 words. ' +
             'Say what it is about and anything a reader would need to know to follow it. ' +
             'If it is too short or too vague to explain, say that instead of guessing.\n\n' +
-            who + ' posted:\n' + String(p.body || '') + mediaDesc }]
+            who + ' posted:\n' + String(p.body || '') }]
         }).then(function (out) {
           var ans = api.q('#novaAns');
           if (!ans) return;
@@ -2341,7 +2609,7 @@
         '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
         '<input class="nb-input" type="search" name="q" placeholder="Search Hereld" aria-label="Search Hereld">' +
       '</form>' +
-      '<section class="nb-card hd-aside-card" id="asideTags"><h2>' + ic('hash') + ' Vibe</h2>' +
+      '<section class="nb-card hd-aside-card" id="asideTags"><h2>' + ic('hash') + ' The Cry</h2>' +
         '<p class="nb-muted">Reading the room…</p></section>' +
       '<section class="nb-card hd-aside-card" id="asideWho"><h2>' + ic('users') + ' Worth following</h2>' +
         '<p class="nb-muted">Looking…</p></section>' +
@@ -2356,15 +2624,15 @@
       db.rpc('who_to_follow', { p_limit: 3 })
     ]);
 
-    var tags = (got[0].data && got[0].data.topics) || [];
+    var tags = got[0].data || [];
     var tagBox = el('asideTags');
     if (tagBox) {
-      tagBox.innerHTML = '<h2>' + ic('hash') + ' Vibe</h2>' + (tags.length
+      tagBox.innerHTML = '<h2>' + ic('hash') + ' The Cry</h2>' + (tags.length
         ? tags.map(function (t) {
             return link('search?q=' + encodeURIComponent('#' + t.tag),
-              '<b>#' + esc(t.tag) + '</b><i>' + t.post_count + ' post' + (t.post_count === 1 ? '' : 's') + '</i>', 'hd-aside-row');
+              '<b>#' + esc(t.tag) + '</b><i>' + t.posts + ' post' + (t.posts === 1 ? '' : 's') + '</i>', 'hd-aside-row');
           }).join('')
-        : '<p class="nb-muted">No vibe yet. Put a # in a post and it starts one.</p>');
+        : '<p class="nb-muted">Nothing trending yet. Start something with a #.</p>');
     }
 
     var who = got[1].data || [];
@@ -2715,21 +2983,74 @@
             .or('company.eq.' + my.id + ',member.eq.' + my.id)
             .limit(100);
           if (r.error) { box.innerHTML = broke(H.trouble(r.error, 'That list did not load.')); return; }
+
           var rows = r.data || [];
-          if (!rows.length) { box.innerHTML = empty('Nothing yet'); return; }
-          box.innerHTML = rows.map(function (x) {
-            var co = x.co || {}, me = x.me || {};
-            var iAm = x.company === my.id;
-            var other = iAm ? me : co;
-            var st = x.state === 'accepted' ? tag('Linked', 'ok') : x.state === 'pending' ? tag('Pending', 'warn') : tag(x.state);
-            return '<div class="hd-stf-row">' + who(other, (iAm ? 'They ' : 'You ') + (x.state === 'accepted' ? 'accepted' : 'invited') + (x.role ? ' - ' + esc(x.role) : '')) +
-              '<span class="hd-stf-row-tags">' + st + '</span>' +
-              (x.state === 'pending' && iAm
-                ? '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-assoc-act="drop" data-assoc-id="' + esc(x.id) + '">Drop</button>'
-                : '') + '</div>';
+          if (!rows.length) {
+            box.innerHTML = empty('Nothing yet', my.is_company
+              ? 'Invite an account by its handle and it appears here once accepted.'
+              : 'A company that wants to associate this account will show up here.');
+            return;
+          }
+          box.innerHTML = rows.map(function (a) {
+            var them = a.company === my.id ? a.me : a.co;
+            var theirs = a.company !== my.id;
+            var waiting = a.state !== 'accepted';
+            var note = waiting
+              ? (theirs ? 'Wants to associate this account' : 'Invited, waiting on them')
+              : (a.role || (a.kind === 'account' ? 'An account you hold' : 'Associated'));
+            return '<div class="nb-card nb-card--tight hd-person">' +
+              '<a class="hd-av-btn" href="' + who(them.handle) + '" data-r aria-hidden="true" tabindex="-1">' +
+                avatarOf(them, 'hd-av--sm') + '</a>' +
+              '<div class="hd-person-txt">' + nameMark(them) +
+                '<i>' + H.tag(them.handle) + '</i><p>' + esc(note) + '</p></div>' +
+              (waiting && theirs
+                ? '<span class="hd-person-do">' +
+                    '<button class="nb-btn nb-btn--primary nb-btn--sm" type="button" data-assoc-yes="' + a.company + '">Accept</button>' +
+                    '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-assoc-no="' + a.company + '">Decline</button>' +
+                  '</span>'
+                : '<button class="nb-btn nb-btn--red nb-btn--sm" type="button" data-assoc-end="' +
+                    a.company + '|' + a.member + '">' + (waiting ? 'Withdraw' : 'End') + '</button>') +
+              '</div>';
           }).join('');
+          twem(box);
         }
         paintAssoc();
+
+        /* Answering an invitation, and ending one. Both are the same two rows
+           in the table, so one handler covers the panel. */
+        $el('assocBody').addEventListener('click', async function (e) {
+          var b = e.target.closest && e.target.closest('button');
+          if (!b) return;
+          var yes = b.getAttribute('data-assoc-yes');
+          var no = b.getAttribute('data-assoc-no');
+          var end = b.getAttribute('data-assoc-end');
+          asSay.hidden = true;
+          b.disabled = true;
+          var r;
+          if (yes || no) {
+            r = await db.rpc('affiliate_answer', { p_company: yes || no, p_yes: !!yes });
+          } else if (end) {
+            var sure = await U.ask({
+              title: 'End this association',
+              line: 'The mark comes off the profile and the account stops appearing in the list.',
+              yes: 'End it', bad: true
+            });
+            if (!sure) { b.disabled = false; return; }
+            var pair = end.split('|');
+            r = await db.rpc('affiliate_remove', { p_company: pair[0], p_member: pair[1] });
+          } else { b.disabled = false; return; }
+          if (r.error) {
+            b.disabled = false;
+            asSay.textContent = H.trouble(r.error, 'That did not go through.');
+            asSay.hidden = false;
+            return;
+          }
+          await H.refreshMe();
+          my = H.me() || my;
+          loadHeld();
+          paintAssoc();
+          U.toast(yes ? 'Accepted.' : no ? 'Declined.' : 'Ended.');
+        });
 
         if ($el('assocAdd')) {
           $el('assocAdd').addEventListener('submit', async function (e) {
@@ -2739,11 +3060,11 @@
             var kind = $el('aKind').value;
             if (!h) { asSay.textContent = 'Type a handle.'; asSay.hidden = false; return; }
             asSay.hidden = true;
-            var r = await db.rpc('assoc_invite', { p_handle: h, p_role: role || null, p_kind: kind });
+            var r = await db.rpc('affiliate_invite', { p_handle: h, p_role: role, p_kind: kind });
             if (r.error) { asSay.textContent = H.trouble(r.error, 'That did not go through.'); asSay.hidden = false; return; }
             $el('aHandle').value = ''; $el('aRole').value = '';
             paintAssoc();
-            U.toast('Invitation sent.');
+            U.toast('Invitation sent. It counts once they accept.');
           });
         }
 
@@ -2761,8 +3082,7 @@
   /* ── Routing ───────────────────────────────────────────────────────────── */
 
   var RESERVED = ['home', 'explore', 'search', 'notifications', 'bookmarks', 'supernova',
-                  'profile', 'settings', 'staff', 'join', 'index', 'post', 'article', 'company', '404',
-                  'vibe', 'who-to-follow'];
+                  'profile', 'settings', 'staff', 'join', 'index', 'post', 'article', 'company', '404'];
 
   function parts() { return here().split('/').filter(Boolean); }
 
@@ -2795,8 +3115,6 @@
       return go('@' + my.handle, true);
     }
     if (first === 'settings') { setTitle('Settings'); return openSettings(); }
-    if (first === 'vibe') { setTitle('Vibe'); return viewVibe(); }
-    if (first === 'who-to-follow') { setTitle('Worth following'); return viewWhoToFollow(); }
     if (first === 'staff') {
       setTitle('Staff console');
       if (window.HStaff) return window.HStaff.render(col, { db: db, my: my, role: staffRole, go: go, url: url });
@@ -2887,6 +3205,14 @@
       }
       var cover = b.getAttribute('data-cover');
       if (cover) { U.look([cover], 0, 'Banner'); return; }
+
+      var answer = b.getAttribute('data-answer');
+      if (answer !== null) {
+        var box = b.closest('[data-pollof]');
+        if (!my) return U.toast('Sign in to answer.');
+        if (box) answerPoll(box, box.getAttribute('data-pollof'), Number(answer));
+        return;
+      }
 
       var listKind = b.getAttribute('data-list');
       if (listKind) {

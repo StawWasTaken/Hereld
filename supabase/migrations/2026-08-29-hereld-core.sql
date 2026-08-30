@@ -1443,6 +1443,9 @@ begin
   -- The ceiling moving is a decision about participation, never about
   -- existence. Nothing here deletes a bot account.
   if p_key = 'bots_active' and p_number is not null then
+    -- The `where active` is not a tidiness: the platform loads a guard that
+    -- refuses an update with no clause at all, and it applies inside a
+    -- definer function too. It also spares every row already off.
     update bots set active = false where active;
     update bots set active = true
      where id in (select id from bots order by created_at limit greatest(p_number, 0));
