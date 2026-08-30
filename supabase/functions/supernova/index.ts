@@ -514,7 +514,37 @@ async function seed(c: Config) {
 
       const id = made.data.user.id;
 
-      await admin.from('profiles').update({ is_bot: true }).eq('id', id);
+      /* Random avatar and banner from a pool of placeholder images. */
+      const avatarPool = [
+        'https://api.dicebear.com/7.x/avataaars/svg?seed=' + handle,
+        'https://api.dicebear.com/7.x/big-ears/svg?seed=' + handle,
+        'https://api.dicebear.com/7.x/bottts/svg?seed=' + handle,
+        'https://api.dicebear.com/7.x/croodles/svg?seed=' + handle,
+        'https://api.dicebear.com/7.x/fun-emoji/svg?seed=' + handle,
+        'https://api.dicebear.com/7.x/icons/svg?seed=' + handle,
+        'https://api.dicebear.com/7.x/lorelei/svg?seed=' + handle,
+        'https://api.dicebear.com/7.x/notionists/svg?seed=' + handle,
+        'https://api.dicebear.com/7.x/open-peeps/svg?seed=' + handle,
+        'https://api.dicebear.com/7.x/personas/svg?seed=' + handle,
+        'https://api.dicebear.com/7.x/thumbs/svg?seed=' + handle
+      ];
+      const bannerPool = [
+        'https://images.unsplash.com/photo-1557683316-973673baf926?w=600&h=200&fit=crop',
+        'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&h=200&fit=crop',
+        'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600&h=200&fit=crop',
+        'https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=600&h=200&fit=crop',
+        'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=600&h=200&fit=crop'
+      ];
+      const avatar = avatarPool[Math.floor(Math.random() * avatarPool.length)];
+      const banner = bannerPool[Math.floor(Math.random() * bannerPool.length)];
+
+      await admin.from('profiles').update({
+        is_bot: true,
+        avatar_url: avatar,
+        banner_url: banner,
+        headline: String((persona as any).persona || '').slice(0, 120),
+        bio: String((persona as any).interests || '').slice(0, 400)
+      }).eq('id', id);
       const { error: botErr } = await admin.from('bots').insert({
         id,
         persona: String((persona as any).persona || '').slice(0, 400),
@@ -713,10 +743,33 @@ async function newBot(req: Request, uid: string) {
 
   const id = made.data.user.id;
 
-  /* Marked as automated on the profile itself, which is what every reader
-     sees, before it is given anything to say. If either write fails the
-     account is removed again rather than left half made. */
-  const mark = await admin.from('profiles').update({ is_bot: true }).eq('id', id);
+  const avatarPool = [
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=' + handle,
+    'https://api.dicebear.com/7.x/big-ears/svg?seed=' + handle,
+    'https://api.dicebear.com/7.x/bottts/svg?seed=' + handle,
+    'https://api.dicebear.com/7.x/croodles/svg?seed=' + handle,
+    'https://api.dicebear.com/7.x/fun-emoji/svg?seed=' + handle,
+    'https://api.dicebear.com/7.x/lorelei/svg?seed=' + handle,
+    'https://api.dicebear.com/7.x/notionists/svg?seed=' + handle,
+    'https://api.dicebear.com/7.x/open-peeps/svg?seed=' + handle,
+    'https://api.dicebear.com/7.x/personas/svg?seed=' + handle,
+    'https://api.dicebear.com/7.x/thumbs/svg?seed=' + handle
+  ];
+  const bannerPool = [
+    'https://images.unsplash.com/photo-1557683316-973673baf926?w=600&h=200&fit=crop',
+    'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&h=200&fit=crop',
+    'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600&h=200&fit=crop',
+    'https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=600&h=200&fit=crop',
+    'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=600&h=200&fit=crop'
+  ];
+  const avatar = avatarPool[Math.floor(Math.random() * avatarPool.length)];
+  const banner = bannerPool[Math.floor(Math.random() * bannerPool.length)];
+
+  const mark = await admin.from('profiles').update({
+    is_bot: true,
+    avatar_url: avatar,
+    banner_url: banner
+  }).eq('id', id);
   const row = await admin.from('bots').insert({
     id,
     persona: String(b.persona || '').slice(0, 400),

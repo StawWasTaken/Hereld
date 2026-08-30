@@ -83,12 +83,7 @@
   }
   /* The gradient avatar used in the Supernova card and ask page. */
   function novaAv(cls, h) {
-    var id = 'novaAv' + Math.random().toString(36).slice(2, 8);
-    setTimeout(function () {
-      var el = document.getElementById(id);
-      if (el) el.classList.add('is-revealed');
-    }, 1900);
-    return '<span class="hd-nova-av-wrap' + (cls ? ' ' + cls : '') + '" id="' + id + '" style="width:' + h + 'px;height:' + h + 'px">' +
+    return '<span class="hd-nova-av-wrap' + (cls ? ' ' + cls : '') + '" style="width:' + h + 'px;height:' + h + 'px">' +
       novaArt('hd-nva--grad', h) + '</span>';
   }
   function go(path, replace) {
@@ -1297,7 +1292,7 @@
         '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
         '<input class="nb-input" type="search" name="q" placeholder="Search posts, people and topics" aria-label="Search">' +
       '</form>' +
-      '<section class="hd-block"><h2 class="hd-block-h">' + ic('hash') + ' The Horn Line</h2>' +
+      '<section class="hd-block"><h2 class="hd-block-h">' + ic('hash') + ' The Cry</h2>' +
         '<div class="hd-chips" id="exTags">' + skeletons(0) + '<span class="nb-skel nb-skel--line" style="width:60%"></span></div></section>' +
       '<section class="hd-block"><h2 class="hd-block-h">' + ic('users') + ' Worth following</h2>' +
         '<div class="hd-list" id="exWho"></div></section>' +
@@ -1306,7 +1301,7 @@
 
     var token = painting;
     var got = await Promise.all([
-      db.rpc('horn_line', { p_limit: 12 }),
+      db.rpc('the_cry', { p_limit: 12 }),
       db.rpc('who_to_follow', { p_limit: 6 }),
       db.from('posts').select(WITH_AUTHOR).is('reply_to', null).order('created_at', { ascending: false }).limit(15)
     ]);
@@ -2096,7 +2091,7 @@
         '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
         '<input class="nb-input" type="search" name="q" placeholder="Search Hereld" aria-label="Search Hereld">' +
       '</form>' +
-      '<section class="nb-card hd-aside-card" id="asideTags"><h2>' + ic('hash') + ' The Horn Line</h2>' +
+      '<section class="nb-card hd-aside-card" id="asideTags"><h2>' + ic('hash') + ' The Cry</h2>' +
         '<p class="nb-muted">Reading the room…</p></section>' +
       '<section class="nb-card hd-aside-card" id="asideWho"><h2>' + ic('users') + ' Worth following</h2>' +
         '<p class="nb-muted">Looking…</p></section>' +
@@ -2107,14 +2102,14 @@
         '<span>© 2026 Swiftaw</span></nav>';
 
     var got = await Promise.all([
-      db.rpc('horn_line', { p_limit: 6 }),
+      db.rpc('the_cry', { p_limit: 6 }),
       db.rpc('who_to_follow', { p_limit: 3 })
     ]);
 
     var tags = got[0].data || [];
     var tagBox = el('asideTags');
     if (tagBox) {
-      tagBox.innerHTML = '<h2>' + ic('hash') + ' The Horn Line</h2>' + (tags.length
+      tagBox.innerHTML = '<h2>' + ic('hash') + ' The Cry</h2>' + (tags.length
         ? tags.map(function (t) {
             return link('search?q=' + encodeURIComponent('#' + t.tag),
               '<b>#' + esc(t.tag) + '</b><i>' + t.posts + ' post' + (t.posts === 1 ? '' : 's') + '</i>', 'hd-aside-row');

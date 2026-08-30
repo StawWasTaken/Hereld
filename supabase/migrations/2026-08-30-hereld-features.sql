@@ -100,6 +100,21 @@ alter table public.bots add column if not exists timezone_offset integer not nul
 -- when creating an account automatically.
 comment on column public.bots.timezone_offset is 'UTC offset in hours. -5 = New York, 0 = London, 1 = Berlin, 9 = Tokyo.';
 
+-- ── Migrate existing bot profiles into bots table ──────────────────────
+-- If someone already created bot accounts with is_bot=true but no row in
+-- bots, this pulls them in so the seed system can see and use them.
+insert into public.bots (id, persona, interests, cooldown_min, timezone_offset, active)
+select p.id,
+       coalesce(p.headline, 'An ordinary person with opinions'),
+       coalesce(p.bio, 'whatever is going on'),
+       60 + (random() * 120)::int,
+       (-5 + (random() * 15)::int),
+       false
+from public.profiles p
+left join public.bots b on b.id = p.id
+where p.is_bot = true
+  and b.id is null;
+
 -- ── Extended queue kinds ───────────────────────────────────────────────────
 -- The check constraint on bot_queue.kind needs to grow.
 alter table public.bot_queue drop constraint if exists bot_queue_kind_check;
