@@ -487,20 +487,38 @@ returns jsonb language sql security definer set search_path = public stable as $
     select *,
            row_number() over (order by engagement desc, author_count desc, post_count desc) as rank
       from tags
-     where post_count >= 2
+     where post_count >= 1
+  ),
+  topic_results as (
+    select jsonb_agg(jsonb_build_object(
+             'tag', tag,
+             'post_count', post_count,
+             'author_count', author_count,
+             'engagement', engagement,
+             'latest_at', latest_at
+           )) as val
+      from ranked
+     where rank <= least(greatest(p_limit, 1), 20)
+  ),
+  fallback as (
+    select jsonb_agg(jsonb_build_object(
+             'tag', lower(replace(replace(replace(replace(replace(replace(
+               left(p.body, 40), E'\n', ' '), E'\r', ' '), '.', ''), ',', ''), '!', ''), '?', '')),
+             'post_count', 1,
+             'author_count', 1,
+             'engagement', p.endorse_count + p.reply_count + p.relay_count,
+             'latest_at', p.created_at
+           )) as val
+      from posts p
+      join profiles a on a.id = p.author and not a.banned
+     where not p.hidden
+       and p.reply_to is null
+       and p.created_at > now() - interval '7 days'
+     order by (p.endorse_count + p.reply_count + p.relay_count) desc, p.created_at desc
+     limit p_limit
   )
   select jsonb_build_object(
-    'topics', (
-      select jsonb_agg(jsonb_build_object(
-        'tag', tag,
-        'post_count', post_count,
-        'author_count', author_count,
-        'engagement', engagement,
-        'latest_at', latest_at
-      ))
-      from ranked
-      where rank <= least(greatest(p_limit, 1), 20)
-    )
+    'topics', coalesce((select val from topic_results), (select val from fallback))
   );
 $$;
 
@@ -648,3 +666,35 @@ alter publication supabase_realtime add table public.notifications;
 
 -- Endorsements: like counts update live on posts.
 alter publication supabase_realtime add table public.endorsements;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 7. POST DISCLOSURE LABELS
+--
+-- Paid partnership and AI-generated content labels. Shown on posts as
+-- yellow disclosure badges below the author name.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+alter table public.posts add column if not exists is_paid_partnership boolean default false;
+alter table public.posts add column if not exists is_ai_generated boolean default false;
+
+create or replace function public.post_as(p_as uuid, p_body text,
+                                          p_reply_to uuid default null,
+                                          p_relay_of uuid default null,
+                                          p_paid boolean default false,
+                                          p_ai boolean default false)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare me uuid := auth.uid(); made uuid;
+begin
+  if me is null then raise exception 'Sign in first.'; end if;
+  if p_as <> me and not exists (
+       select 1 from profiles p where p.id = p_as and p.parent_id = me) then
+    raise exception 'That is not an account you hold.';
+  end if;
+  if not public.may_post(p_as) then raise exception 'That account cannot post right now.'; end if;
+  if char_length(btrim(coalesce(p_body, ''))) = 0 then raise exception 'There is nothing to post.'; end if;
+
+  insert into posts (author, body, reply_to, relay_of, is_paid_partnership, is_ai_generated)
+  values (p_as, p_body, p_reply_to, p_relay_of, p_paid, p_ai)
+  returning id into made;
+  return made;
+end $$;

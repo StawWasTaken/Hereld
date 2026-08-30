@@ -311,7 +311,7 @@ body.hd-wide .hd-aside { display: none; }
 }
 .hd-spoiler.is-revealed .hd-spoiler-bar { opacity: 0; pointer-events: none; }
 
-.hd-compose-foot {
+.hd-compose-foot { position: relative;
   display: flex; align-items: center; gap: 12px;
   margin-top: 14px; padding-top: 13px;
   border-top: var(--nb-bd-thin);
@@ -339,6 +339,28 @@ body.hd-wide .hd-aside { display: none; }
 .hd-compose-say { margin: 12px 0 0; font-size: 13.5px; }
 .hd-compose-say[hidden] { display: none; }
 .hd-compose-say.is-bad { color: var(--nb-red); }
+
+/* ── REWRITE ────────────────────────────────────────────────────────────── */
+.hd-rewrite { display: flex; flex-direction: column; gap: 14px; }
+.hd-rewrite-desc { margin: 0; font-size: 13.5px; color: var(--nb-surface-fg-muted); }
+.hd-rewrite-src {
+  padding: 12px; border-radius: var(--nb-r-sm);
+  background: var(--nb-surface-alt); font-size: 14px;
+  white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow-y: auto;
+}
+.hd-rewrite-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.hd-rewrite-preset { font-size: 13px; }
+.hd-rewrite-preset.is-on { background: var(--nb-blue); color: var(--nb-paper); border-color: var(--nb-blue); }
+.hd-rewrite-out {
+  padding: 12px; border-radius: var(--nb-r-sm);
+  background: var(--nb-surface-alt); font-size: 14px; min-height: 40px;
+}
+.hd-rewrite-result { white-space: pre-wrap; word-break: break-word; }
+.hd-rewrite-btns { display: flex; gap: 8px; }
+.hd-drafts { display: flex; flex-direction: column; gap: 10px; }
+.hd-draft { padding: 12px; border: var(--nb-bd-thin); border-radius: var(--nb-r-sm); }
+.hd-draft-text { margin: 0 0 10px; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+.hd-draft-foot { display: flex; gap: 6px; }
 
 /* ── A POST ────────────────────────────────────────────────────────────── */
 
@@ -371,8 +393,8 @@ body.hd-wide .hd-aside { display: none; }
 /* The mark is the mark. Nothing sits behind it. */
 .hd-badge { display: inline-grid; place-items: center; flex: none; line-height: 0; }
 .hd-badge svg { width: 16px; height: 16px; }
-.hd-badge--ver svg { fill: var(--nb-blue); }
-.hd-badge--co svg { width: 17px; fill: var(--nb-yellow); }
+.hd-badge--ver svg { fill: #2CAFFC; }
+.hd-badge--co svg { fill: #FFF93E; }
 .hd-badge--plat svg { fill: var(--nb-yellow); }
 
 /* A product, regional or linked account carries the account it belongs to,
@@ -511,6 +533,8 @@ body.hd-wide .hd-aside { display: none; }
   letter-spacing: .09em; text-transform: uppercase; color: var(--nb-fg-muted);
 }
 .hd-block-h svg { width: 14px; height: 14px; fill: currentColor; }
+.hd-block-link { color: inherit; text-decoration: none; }
+.hd-block-link:hover { text-decoration: underline; }
 
 .hd-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
 .hd-chip {
@@ -1545,6 +1569,15 @@ label.nb-btn { display: inline-flex; align-items: center; justify-content: cente
   text-transform: uppercase; color: var(--nb-surface-fg-muted);
 }
 .hd-compose-as select { flex: 1; min-width: 0; }
+.hd-compose-disclose { display: flex; gap: 12px; margin-top: 8px; }
+.hd-compose-disclose .nb-check { font-size: 13px; }
+.hd-post-disclose { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+.hd-disclose {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: var(--nb-r-pill);
+  background: #FFF93E; color: #000; font-size: 12px; font-weight: 600;
+}
+.hd-disclose svg { width: 12px; height: 12px; fill: currentColor; }
 
 .hd-art-new { margin-bottom: 14px; }
 .hd-art-do { margin-top: 12px; }

@@ -551,7 +551,7 @@ async function seed(c: Config) {
         interests: String((persona as any).interests || '').slice(0, 300),
         cooldown_min: 60 + Math.floor(Math.random() * 120),
         timezone_offset: region.tz,
-        active: false
+        active: true
       });
 
       if (botErr) {
