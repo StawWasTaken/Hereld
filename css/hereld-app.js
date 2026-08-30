@@ -790,8 +790,7 @@
       /* What it will look like once it is out, drawn from the same renderer
          the feed uses. It appears only once there is something to show that
          plain text would not already say. */
-      '<div class="hd-compose-see" data-see hidden>' +
-        '<span class="hd-compose-see-lb">As it will read</span>' +
+      '<div class="hd-compose-see" data-see>' +
         '<div class="hd-post-body" data-seen></div>' +
       '</div>' +
       '<div class="hd-compose-media" hidden></div>' +
@@ -864,17 +863,9 @@
     /* Anything the renderer would turn into something other than plain text.
        Below that bar the preview would only repeat what is already on
        screen, so it stays out of the way. */
-    var RICH = /(^|[\s(])[@#][a-z0-9_]/i;
-    function worthSeeing(t) {
-      return RICH.test(t) || /https?:\/\//i.test(t) ||
-        /\*\*[^*\n]+\*\*|(^|[^*\w])\*[^*\n]+\*|(^|[^_\w])_[^_\n]+_|~~[^~\n]+~~|`[^`\n]+`/.test(t) ||
-        /(^|\n)>/.test(t);
-    }
-
     function preview() {
       var t = ta.value;
-      if (!worthSeeing(t)) { see.hidden = true; seen.innerHTML = ''; return; }
-      see.hidden = false;
+      if (!t.trim()) { seen.innerHTML = ''; return; }
       seen.innerHTML = body(t, { keepMedia: true });
       twem(seen);
     }

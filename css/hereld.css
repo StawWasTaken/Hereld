@@ -1641,18 +1641,13 @@ label.nb-btn { display: inline-flex; align-items: center; justify-content: cente
    differently from what was typed, so a plain line does not open a panel to
    say it is a plain line. */
 .hd-compose-see {
-  margin-top: 12px; padding: 11px 13px;
-  background: var(--nb-surface-2);
-  border: var(--nb-bd-thin); border-radius: var(--nb-r-sm);
+  margin-top: 12px; padding: 12px 14px;
+  background: var(--nb-surface);
+  border: 1px solid rgba(255,255,255,.06); border-radius: 12px;
+  min-height: 24px;
 }
 .hd-compose-see[hidden] { display: none; }
-.hd-compose-see-lb {
-  display: block; margin-bottom: 7px;
-  font-family: var(--nb-font-head); font-weight: 700;
-  font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--nb-surface-fg-muted);
-}
-.hd-compose-see .hd-post-body { margin: 0; }
+.hd-compose-see .hd-post-body { margin: 0; font-size: 15px; line-height: 1.6; }
 
 /* Who may answer. A pill, because it is a statement about the post rather
    than a control that does something on its own. */
