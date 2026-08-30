@@ -266,7 +266,7 @@ language sql security definer set search_path = public stable as $$
    limit least(greatest(p_limit, 1), 10);
 $$;
 
-revoke all on function public.bot_due(int) to authenticated;
+revoke all on function public.bot_due(int) from authenticated;
 grant execute on function public.bot_due(int) to authenticated;
 
 -- ── Auto-create bot accounts ──────────────────────────────────────────────
@@ -700,9 +700,9 @@ returns table (
 language sql stable as $$
   select distinct on (r.author)
     p.handle, p.name, p.avatar_url, p.is_verified, p.is_staff
-  from replies r
+  from posts r
   join profiles p on p.id = r.author
-  where r.post = p_post_id
+  where r.reply_to = p_post_id
     and r.author is not null
     and r.deleted_at is null
   order by r.author, r.created_at desc
