@@ -580,7 +580,8 @@ returns jsonb language sql security definer set search_path = public stable as $
     'post', jsonb_build_object(
       'id', p.id, 'body', p.body, 'created_at', p.created_at,
       'endorse_count', p.endorse_count, 'reply_count', p.reply_count,
-      'relay_count', p.relay_count, 'reply_to', p.reply_to, 'relay_of', p.relay_of
+      'relay_count', p.relay_count, 'reply_to', p.reply_to, 'relay_of', p.relay_of,
+      'disclosure', p.disclosure
     ),
     'author', jsonb_build_object(
       'id', a.id, 'handle', a.handle, 'name', a.name,
@@ -615,7 +616,17 @@ returns jsonb language sql security definer set search_path = public stable as $
       from posts pp
       join profiles pa2 on pa2.id = pp.author
       where pp.id = (select reply_to from root)
-    ) else null end
+    ) else null end,
+    'notes', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', cn.id, 'body', cn.body, 'source', cn.source,
+        'author_handle', cnp.handle, 'status', cn.status,
+        'created_at', cn.created_at
+      )), '[]'::jsonb)
+      from community_notes cn
+      join profiles cnp on cnp.id = cn.author
+      where cn.post_id = p_post and cn.status = 'published'
+    )
   )
   from posts p
   join profiles a on a.id = p.author

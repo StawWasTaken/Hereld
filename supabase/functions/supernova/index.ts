@@ -403,6 +403,17 @@ async function mentions(c: Config) {
         (ctx.post.relay_count || 0) + ' reposts):\n' +
         String(ctx.post.body || '').replace(/\s+/g, ' ').slice(0, 600);
 
+      if (ctx.post.disclosure?.length) {
+        const DISCLOSE_MAP: Record<string, string> = { paid: 'Paid partnership', ai: 'Made with AI' };
+        context += '\nDisclosures: ' + ctx.post.disclosure.map((d: string) => DISCLOSE_MAP[d] || d).join(', ');
+      }
+
+      if (ctx.notes?.length) {
+        context += '\n\nCommunity notes on this post:\n' + ctx.notes.map((n: any) =>
+          '- "' + String(n.body || '').slice(0, 300) + '"' + (n.source ? ' (source: ' + n.source + ')' : '')
+        ).join('\n');
+      }
+
       if (ctx.chain?.length) {
         context += '\n\nFull conversation chain:\n' + ctx.chain.map((c: any) =>
           '- @' + c.author_handle + ': ' + String(c.body || '').replace(/\s+/g, ' ').slice(0, 240)

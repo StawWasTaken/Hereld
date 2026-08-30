@@ -194,12 +194,9 @@
      building. Neither sits on a disc - the mark is the mark. */
   function badges(p) {
     var out = '';
-    if (p.is_platform) {
-      out += '<span class="hd-badge hd-badge--plat" title="Official Hereld account">' + ic('shield') +
-             '<span class="nb-sr">Official Hereld account</span></span>';
-    } else if (p.verified) {
+    if (p.verified) {
       out += p.is_company
-        ? '<span class="hd-badge hd-badge--co" title="Verified company">' + ic('verifiedco') +
+        ? '<span class="hd-badge hd-badge--co" title="Verified company">' + ic('verified') +
           '<span class="nb-sr">Verified company</span></span>'
         : '<span class="hd-badge hd-badge--ver" title="Verified account">' + ic('verified') +
           '<span class="nb-sr">Verified account</span></span>';
@@ -704,59 +701,62 @@
 
   function novaWrite(start, keep) {
     var way = 'tidy';
-    var s = U.sheet({
-      title: 'Work on this',
-      html: '<p class="hd-modal-line">Supernova rewrites what you have written. Nothing goes out until you post it yourself.</p>' +
-        '<div class="hd-nova-was">' + esc(start) + '</div>' +
-        '<div class="hd-nova-ways">' + NOVA_WAYS.map(function (w) {
-          return '<button class="hd-nova-way' + (w.k === way ? ' is-on' : '') + '" type="button" data-w="' + w.k + '">' +
-            esc(w.t) + '</button>';
-        }).join('') + '</div>' +
-        '<div class="nb-field"><label class="nb-label" for="nvAs">Or say how ' +
-          '<span class="nb-hint">optional</span></label>' +
-          '<input class="nb-input" id="nvAs" maxlength="120" placeholder="As a shipping note. As if I were annoyed."></div>' +
-        '<div class="hd-modal-do">' +
-          '<button class="nb-btn nb-btn--primary" type="button" data-run>Rewrite it</button>' +
-          '<button class="nb-btn nb-btn--ghost" type="button" data-shut>Keep mine</button></div>' +
-        '<div class="hd-nova-out" data-out hidden></div>'
-    });
+    var panel = document.querySelector('.hd-compose-panel');
+    if (!panel) return;
+    panel.hidden = false;
+    panel.innerHTML = '<div class="hd-panel-head"><b>' + novaMark('') + ' Work on this</b>' +
+      '<button type="button" class="nb-icon-btn hd-panel-x" data-panel-x>' + ic('x') + '</button></div>' +
+      '<p class="hd-modal-line">Supernova rewrites what you have written. Nothing goes out until you post it yourself.</p>' +
+      '<div class="hd-nova-was">' + esc(start) + '</div>' +
+      '<div class="hd-nova-ways">' + NOVA_WAYS.map(function (w) {
+        return '<button class="hd-nova-way' + (w.k === way ? ' is-on' : '') + '" type="button" data-w="' + w.k + '">' +
+          esc(w.t) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="nb-field"><label class="nb-label" for="nvAs">Or say how ' +
+        '<span class="nb-hint">optional</span></label>' +
+        '<input class="nb-input" id="nvAs" maxlength="120" placeholder="As a shipping note. As if I were annoyed."></div>' +
+      '<div class="hd-modal-do">' +
+        '<button class="nb-btn nb-btn--primary nb-btn--sm" type="button" data-run>Rewrite it</button>' +
+        '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-panel-x>Keep mine</button></div>' +
+      '<div class="hd-nova-out" data-out hidden></div>';
 
-    s.body.addEventListener('click', function (e) {
+    panel.addEventListener('click', function (e) {
       var w = e.target.closest('[data-w]');
-      if (!w) return;
-      way = w.getAttribute('data-w');
-      [].forEach.call(s.body.querySelectorAll('[data-w]'), function (b) {
-        b.classList.toggle('is-on', b === w);
-      });
+      if (w) {
+        way = w.getAttribute('data-w');
+        [].forEach.call(panel.querySelectorAll('[data-w]'), function (b) {
+          b.classList.toggle('is-on', b === w);
+        });
+      }
+      if (e.target.closest('[data-panel-x]')) panel.hidden = true;
     });
-    s.q('[data-shut]').addEventListener('click', s.close);
 
-    var run = s.q('[data-run]');
-    run.addEventListener('click', async function () {
-      var out = s.q('[data-out]');
-      run.disabled = true;
-      run.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Working';
+    panel.querySelector('[data-run]').addEventListener('click', async function () {
+      var out = panel.querySelector('[data-out]');
+      var runBtn = panel.querySelector('[data-run]');
+      runBtn.disabled = true;
+      runBtn.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Working';
       out.hidden = false;
       out.innerHTML = '<div class="hd-nova-line"></div><div class="hd-nova-line"></div>';
       try {
         var got = await H.fn('supernova?job=write', {
-          text: start, way: way, how: (s.q('#nvAs').value || '').trim(), limit: MAX
+          text: start, way: way, how: (panel.querySelector('#nvAs').value || '').trim(), limit: MAX
         });
         var made = String((got && got.text) || '').trim();
         if (!made) throw new Error('nothing came back');
-        out.innerHTML = '<p class="hd-nova-lb">' + ic('icon') + ' Supernova wrote this</p>' +
+        out.innerHTML = '<p class="hd-nova-lb">' + novaMark('') + ' Supernova wrote this</p>' +
           '<div class="hd-nova-new" data-new></div>' +
-          '<div class="hd-modal-do"><button class="nb-btn nb-btn--primary" type="button" data-use>Use this</button>' +
-            '<button class="nb-btn nb-btn--ghost" type="button" data-again>Try again</button></div>';
-        s.q('[data-new]').textContent = made;
-        s.q('[data-use]').addEventListener('click', function () { keep(made); s.close(); });
-        s.q('[data-again]').addEventListener('click', function () { out.hidden = true; });
+          '<div class="hd-modal-do"><button class="nb-btn nb-btn--primary nb-btn--sm" type="button" data-use>Use this</button>' +
+            '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-again>Try again</button></div>';
+        out.querySelector('[data-new]').textContent = made;
+        out.querySelector('[data-use]').addEventListener('click', function () { keep(made); panel.hidden = true; });
+        out.querySelector('[data-again]').addEventListener('click', function () { out.hidden = true; });
       } catch (err) {
         out.innerHTML = '<p class="nb-note is-bad">' +
           esc(H.trouble(err, 'Supernova could not work on that just now.')) + '</p>';
       }
-      run.disabled = false;
-      run.textContent = 'Rewrite it';
+      runBtn.disabled = false;
+      runBtn.textContent = 'Rewrite it';
     });
   }
 
@@ -785,7 +785,7 @@
       (o.replyTo ? '<p class="hd-compose-to">Replying to ' + H.tag(esc(o.toHandle || '')) + '</p>' : '') +
       '<div class="hd-compose-row">' + avatarOf(my) +
         '<textarea class="hd-compose-in" rows="' + (o.rows || 2) + '" maxlength="' + MAX + '" ' +
-          'placeholder="' + esc(o.placeholder || 'What is worth saying?') + '"></textarea>' +
+          'placeholder="' + esc(o.placeholder || 'hear me out...') + '"></textarea>' +
       '</div>' +
       /* What it will look like once it is out, drawn from the same renderer
          the feed uses. It appears only once there is something to show that
@@ -797,6 +797,7 @@
       '<div class="hd-compose-media" hidden></div>' +
       '<div class="hd-compose-poll" data-poll hidden></div>' +
       '<div class="hd-compose-flags" data-flags hidden></div>' +
+      '<div class="hd-compose-panel" data-panel hidden></div>' +
       /* A reply goes into somebody else's thread, so it is theirs to gate,
          not yours. The control only belongs on a post of its own. */
       (o.replyTo ? '' :
@@ -845,6 +846,7 @@
     var seen = form.querySelector('[data-seen]');
     var pollBox = form.querySelector('[data-poll]');
     var flagBox = form.querySelector('[data-flags]');
+    var panel = form.querySelector('[data-panel]');
     var media = null;
     var busy = false;
 
@@ -902,19 +904,20 @@
 
     var scopeBtn = form.querySelector('[data-scope]');
     if (scopeBtn) scopeBtn.addEventListener('click', function () {
-      var s = U.sheet({
-        title: 'Who can reply',
-        html: '<p class="hd-modal-line">Anyone can see this post and pass it on. Only the accounts you pick can answer it.</p>' +
-          '<div class="hd-pick">' + SCOPES.map(function (x) {
-            return '<button class="hd-pick-one' + (x.k === scope ? ' is-on' : '') + '" type="button" data-k="' + x.k + '">' +
-              ic(x.i) + '<span>' + esc(x.t) + '</span>' + (x.k === scope ? ic('tick') : '') + '</button>';
-          }).join('') + '</div>'
-      });
-      s.body.addEventListener('click', function (e) {
+      panel.hidden = false;
+      panel.innerHTML = '<div class="hd-panel-head"><b>' + ic('users') + ' Who can reply</b>' +
+        '<button type="button" class="nb-icon-btn hd-panel-x" data-panel-x>' + ic('x') + '</button></div>' +
+        '<p class="hd-modal-line">Only the accounts you pick can answer it.</p>' +
+        '<div class="hd-pick">' + SCOPES.map(function (x) {
+          return '<button class="hd-pick-one' + (x.k === scope ? ' is-on' : '') + '" type="button" data-k="' + x.k + '">' +
+            ic(x.i) + '<span>' + esc(x.t) + '</span>' + (x.k === scope ? ic('tick') : '') + '</button>';
+        }).join('') + '</div>';
+      panel.querySelector('[data-panel-x]').addEventListener('click', function () { panel.hidden = true; });
+      panel.addEventListener('click', function (e) {
         var b = e.target.closest('[data-k]');
         if (!b) return;
         scope = b.getAttribute('data-k');
-        paintScope(); s.close();
+        paintScope(); panel.hidden = true;
       });
     });
 
@@ -956,43 +959,44 @@
       var soon = new Date(Date.now() + 60 * 60 * 1000);
       soon.setSeconds(0, 0);
       var val = new Date(soon.getTime() - soon.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-      var s = U.sheet({
-        title: 'Send it later',
-        html: '<p class="hd-modal-line">It stays out of sight until then, and nobody but you can see it in the meantime.</p>' +
-          '<div class="nb-field"><label class="nb-label" for="wIn">Date and time</label>' +
-            '<input class="nb-input" id="wIn" type="datetime-local" data-focus value="' + esc(val) + '"></label></div>' +
-          '<p class="nb-note" data-wsay hidden></p>' +
-          '<div class="hd-modal-do"><button class="nb-btn nb-btn--primary" type="button" data-ok>Schedule it</button>' +
-            '<button class="nb-btn nb-btn--ghost" type="button" data-now>Send it now instead</button></div>'
-      });
-      s.q('[data-now]').addEventListener('click', function () { when = null; paintFlags(); tick(); s.close(); });
-      s.q('[data-ok]').addEventListener('click', function () {
-        var d = new Date(s.q('#wIn').value);
-        var bad = s.q('[data-wsay]');
+      panel.hidden = false;
+      panel.innerHTML = '<div class="hd-panel-head"><b>' + ic('clock') + ' Send it later</b>' +
+        '<button type="button" class="nb-icon-btn hd-panel-x" data-panel-x>' + ic('x') + '</button></div>' +
+        '<p class="hd-modal-line">It stays out of sight until then, and nobody but you can see it in the meantime.</p>' +
+        '<div class="nb-field"><label class="nb-label" for="wIn">Date and time</label>' +
+          '<input class="nb-input" id="wIn" type="datetime-local" data-focus value="' + esc(val) + '"></label></div>' +
+        '<p class="nb-note" data-wsay hidden></p>' +
+        '<div class="hd-modal-do"><button class="nb-btn nb-btn--primary nb-btn--sm" type="button" data-ok>Schedule it</button>' +
+          '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-now>Send it now instead</button></div>';
+      panel.querySelector('[data-panel-x]').addEventListener('click', function () { panel.hidden = true; });
+      panel.querySelector('[data-now]').addEventListener('click', function () { when = null; paintFlags(); tick(); panel.hidden = true; });
+      panel.querySelector('[data-ok]').addEventListener('click', function () {
+        var d = new Date(panel.querySelector('#wIn').value);
+        var bad = panel.querySelector('[data-wsay]');
         if (isNaN(d.getTime()) || d.getTime() <= Date.now() + 60000) {
           bad.hidden = false; bad.textContent = 'Pick a time at least a minute from now.'; return;
         }
-        when = d; paintFlags(); tick(); s.close();
+        when = d; paintFlags(); tick(); panel.hidden = true;
       });
     });
 
     form.querySelector('[data-disc]').addEventListener('click', function () {
-      var s = U.sheet({
-        title: 'Say what this is',
-        html: '<p class="hd-modal-line">Both of these show on the post itself. Use them when they are true.</p>' +
-          DISCLOSE.map(function (d) {
-            return '<label class="nb-check hd-disc-one"><input type="checkbox" data-d="' + d.k + '"' +
-              (flags.indexOf(d.k) > -1 ? ' checked' : '') + '><span class="nb-box"></span>' +
-              '<span><b>' + esc(d.t) + '</b><i>' + esc(d.s) + '</i></span></label>';
-          }).join('') +
-          '<div class="hd-modal-do"><button class="nb-btn nb-btn--primary" type="button" data-ok>Done</button></div>'
-      });
-      s.q('[data-ok]').addEventListener('click', function () {
+      panel.hidden = false;
+      panel.innerHTML = '<div class="hd-panel-head"><b>' + ic('info') + ' Say what this is</b>' +
+        '<button type="button" class="nb-icon-btn hd-panel-x" data-panel-x>' + ic('x') + '</button></div>' +
+        '<p class="hd-modal-line">Both of these show on the post itself. Use them when they are true.</p>' +
+        DISCLOSE.map(function (d) {
+          return '<label class="nb-check hd-disc-one"><input type="checkbox" data-d="' + d.k + '"' +
+            (flags.indexOf(d.k) > -1 ? ' checked' : '') + '><span class="nb-box"></span>' +
+            '<span><b>' + esc(d.t) + '</b><i>' + esc(d.s) + '</i></span></label>';
+        }).join('') +
+        '<div class="hd-modal-do"><button class="nb-btn nb-btn--primary nb-btn--sm" type="button" data-panel-x>Done</button></div>';
+      panel.querySelector('[data-panel-x]').addEventListener('click', function () {
         flags = [];
-        [].forEach.call(s.body.querySelectorAll('[data-d]'), function (c) {
+        [].forEach.call(panel.querySelectorAll('[data-d]'), function (c) {
           if (c.checked) flags.push(c.getAttribute('data-d'));
         });
-        paintFlags(); s.close();
+        paintFlags(); panel.hidden = true;
       });
     });
 
@@ -1069,9 +1073,18 @@
       if (existing) { existing.remove(); return; }
       var pop = document.createElement('div');
       pop.className = 'hd-emoji-pop';
-      var emojis = ['😀','😂','🤣','😍','🥰','😘','😎','🤩','🥳','😏','😢','😤','🤯','🥺','🫡','🤔','💀','👀','🔥','❤️','💔','💯','✅','❌','⭐','🎉','🚀','💬','📰','🛠️','🧠','☕','🌙','☀️','🌈','🎵','📸','💡','⚡','🏆','🤝','👋','🫶','💪','🙏','🤣','😭','🫠','😤','🤡','👻','🫣','🤯','🧐','😬','🫡','😴','🫨','🤮','😈','💩','🦄','🐙','🦋','🌸','🍀','🌊','🍕','🍺','🧪','📊','🎮','🎲','🏆','🎬','📚','🔑','💡','🛸'];
+      var emojis = ['😀','😂','🤣','😍','🥰','😘','😎','🤩','🥳','😏','😢','😤','🤯','🥺','🫡','🤔','💀','👀','🔥','❤️','💔','💯','✅','❌','⭐','🎉','🚀','💬','📰','🛠️','🧠','☕','🌙','☀️','🌈','🎵','📸','💡','⚡','🏆','🤝','👋','🫶','💪','🙏','😭','🫠','🤡','👻','🫣','🧐','😬','😴','🫨','🤮','😈','💩','🦄','🐙','🦋','🌸','🍀','🌊','🍕','🍺','🧪','📊','🎮','🎲','🎬','📚','🔑','🛸'];
+      function toTwemoji(ch) {
+        var cp = [];
+        for (var i = 0; i < ch.length; i++) {
+          var code = ch.codePointAt(i);
+          if (code > 0xFFFF) i++;
+          cp.push(code.toString(16));
+        }
+        return '<img class="twemoji" draggable="false" alt="' + ch + '" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/' + cp.join('-') + '.svg">';
+      }
       pop.innerHTML = '<div class="hd-emoji-grid">' + emojis.map(function (e) {
-        return '<button type="button" class="hd-emoji-btn" data-em="' + e + '">' + e + '</button>';
+        return '<button type="button" class="hd-emoji-btn" data-em="' + e + '">' + toTwemoji(e) + '</button>';
       }).join('') + '</div>';
       form.appendChild(pop);
       pop.addEventListener('click', function (ev) {
@@ -1223,14 +1236,70 @@
 
   function openComposer(o) {
     o = o || {};
+    var draftKey = 'hereld_draft' + (o.replyTo ? '_reply_' + o.replyTo : o.quoteOf ? '_relay_' + o.quoteOf : '');
     var s = U.sheet({
       title: o.title || 'New post',
-      tools: '',
-      html: composerHTML(Object.assign({ rows: 4, placeholder: 'What is worth saying?' }, o)),
+      tools: '<button class="nb-icon-btn" type="button" data-drafts data-tip="Saved drafts">' + ic('file') + '</button>',
+      html: composerHTML(Object.assign({ rows: 4, placeholder: 'hear me out...' }, o)),
       wire: function (api) {
+        var ta = api.q('.hd-compose-in');
+        /* Load saved draft if any. */
+        var saved = '';
+        try { saved = localStorage.getItem(draftKey) || ''; } catch (e) {}
+        if (saved && !o.replyTo && !o.quoteOf) ta.value = saved;
         var c = wireComposer(api.q('.hd-compose'), Object.assign({}, o, {
-          after: function (row) { api.close(); if (o.after) o.after(row); }
+          after: function (row) {
+            try { localStorage.removeItem(draftKey); } catch (e) {}
+            api.close(); if (o.after) o.after(row);
+          }
         }));
+        /* Save draft when the sheet closes. */
+        var origClose = api.close.bind(api);
+        api.close = function () {
+          var txt = (ta.value || '').trim();
+          try {
+            if (txt) localStorage.setItem(draftKey, txt);
+            else localStorage.removeItem(draftKey);
+          } catch (e) {}
+          origClose();
+        };
+        /* Drafts button. */
+        var draftsBtn = api.body.closest('.nb-sheet, .nb-sheet-host')?.querySelector('[data-drafts]');
+        if (draftsBtn) draftsBtn.addEventListener('click', function () {
+          var keys = [];
+          try {
+            for (var i = 0; i < localStorage.length; i++) {
+              var k = localStorage.key(i);
+              if (k && k.startsWith('hereld_draft')) keys.push(k);
+            }
+          } catch (e) {}
+          if (!keys.length) { U.toast('No saved drafts.'); return; }
+          var items = keys.map(function (k) {
+            var v = localStorage.getItem(k) || '';
+            var short = v.slice(0, 80).replace(/\n/g, ' ');
+            return '<button class="hd-draft-row" type="button" data-dk="' + esc(k) + '">' +
+              '<span>' + esc(short) + '</span>' +
+              '<button type="button" class="nb-icon-btn hd-draft-del" data-dd="' + esc(k) + '" aria-label="Delete">' + ic('trash') + '</button></button>';
+          }).join('');
+          var ds = U.sheet({
+            title: 'Drafts',
+            html: '<div class="hd-draft-list">' + items + '</div>'
+          });
+          ds.body.addEventListener('click', function (e) {
+            var del = e.target.closest('[data-dd]');
+            if (del) {
+              try { localStorage.removeItem(del.getAttribute('data-dd')); } catch (e) {}
+              del.closest('.hd-draft-row')?.remove();
+              if (!ds.body.querySelector('.hd-draft-row')) ds.close();
+              return;
+            }
+            var row = e.target.closest('[data-dk]');
+            if (row) {
+              var txt = localStorage.getItem(row.getAttribute('data-dk')) || '';
+              ta.value = txt; tick(); ds.close(); ta.focus();
+            }
+          });
+        });
         setTimeout(c.focus, 60);
       }
     });
@@ -1790,7 +1859,7 @@
         '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
         '<input class="nb-input" type="search" name="q" placeholder="Search posts, people and topics" aria-label="Search">' +
       '</form>' +
-      '<section class="hd-block"><h2 class="hd-block-h">' + ic('hash') + ' The Cry</h2>' +
+      '<section class="hd-block"><h2 class="hd-block-h">' + ic('fire') + ' Vibes</h2>' +
         '<div class="hd-chips" id="exTags">' + skeletons(0) + '<span class="nb-skel nb-skel--line" style="width:60%"></span></div></section>' +
       '<section class="hd-block"><h2 class="hd-block-h">' + ic('users') + ' Worth following</h2>' +
         '<div class="hd-list" id="exWho"></div></section>' +
@@ -1805,12 +1874,12 @@
     ]);
     if (token !== painting) return;
 
-    var tags = got[0].data || [];
+    var tags = (got[0].data && got[0].data.topics) || [];
     el('exTags').innerHTML = tags.length
       ? tags.map(function (t) {
           return link('search?q=' + encodeURIComponent('#' + t.tag),
-            '<b>#' + esc(t.tag) + '</b><i>' + t.posts + ' post' + (t.posts === 1 ? '' : 's') +
-            ' · ' + t.people + ' ' + (t.people === 1 ? 'person' : 'people') + '</i>', 'hd-chip');
+            '<b>#' + esc(t.tag) + '</b><i>' + t.post_count + ' post' + (t.post_count === 1 ? '' : 's') +
+            ' · ' + t.author_count + ' ' + (t.author_count === 1 ? 'person' : 'people') + '</i>', 'hd-chip');
         }).join('')
       : '<p class="nb-muted">No topics yet. Put a # in a post and it starts one.</p>';
 
@@ -2098,7 +2167,7 @@
           (p.headline ? '<p class="hd-prof-head">' + esc(p.headline) + '</p>' : '') +
           (p.bio ? '<p class="hd-prof-bio">' + body(p.bio) + '</p>' : '') +
           '<p class="hd-prof-meta">' +
-            (p.location ? '<span>' + ic('compass') + esc(p.location) + '</span>' : '') +
+            (p.location ? '<span>' + ic('mapmarker') + esc(p.location) + '</span>' : '') +
             (p.website ? '<span>' + ic('link') + '<a href="' + esc(p.website) + '" target="_blank" rel="noopener nofollow">' +
               esc(p.website.replace(/^https?:\/\/(www\.)?/, '')) + '</a></span>' : '') +
             '<span>' + ic('clock') + 'Joined ' + esc(joined) + '</span>' +
@@ -2449,8 +2518,8 @@
     var p = r.data, a = p.author || {};
     var who = a.name || a.handle || 'Someone';
     var avatar = H.avatar(a, 'hd-av--md');
-    var verified = a.verified ? ' <span class="hd-badge hd-badge--ver">' + ic('tick') + '</span>' : '';
-    var company = a.is_company ? ' <span class="hd-badge hd-badge--co">' + ic('building') + '</span>' : '';
+    var verified = a.verified ? ' <span class="hd-badge hd-badge--ver">' + ic('verified') + '</span>' : '';
+    var company = a.is_company ? ' <span class="hd-badge hd-badge--co">' + ic('verified') + '</span>' : '';
 
     U.sheet({
       title: '',
@@ -2609,7 +2678,7 @@
         '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
         '<input class="nb-input" type="search" name="q" placeholder="Search Hereld" aria-label="Search Hereld">' +
       '</form>' +
-      '<section class="nb-card hd-aside-card" id="asideTags"><h2>' + ic('hash') + ' The Cry</h2>' +
+      '<section class="nb-card hd-aside-card" id="asideTags"><h2>' + ic('fire') + ' Vibes</h2>' +
         '<p class="nb-muted">Reading the room…</p></section>' +
       '<section class="nb-card hd-aside-card" id="asideWho"><h2>' + ic('users') + ' Worth following</h2>' +
         '<p class="nb-muted">Looking…</p></section>' +
@@ -2624,13 +2693,13 @@
       db.rpc('who_to_follow', { p_limit: 3 })
     ]);
 
-    var tags = got[0].data || [];
+    var tags = (got[0].data && got[0].data.topics) || [];
     var tagBox = el('asideTags');
     if (tagBox) {
-      tagBox.innerHTML = '<h2>' + ic('hash') + ' The Cry</h2>' + (tags.length
+      tagBox.innerHTML = '<h2>' + ic('fire') + ' Vibes</h2>' + (tags.length
         ? tags.map(function (t) {
             return link('search?q=' + encodeURIComponent('#' + t.tag),
-              '<b>#' + esc(t.tag) + '</b><i>' + t.posts + ' post' + (t.posts === 1 ? '' : 's') + '</i>', 'hd-aside-row');
+              '<b>#' + esc(t.tag) + '</b><i>' + t.post_count + ' post' + (t.post_count === 1 ? '' : 's') + '</i>', 'hd-aside-row');
           }).join('')
         : '<p class="nb-muted">Nothing trending yet. Start something with a #.</p>');
     }
