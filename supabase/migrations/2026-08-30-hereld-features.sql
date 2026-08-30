@@ -664,7 +664,33 @@ $$;
 grant execute on function public.profile_lookup(text) to authenticated;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- 6. LIVE UPDATES (REALTIME)
+-- 6. POST REPLIER AVATARS
+--
+-- Returns the most recent repliers' avatars for a post (up to 5).
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create or replace function public.post_repliers(p_post_id uuid, p_limit int default 5)
+returns table (
+  handle text,
+  name text,
+  avatar_url text,
+  is_verified boolean,
+  is_staff boolean
+)
+language sql stable as $$
+  select distinct on (r.author)
+    p.handle, p.name, p.avatar_url, p.is_verified, p.is_staff
+  from replies r
+  join profiles p on p.id = r.author
+  where r.post = p_post_id
+    and r.author is not null
+    and r.deleted_at is null
+  order by r.author, r.created_at desc
+  limit p_limit;
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 7. LIVE UPDATES (REALTIME)
 --
 -- Enable Supabase Realtime on the tables the client subscribes to.
 -- ═══════════════════════════════════════════════════════════════════════════

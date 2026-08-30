@@ -38,6 +38,7 @@
        place a ballot can be filled in without thirteen callers remembering
        to ask for it. */
     if (typeof paintPolls === 'function') paintPolls(node);
+    if (typeof paintRepliers === 'function') paintRepliers(node);
     if (window.twemoji) {
       try {
         window.twemoji.parse(node, { folder: 'svg', ext: '.svg', className: 'hd-emo', base: TWEMOJI_BASE });
@@ -331,7 +332,8 @@
         : '') +
       (said ? '<p class="hd-post-body">' + said + '</p>' : '') +
       shots + pollHTML(p) + quoted + note +
-      scopeNote(p) + acts(p) +
+      scopeNote(p) + '<div class="hd-repliers" data-repliers="' + p.id + '"></div>' +
+      acts(p) +
     '</article>';
   }
 
@@ -401,6 +403,28 @@
       var r = await db.rpc('poll_state', { p_post: id });
       if (r.error || !r.data) { box.remove(); continue; }
       box.innerHTML = pollBars(r.data, id);
+    }
+  }
+
+  async function paintRepliers(root) {
+    var boxes = [].slice.call((root || document).querySelectorAll('[data-repliers]:not([data-done])'));
+    for (var i = 0; i < boxes.length; i++) {
+      var box = boxes[i];
+      var id = box.getAttribute('data-repliers');
+      var r = await db.rpc('post_repliers', { p_post_id: id, p_limit: 3 });
+      if (r.error || !r.data || !r.data.length) { box.remove(); continue; }
+      box.setAttribute('data-done', '1');
+      var avs = r.data.map(function (u) {
+        return '<a class="hd-av-btn" href="#/' + esc(u.handle) + '" data-r>' +
+          '<span class="hd-av hd-av--sm">' +
+          (u.avatar_url
+            ? '<img alt="" loading="lazy" src="' + esc(u.avatar_url) + '">'
+            : '<span class="hd-av-n">' + esc((u.name || u.handle || '?')[0]).toUpperCase() + '</span>') +
+          '</span></a>';
+      }).join('');
+      var count = r.data.length;
+      box.innerHTML = '<div class="hd-repliers-av">' + avs + '</div>' +
+        '<span class="hd-repliers-t">' + count + (count === 1 ? ' person' : ' people') + ' replied</span>';
     }
   }
 
