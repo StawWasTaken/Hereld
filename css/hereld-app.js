@@ -50,6 +50,10 @@ function novaArt(cls, h) {
 return '<img class="hd-nva' + (cls ? ' ' + cls : '') + '" src="' + url('Supernova%20mark.png') +
 '" alt="" height="' + h + '" width="' + Math.round(h * MARK_W / MARK_H) + '">';
 }
+function novaAv(cls, h) {
+return '<span class="hd-nova-av-wrap' + (cls ? ' ' + cls : '') + '" style="width:' + h + 'px;height:' + h + 'px">' +
+novaArt('hd-nva--grad', h) + '</span>';
+}
 function go(path, replace) {
 var to = url(path);
 if (replace) history.replaceState({}, '', to);
@@ -619,6 +623,7 @@ return '<option value="' + h.id + '">' + esc(h.name || h.handle) + '</option>';
 '<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden data-pic>' +
 '<span class="nb-sr">Add a picture</span></label>' +
 '<button class="nb-icon-btn hd-compose-tool" type="button" data-tag data-tip="Add a topic">' + ic('hash') + '</button>' +
+'<button class="nb-icon-btn hd-compose-tool" type="button" data-emoji data-tip="Add an emoji">' + ic('smile') + '</button>' +
 (o.replyTo ? '' :
 '<button class="nb-icon-btn hd-compose-tool" type="button" data-pollbtn data-tip="Ask a question">' + ic('chart') + '</button>' +
 '<button class="nb-icon-btn hd-compose-tool" type="button" data-when data-tip="Send it later">' + ic('clock') + '</button>') +
@@ -835,6 +840,27 @@ var at = ta.selectionStart;
 ta.setRangeText('#', at, at, 'end');
 ta.focus(); tick();
 });
+form.querySelector('[data-emoji]').addEventListener('click', function () {
+var existing = form.querySelector('.hd-emoji-pop');
+if (existing) { existing.remove(); return; }
+var pop = document.createElement('div');
+pop.className = 'hd-emoji-pop';
+var emojis = ['😀','😂','🤣','😍','🥰','😘','😎','🤩','🥳','😏','😢','😤','🤯','🥺','🫡','🤔','💀','👀','🔥','❤️','💔','💯','✅','❌','⭐','🎉','🚀','💬','📰','🛠️','🧠','☕','🌙','☀️','🌈','🎵','📸','💡','⚡','🏆','🤝','👋','🫶','💪','🙏','🤣','😭','🫠','😤','🤡','👻','🫣','🤯','🧐','😬','🫡','😴','🫨','🤮','😈','💩','🦄','🐙','🦋','🌸','🍀','🌊','🍕','🍺','🧪','📊','🎮','🎲','🏆','🎬','📚','🔑','💡','🛸'];
+pop.innerHTML = '<div class="hd-emoji-grid">' + emojis.map(function (e) {
+return '<button type="button" class="hd-emoji-btn" data-em="' + e + '">' + e + '</button>';
+}).join('') + '</div>';
+form.appendChild(pop);
+pop.addEventListener('click', function (ev) {
+var btn = ev.target.closest('[data-em]');
+if (!btn) return;
+var at = ta.selectionStart;
+ta.setRangeText(btn.dataset.em, at, at, 'end');
+ta.focus(); tick();
+pop.remove();
+});
+function closePop(ev) { if (!pop.contains(ev.target) && ev.target.getAttribute('data-emoji') !== '') pop.remove(); }
+setTimeout(function () { document.addEventListener('click', closePop, { once: true }); }, 10);
+});
 pic.addEventListener('change', function () {
 var f = pic.files && pic.files[0];
 pic.value = '';
@@ -846,7 +872,11 @@ read.onload = function () {
 tray.hidden = false;
 tray.innerHTML = '<figure class="hd-compose-pic"><img src="' + read.result + '" alt="">' +
 '<button class="nb-icon-btn nb-icon-btn--round" type="button" data-drop aria-label="Remove picture">' + ic('x') + '</button>' +
-'<span class="hd-compose-bar" data-bar hidden><i></i></span></figure>';
+'<span class="hd-compose-bar" data-bar hidden><i></i></span></figure>' +
+'<div class="hd-compose-media-meta">' +
+'<input class="nb-input hd-compose-alt" type="text" placeholder="Alt text (description of the image)" maxlength="500" data-alt>' +
+'<label class="hd-compose-spoiler"><input type="checkbox" data-spoiler> <span>Spoiler / sensitive</span></label>' +
+'</div>';
 tray.querySelector('[data-drop]').addEventListener('click', function () {
 media = null; tray.hidden = true; tray.innerHTML = ''; tick();
 });
@@ -911,6 +941,21 @@ closes_at: new Date(Date.now() + poll.hours * 3600 * 1000).toISOString()
 if (pr.error) {
 await db.from('posts').delete().eq('id', r.data.id);
 throw pr.error;
+}
+}
+if (media && r.data) {
+var altInput = tray.querySelector('[data-alt]');
+var spoilerInput = tray.querySelector('[data-spoiler]');
+var mediaUrl = text.match(/(https?:\/\/[^\s]+)$/);
+if (mediaUrl) {
+await db.rpc('set_post_media', {
+p_post: r.data.id,
+p_media: JSON.stringify([{
+url: mediaUrl[1],
+alt_text: altInput ? altInput.value.trim() : '',
+spoiler: spoilerInput ? spoilerInput.checked : false
+}])
+});
 }
 }
 ta.value = ''; media = null; tray.hidden = true; tray.innerHTML = '';
@@ -1336,7 +1381,7 @@ var isMe = my && my.id === p.id;
 box.innerHTML =
 '<div class="hd-pcard-top">' +
 link('@' + p.handle, avatarOf(p, 'hd-av--lg'), 'hd-pcard-face') +
-(isMe ? link('settings', 'Edit profile', 'nb-btn nb-btn--ghost nb-btn--sm')
+(isMe ? '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-settings>Edit profile</button>'
 : (my ? '<button class="nb-btn nb-btn--sm ' + (mine.following[p.id] ? 'nb-btn--ghost' : 'nb-btn--primary') +
 '" type="button" data-follow="' + p.id + '">' + (mine.following[p.id] ? 'Following' : 'Follow') + '</button>'
 : link('join', 'Follow', 'nb-btn nb-btn--primary nb-btn--sm'))) +
@@ -1425,7 +1470,7 @@ col.innerHTML = head('Explore', 'What Hereld is talking about.') +
 '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
 '<input class="nb-input" type="search" name="q" placeholder="Search posts, people and topics" aria-label="Search">' +
 '</form>' +
-'<section class="hd-block"><h2 class="hd-block-h">' + ic('hash') + ' The Horn Line</h2>' +
+'<section class="hd-block"><h2 class="hd-block-h">' + ic('hash') + ' The Cry</h2>' +
 '<div class="hd-chips" id="exTags">' + skeletons(0) + '<span class="nb-skel nb-skel--line" style="width:60%"></span></div></section>' +
 '<section class="hd-block"><h2 class="hd-block-h">' + ic('users') + ' Worth following</h2>' +
 '<div class="hd-list" id="exWho"></div></section>' +
@@ -1433,7 +1478,7 @@ col.innerHTML = head('Explore', 'What Hereld is talking about.') +
 '<div class="hd-feed" id="feed">' + skeletons(3) + '</div></section>';
 var token = painting;
 var got = await Promise.all([
-db.rpc('horn_line', { p_limit: 12 }),
+db.rpc('the_cry', { p_limit: 12 }),
 db.rpc('who_to_follow', { p_limit: 6 }),
 db.from('posts').select(WITH_AUTHOR).is('reply_to', null).order('created_at', { ascending: false }).limit(15)
 ]);
@@ -1510,46 +1555,108 @@ follow: 'started following you',
 mention: 'mentioned you',
 verify: 'ruled on your verification request',
 staff: 'sent you a message from the Hereld team',
-note: 'published a community note'
+note: 'published a community note',
+quote: 'quoted your post',
+affiliate: 'sent you an invitation'
 };
+var NOTE_ICONS = {
+endorse: 'heart', relay: 'relay', reply: 'comment', follow: 'follow',
+mention: 'quill', verify: 'tick', staff: 'shield', note: 'file',
+quote: 'quote', affiliate: 'users'
+};
+var NOTE_FILTERS = [
+{ key: 'all', label: 'All' },
+{ key: 'endorse', label: 'Likes' },
+{ key: 'reply', label: 'Replies' },
+{ key: 'relay', label: 'Reposts' },
+{ key: 'follow', label: 'Follows' },
+{ key: 'mention', label: 'Mentions' }
+];
+var noteFilter = 'all';
 async function viewNotifications() {
 if (!my) return needAccount();
 col.innerHTML = head('Notifications', '', {
 tools: '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" id="readAll">' + ic('check') + ' Mark all read</button>'
-}) + '<div class="hd-list" id="notes">' + skeletons(4) + '</div>';
+}) +
+'<div class="hd-note-filters" id="noteFilters">' +
+NOTE_FILTERS.map(function (f) {
+return '<button class="hd-note-filter' + (f.key === noteFilter ? ' is-on' : '') +
+'" type="button" data-nf="' + f.key + '">' + esc(f.label) + '</button>';
+}).join('') +
+'</div>' +
+'<div class="hd-list" id="notes">' + skeletons(4) + '</div>';
 var token = painting;
-var r = await db.from('notifications')
+var r = await db.rpc('notifications_grouped', { p_limit: 60 });
+if (token !== painting) return;
+var host = el('notes');
+if (r.error) {
+r = await db.from('notifications')
 .select('*, actor:profiles!notifications_actor_fkey(id,handle,name,avatar_url,verified,is_company,is_platform,is_bot)')
 .eq('user_id', my.id).order('created_at', { ascending: false }).limit(60);
 if (token !== painting) return;
-var host = el('notes');
 if (r.error) { host.innerHTML = broke(H.trouble(r.error, '')); return; }
-var rows = r.data || [];
-var quotes = {};
-var ids = rows.filter(function (n) { return n.post_id; }).map(function (n) { return n.post_id; });
-if (ids.length) {
-var q = await db.from('posts').select('id,body').in('id', ids);
-(q.data || []).forEach(function (p) { quotes[p.id] = p.body; });
+renderFlatNotifications(host, r.data || []);
+twem(host);
+if (unread) { await db.rpc('notes_read_all'); unread = 0; paintRail(); }
+return;
 }
-if (token !== painting) return;
+var data = r.data || {};
+var rows = data.notifications || [];
+if (noteFilter !== 'all') {
+rows = rows.filter(function (n) {
+return n.kinds && n.kinds.indexOf(noteFilter) !== -1;
+});
+}
+renderGroupedNotifications(host, rows);
+twem(host);
+el('noteFilters').addEventListener('click', function (e) {
+var btn = e.target.closest('[data-nf]');
+if (!btn) return;
+noteFilter = btn.dataset.nf;
+viewNotifications();
+});
+if (unread) {
+await db.rpc('notes_read_all');
+unread = 0;
+paintRail();
+}
+}
+function renderGroupedNotifications(host, rows) {
+host.innerHTML = rows.length ? rows.map(function (n) {
+var name = n.actor_name || n.actor_handle || 'Someone';
+var kinds = n.kinds || [n.kind];
+var primary = kinds[0];
+var to = n.post_id ? 'post/' + n.post_id : (n.actor_handle || 'home');
+var countBadge = n.total > 1
+? '<span class="hd-note-group-count">' + n.total + '</span>' : '';
+var pills = kinds.length > 1
+? '<span class="hd-note-kinds">' + kinds.map(function (k) {
+return '<span class="hd-note-kind-pill">' + ic(NOTE_ICONS[k] || 'info') + ' ' + esc(NOTE_WORDS[k] || k) + '</span>';
+}).join('') + '</span>' : '';
+var text = kinds.length === 1 ? esc(NOTE_WORDS[primary] || 'did something') : '';
+return '<a class="nb-card nb-card--tight hd-note hd-note-group' + (n.unread ? ' is-new' : '') +
+'" href="' + url(to) + '" data-r>' +
+'<span class="hd-note-ic" data-k="' + esc(primary) + '">' +
+countBadge +
+ic(NOTE_ICONS[primary] || 'info') + '</span>' +
+'<span class="hd-note-txt"><p><b>' + esc(name) + '</b> ' + text + '</p>' +
+pills +
+(n.post_body ? '<p class="hd-note-quote">' + esc(String(n.post_body).slice(0, 160)) + '</p>' : '') +
+'<span class="hd-note-when">' + esc(H.when(n.first_at || n.last_at)) + '</span></span></a>';
+}).join('') : empty('Nothing yet', 'Likes, relays, replies and follows land here.');
+}
+function renderFlatNotifications(host, rows) {
 host.innerHTML = rows.length ? rows.map(function (n) {
 var a = n.actor || {};
 var text = NOTE_WORDS[n.kind] || 'did something';
 var to = n.post_id ? 'post/' + n.post_id : (a.handle || 'home');
 return '<a class="nb-card nb-card--tight hd-note' + (n.read_at ? '' : ' is-new') + '" href="' + url(to) + '" data-r>' +
 '<span class="hd-note-ic" data-k="' + esc(n.kind) + '">' +
-ic(n.kind === 'endorse' ? 'heart' : n.kind === 'relay' ? 'relay' : n.kind === 'follow' ? 'follow'
-: n.kind === 'mention' ? 'quill' : n.kind === 'verify' ? 'tick' : 'comment') + '</span>' +
+ic(NOTE_ICONS[n.kind] || 'info') + '</span>' +
 '<span class="hd-note-txt"><p><b>' + esc(a.name || a.handle || 'Someone') + '</b> ' + esc(text) + '</p>' +
-(quotes[n.post_id] ? '<p class="hd-note-quote">' + esc(String(quotes[n.post_id]).slice(0, 160)) + '</p>' : '') +
+(n.meta?.post_body ? '<p class="hd-note-quote">' + esc(String(n.meta.post_body).slice(0, 160)) + '</p>' : '') +
 '<span class="hd-note-when">' + esc(H.when(n.created_at)) + '</span></span></a>';
 }).join('') : empty('Nothing yet', 'Likes, relays, replies and follows land here.');
-twem(host);
-if (unread) {
-await db.rpc('notes_read_all');
-unread = 0;
-paintRail();
-}
 }
 async function viewBookmarks() {
 if (!my) return needAccount();
@@ -1756,7 +1863,7 @@ twem(box);
 }
 function profileActs(p, isMe, following, blocked) {
 if (isMe) {
-return link('settings', ic('edit') + ' Edit profile', 'nb-btn nb-btn--ghost nb-btn--sm');
+return '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-settings>' + ic('edit') + ' Edit profile</button>';
 }
 var f = my
 ? '<button class="nb-btn nb-btn--sm ' + (following ? 'nb-btn--ghost' : 'nb-btn--primary') + '" type="button" data-follow="' + p.id + '">' +
@@ -1916,7 +2023,7 @@ var novaTalk = [];
 function novaTurn(t) {
 return '<div class="hd-nova-turn hd-nova-turn--' + (t.role === 'you' ? 'nova' : 'me') + '">' +
 (t.role === 'you'
-? novaArt('hd-nova-av', 30)
+? novaAv('hd-nova-av-grad', 30)
 : H.avatar(my, 'hd-av--sm')) +
 '<div class="hd-nova-said">' + body(t.text) + '</div></div>';
 }
@@ -1925,16 +2032,43 @@ if (needAccount()) return;
 var box = btn.closest('[data-post]');
 var id = box && box.getAttribute('data-post');
 if (!id) return;
-var r = await db.from('posts').select('body, author:profiles!posts_author_fkey(handle,name)')
+var r = await db.from('posts').select('body, created_at, endorse_count, reply_count, relay_count, author:profiles!posts_author_fkey(id,handle,name,avatar_url,follower_count,verified,is_company)')
 .eq('id', id).maybeSingle();
 if (r.error || !r.data) return U.toast('That post could not be read.', 'bad');
-var p = r.data, who = (p.author && (p.author.name || p.author.handle)) || 'Someone';
+var p = r.data, a = p.author || {};
+var who = a.name || a.handle || 'Someone';
+var avatar = H.avatar(a, 'hd-av--md');
+var verified = a.verified ? ' <span class="hd-badge hd-badge--ver">' + ic('tick') + '</span>' : '';
+var company = a.is_company ? ' <span class="hd-badge hd-badge--co">' + ic('building') + '</span>' : '';
 U.sheet({
-title: 'Ask Supernova',
+title: '',
 html:
-'<blockquote class="hd-nova-quote"><b>' + esc(who) + '</b><p>' + body(p.body) + '</p></blockquote>' +
-'<div class="hd-nova-answer" id="novaAns" aria-live="polite">' +
+'<div class="hd-nova-post-card">' +
+'<div class="hd-nova-post-head">' +
+'<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-av">' + avatar + '</a>' +
+'<div class="hd-nova-post-who">' +
+'<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-name">' + esc(who) + verified + company + '</a>' +
+'<span class="hd-nova-post-handle">' + H.tag(a.handle || '') + '</span>' +
+'</div>' +
+'</div>' +
+'<div class="hd-nova-post-body">' + body(p.body) + '</div>' +
+'<div class="hd-nova-post-meta">' +
+'<span>' + esc(H.when(p.created_at)) + '</span>' +
+'<span class="hd-dot">&middot;</span>' +
+'<span>' + num(p.endorse_count || 0) + ' likes</span>' +
+'<span class="hd-dot">&middot;</span>' +
+'<span>' + num(p.reply_count || 0) + ' replies</span>' +
+(a.follower_count ? '<span class="hd-dot">&middot;</span><span>' + num(a.follower_count) + ' followers</span>' : '') +
+'</div>' +
+'</div>' +
+'<div class="hd-nova-answer-box">' +
+'<div class="hd-nova-answer-head">' +
+novaAv('hd-nova-answer-av', 32) +
+'<span class="hd-nova-answer-label">Supernova</span>' +
+'</div>' +
+'<div class="hd-nova-answer-body hd-nova-answer" id="novaAns" aria-live="polite">' +
 '<span class="hd-nova-dots"><i></i><i></i><i></i></span></div>' +
+'</div>' +
 '<div class="hd-ask-foot"><button class="nb-btn nb-btn--ghost" type="button" data-no>Close</button>' +
 '<a class="nb-btn nb-btn--primary" href="' + url('supernova') + '" data-r>Keep asking</a></div>',
 wire: function (api) {
@@ -1966,7 +2100,7 @@ var ready = await db.rpc('supernova_ready');
 if (ready.error || !ready.data) {
 col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
 '<div class="nb-card nb-card--lg hd-nova-off">' +
-novaArt('hd-nova-mark', 62) +
+novaAv('hd-nova-mark-grad', 62) +
 '<h2 class="nb-h3">Supernova is not answering yet</h2>' +
 '<p>Hereld reaches Supernova through Swiftaw, and Swiftaw has not pointed it at a model yet. ' +
 'Nothing you type would go anywhere, so there is nothing to type into.</p>' +
@@ -1979,7 +2113,7 @@ col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Her
 '<div class="hd-nova-talk" id="novaTalk" aria-live="polite">' +
 (novaTalk.length ? novaTalk.map(novaTurn).join('') :
 '<div class="nb-card hd-nova-hello">' +
-novaArt('hd-nova-mark', 48) +
+novaAv('hd-nova-hello-av', 48) +
 '<p>Ask about a post, a word you have not met, or anything else. ' +
 'Supernova cannot post, follow or moderate for you, and it will say so rather than pretend.</p>' +
 '</div>') +
@@ -2006,7 +2140,7 @@ if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit()
 function paint() {
 talk.innerHTML = novaTalk.map(novaTurn).join('') +
 (busy ? '<div class="hd-nova-turn hd-nova-turn--nova hd-nova-wait">' +
-novaArt('hd-nova-av', 30) +
+novaAv('hd-nova-av-grad', 30) +
 '<div class="hd-nova-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div></div>' : '');
 twem(talk);
 talk.scrollTop = talk.scrollHeight;
@@ -2049,7 +2183,7 @@ aside.innerHTML =
 '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
 '<input class="nb-input" type="search" name="q" placeholder="Search Hereld" aria-label="Search Hereld">' +
 '</form>' +
-'<section class="nb-card hd-aside-card" id="asideTags"><h2>' + ic('hash') + ' The Horn Line</h2>' +
+'<section class="nb-card hd-aside-card" id="asideTags"><h2>' + ic('hash') + ' The Cry</h2>' +
 '<p class="nb-muted">Reading the room…</p></section>' +
 '<section class="nb-card hd-aside-card" id="asideWho"><h2>' + ic('users') + ' Worth following</h2>' +
 '<p class="nb-muted">Looking…</p></section>' +
@@ -2059,13 +2193,13 @@ aside.innerHTML =
 '<a href="https://swiftaw.com/">Swiftaw</a>' +
 '<span>© 2026 Swiftaw</span></nav>';
 var got = await Promise.all([
-db.rpc('horn_line', { p_limit: 6 }),
+db.rpc('the_cry', { p_limit: 6 }),
 db.rpc('who_to_follow', { p_limit: 3 })
 ]);
 var tags = got[0].data || [];
 var tagBox = el('asideTags');
 if (tagBox) {
-tagBox.innerHTML = '<h2>' + ic('hash') + ' The Horn Line</h2>' + (tags.length
+tagBox.innerHTML = '<h2>' + ic('hash') + ' The Cry</h2>' + (tags.length
 ? tags.map(function (t) {
 return link('search?q=' + encodeURIComponent('#' + t.tag),
 '<b>#' + esc(t.tag) + '</b><i>' + t.posts + ' post' + (t.posts === 1 ? '' : 's') + '</i>', 'hd-aside-row');
@@ -2114,9 +2248,12 @@ H.avatar(a, 'hd-av--sm') +
 '</li>';
 }).join('') + '</ul>';
 }
-async function viewSettings() {
+function openSettings() {
 if (!my) return needAccount();
-col.innerHTML = head('Settings', 'Everything on this page is public except the last card.') +
+var sheet = U.sheet({
+title: 'Settings',
+wide: true,
+html:
 '<div class="hd-set" id="setBody">' +
 setCard('Pictures',
 'Your picture sits on every post. Your banner sits across the top of your profile.',
@@ -2159,7 +2296,6 @@ setCard('Pictures',
 '<div class="hd-set-foot">' +
 '<span class="hd-busy" id="setBusy" hidden><span class="nb-loader nb-loader--sm"></span> Saving</span>' +
 '<button type="submit" class="nb-btn nb-btn--primary" id="setSave">Save changes</button>' +
-link(my.handle, 'View profile', 'nb-btn nb-btn--ghost') +
 '</div>' +
 '</form>' +
 setCard('Accounts on this device',
@@ -2218,22 +2354,21 @@ setCard('Signing out',
 '<div class="hd-set-foot">' +
 '<button type="button" class="nb-btn nb-btn--red nb-btn--sm" id="setOut">Sign out of Hereld</button>' +
 '</div>', 'hd-set-card--last') +
-'</div>';
-wireSettings();
-twem(col);
-}
-function wireSettings() {
-var picSay = el('picSay'), picBusy = el('picBusy');
+'</div>',
+wire: function (api) {
+var root = api.body;
+function $el(id) { return root.querySelector('#' + id); }
+var picSay = $el('picSay'), picBusy = $el('picBusy');
 function faces() {
-el('setFace').innerHTML = avatarOf(my, 'hd-av--lg');
-el('setCover').innerHTML = my.banner_url
+$el('setFace').innerHTML = avatarOf(my, 'hd-av--lg');
+$el('setCover').innerHTML = my.banner_url
 ? '<img src="' + esc(my.banner_url) + '" alt="Your banner">'
 : '<span>No banner yet</span>';
-el('dropCover').hidden = !my.banner_url;
+$el('dropCover').hidden = !my.banner_url;
 }
 faces();
 function counter(id, out, max) {
-var f = el(id), c = el(out);
+var f = $el(id), c = $el(out);
 function tick() { c.textContent = f.value.length + ' / ' + max; }
 f.addEventListener('input', tick);
 tick();
@@ -2260,9 +2395,9 @@ await H.refreshMe();
 paintRail();
 U.toast(kind === 'avatar' ? 'Picture changed.' : 'Banner changed.');
 }
-el('pickFace').addEventListener('change', function () { if (this.files[0]) upload(this.files[0], 'avatar'); this.value = ''; });
-el('pickCover').addEventListener('change', function () { if (this.files[0]) upload(this.files[0], 'banner'); this.value = ''; });
-el('dropCover').addEventListener('click', async function () {
+$el('pickFace').addEventListener('change', function () { if (this.files[0]) upload(this.files[0], 'avatar'); this.value = ''; });
+$el('pickCover').addEventListener('change', function () { if (this.files[0]) upload(this.files[0], 'banner'); this.value = ''; });
+$el('dropCover').addEventListener('click', async function () {
 var sure = await U.ask({ title: 'Remove your banner', line: 'Your profile goes back to the plain header.', yes: 'Remove it' });
 if (!sure) return;
 picBusy.hidden = false;
@@ -2274,46 +2409,41 @@ faces();
 await H.refreshMe();
 U.toast('Banner removed.');
 });
-var say = el('setSay'), busy = el('setBusy'), save = el('setSave');
+var say = $el('setSay'), busy = $el('setBusy'), save = $el('setSave');
 function fail(m) { say.textContent = m; say.hidden = false; busy.hidden = true; save.disabled = false; }
-el('setForm').addEventListener('submit', async function (e) {
+$el('setForm').addEventListener('submit', async function (e) {
 e.preventDefault();
-var site = el('sSite').value.trim();
+var site = $el('sSite').value.trim();
 if (site && !/^https?:\/\//i.test(site)) site = 'https://' + site;
 if (site && !/^https?:\/\/[^\s.]+\.[^\s]{2,}$/i.test(site)) return fail('That does not look like a web address.');
 say.hidden = true; busy.hidden = false; save.disabled = true;
 var w = await db.from('profiles').update({
-name: el('sName').value.trim(),
-headline: el('sHead').value.trim(),
-bio: el('sBio').value.trim(),
-location: el('sLoc').value.trim(),
+name: $el('sName').value.trim(),
+headline: $el('sHead').value.trim(),
+bio: $el('sBio').value.trim(),
+location: $el('sLoc').value.trim(),
 website: site
 }).eq('id', my.id);
 busy.hidden = true; save.disabled = false;
 if (w.error) return fail(H.trouble(w.error, 'That did not save.'));
 await H.refreshMe();
 my = H.me() || my;
-el('sSite').value = site;
 paintRail();
 U.toast('Saved.');
 });
-el('addAcct').addEventListener('click', function () {
+$el('addAcct').addEventListener('click', function () {
 location.href = url(H.joinPage + '?add=1&next=' + encodeURIComponent(here()));
 });
-el('setRoster').addEventListener('click', async function (e) {
+$el('setRoster').addEventListener('click', async function (e) {
 var b = e.target.closest && e.target.closest('button');
 if (!b) return;
 var drop = b.getAttribute('data-forget');
 if (drop) {
-var sure = await U.ask({
-title: 'Remove this account',
-line: 'It comes off this device. The account itself is untouched and you can sign back in.',
-yes: 'Remove it'
-});
+var sure = await U.ask({ title: 'Remove this account', line: 'It comes off this device. The account itself is untouched.', yes: 'Remove it' });
 if (!sure) return;
 H.forget(drop);
-el('setRoster').innerHTML = rosterHTML();
-twem(el('setRoster'));
+$el('setRoster').innerHTML = rosterHTML();
+twem($el('setRoster'));
 return;
 }
 var to = b.getAttribute('data-switch');
@@ -2322,82 +2452,68 @@ b.disabled = true;
 try {
 await H.switchTo(to);
 my = H.me();
-U.toast('Switched to ' + ((my && (my.name || my.handle)) || 'your other account') + '.');
+api.close();
 go(my && my.handle ? my.handle : 'home', true);
 } catch (err) {
 b.disabled = false;
-el('setRoster').innerHTML = rosterHTML();
-twem(el('setRoster'));
 U.toast((err && err.message) || 'That did not switch.', 'bad');
 }
 });
-var coSay = el('coSay'), coBusy = el('coBusy');
+var coSay = $el('coSay'), coBusy = $el('coBusy');
 async function paintCompany() {
 var v = await db.from('verifications').select('status,note,created_at')
 .eq('subject', my.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
 var row = (v && !v.error && v.data) || null;
 var line;
-if (my.verified) line = 'Verified. The badge is on your profile and beside your name on every post.';
+if (my.verified) line = 'Verified.';
 else if (!row) line = 'No request has been filed.';
 else if (row.status === 'pending') line = 'A request is with the staff. Filed ' + H.when(row.created_at) + ' ago.';
 else if (row.status === 'more_info') line = 'The staff asked for more: ' + (row.note || 'no detail was given.');
 else if (row.status === 'rejected') line = 'The last request was turned down' + (row.note ? ': ' + row.note : '.');
 else line = 'Approved.';
-el('coState').innerHTML = '<b>' + (my.is_company ? 'Company mode is on' : 'Company mode is off') + '</b>' +
-'<span>' + esc(line) + '</span>';
-el('coOn').hidden = my.is_company && row && row.status === 'pending';
-el('coOn').textContent = my.is_company ? 'File a request again' : 'Turn company mode on';
-el('coOff').hidden = !my.is_company;
-el('claimField').hidden = !!my.verified;
+$el('coState').innerHTML = '<b>' + (my.is_company ? 'Company mode is on' : 'Company mode is off') + '</b><span>' + esc(line) + '</span>';
+$el('coOn').hidden = my.is_company && row && row.status === 'pending';
+$el('coOn').textContent = my.is_company ? 'File a request again' : 'Turn company mode on';
+$el('coOff').hidden = !my.is_company;
+$el('claimField').hidden = !!my.verified;
 }
 paintCompany();
 async function company(on) {
 coSay.hidden = true; coBusy.hidden = false;
-var r = await db.rpc('company_mode', { p_on: on, p_claim: el('sClaim').value.trim() });
+var r = await db.rpc('company_mode', { p_on: on, p_claim: $el('sClaim').value.trim() });
 coBusy.hidden = true;
 if (r.error) { coSay.textContent = H.trouble(r.error, 'That did not go through.'); coSay.hidden = false; return; }
 my.is_company = on;
 await H.refreshMe();
 my = H.me() || my;
-el('setFace').innerHTML = avatarOf(my, 'hd-av--lg');
+$el('setFace').innerHTML = avatarOf(my, 'hd-av--lg');
 paintCompany();
 paintRail();
 U.toast(on ? 'Company mode on. Your request is filed.' : 'Company mode off.');
 }
-el('coOn').addEventListener('click', function () {
-if (!el('sClaim').value.trim()) { coSay.textContent = 'Say what the account is for first.'; coSay.hidden = false; return; }
+$el('coOn').addEventListener('click', function () {
+if (!$el('sClaim').value.trim()) { coSay.textContent = 'Say what the account is for first.'; coSay.hidden = false; return; }
 company(true);
 });
-el('coOff').addEventListener('click', async function () {
-var sure = await U.ask({
-title: 'Turn company mode off',
-line: 'Your profile goes back to a personal one. A verification you already hold is not removed by this.',
-yes: 'Turn it off'
-});
+$el('coOff').addEventListener('click', async function () {
+var sure = await U.ask({ title: 'Turn company mode off', line: 'Your profile goes back to a personal one.', yes: 'Turn it off' });
 if (sure) company(false);
 });
-var prSay = el('prSay');
+var prSay = $el('prSay');
 function privacy(field, box) {
 box.addEventListener('change', async function () {
-var patch = {};
-patch[field] = box.checked;
+var patch = {}; patch[field] = box.checked;
 var r = await db.from('profiles').update(patch).eq('id', my.id);
-if (r.error) {
-box.checked = !box.checked;
-prSay.textContent = H.trouble(r.error, 'That did not save.');
-prSay.hidden = false;
-return;
-}
-prSay.hidden = true;
-my[field] = box.checked;
+if (r.error) { box.checked = !box.checked; prSay.textContent = H.trouble(r.error, 'That did not save.'); prSay.hidden = false; return; }
+prSay.hidden = true; my[field] = box.checked;
 U.toast(box.checked ? 'That list is open again.' : 'That list is closed.');
 });
 }
-privacy('show_follows', el('sShowFol'));
-privacy('show_affiliates', el('sShowAff'));
-var asSay = el('asSay');
+privacy('show_follows', $el('sShowFol'));
+privacy('show_affiliates', $el('sShowAff'));
+var asSay = $el('asSay');
 async function paintAssoc() {
-var box = el('assocBody');
+var box = $el('assocBody');
 if (!box) return;
 var r = await db.from('associations')
 .select('company,member,role,kind,state,' +
@@ -2437,62 +2553,61 @@ a.company + '|' + a.member + '">' + (waiting ? 'Withdraw' : 'End') + '</button>'
 twem(box);
 }
 paintAssoc();
-var addForm = el('assocAdd');
-if (addForm) addForm.addEventListener('submit', async function (e) {
-e.preventDefault();
-var h = el('aHandle').value.trim().replace(/^@/, '').toLowerCase();
-if (!h) return;
-var btn = addForm.querySelector('button[type="submit"]');
-btn.disabled = true;
-var r = await db.rpc('affiliate_invite', {
-p_handle: h, p_role: el('aRole').value.trim(), p_kind: el('aKind').value
-});
-btn.disabled = false;
-if (r.error) { asSay.textContent = H.trouble(r.error, 'That invitation did not go out.'); asSay.hidden = false; return; }
-asSay.hidden = true;
-el('aHandle').value = ''; el('aRole').value = '';
-U.toast('Invitation sent. It counts once they accept.');
-paintAssoc();
-});
-el('assocBody').addEventListener('click', async function (e) {
+$el('assocBody').addEventListener('click', async function (e) {
 var b = e.target.closest && e.target.closest('button');
 if (!b) return;
 var yes = b.getAttribute('data-assoc-yes');
 var no = b.getAttribute('data-assoc-no');
 var end = b.getAttribute('data-assoc-end');
-var r;
+asSay.hidden = true;
 b.disabled = true;
+var r;
 if (yes || no) {
 r = await db.rpc('affiliate_answer', { p_company: yes || no, p_yes: !!yes });
 } else if (end) {
 var sure = await U.ask({
 title: 'End this association',
-line: 'It comes off both profiles. Either account can be invited again later.',
+line: 'The mark comes off the profile and the account stops appearing in the list.',
 yes: 'End it', bad: true
 });
 if (!sure) { b.disabled = false; return; }
 var pair = end.split('|');
 r = await db.rpc('affiliate_remove', { p_company: pair[0], p_member: pair[1] });
 } else { b.disabled = false; return; }
+if (r.error) {
 b.disabled = false;
-if (r.error) { asSay.textContent = H.trouble(r.error, 'That did not go through.'); asSay.hidden = false; return; }
-asSay.hidden = true;
+asSay.textContent = H.trouble(r.error, 'That did not go through.');
+asSay.hidden = false;
+return;
+}
+await H.refreshMe();
+my = H.me() || my;
 loadHeld();
 paintAssoc();
+U.toast(yes ? 'Accepted.' : no ? 'Declined.' : 'Ended.');
 });
-el('setOut').addEventListener('click', async function () {
-var others = H.roster().filter(function (a) { return !a.current; }).length;
-var sure = await U.ask({
-title: 'Sign out',
-line: others
-? 'Sign out of this account? You stay signed in on ' + others + ' other account' + (others === 1 ? '' : 's') + ' here.'
-: 'Sign out of Hereld on this device?',
-yes: 'Sign out', bad: true
+if ($el('assocAdd')) {
+$el('assocAdd').addEventListener('submit', async function (e) {
+e.preventDefault();
+var h = $el('aHandle').value.trim().toLowerCase().replace(/^@/, '');
+var role = $el('aRole').value.trim();
+var kind = $el('aKind').value;
+if (!h) { asSay.textContent = 'Type a handle.'; asSay.hidden = false; return; }
+asSay.hidden = true;
+var r = await db.rpc('affiliate_invite', { p_handle: h, p_role: role, p_kind: kind });
+if (r.error) { asSay.textContent = H.trouble(r.error, 'That did not go through.'); asSay.hidden = false; return; }
+$el('aHandle').value = ''; $el('aRole').value = '';
+paintAssoc();
+U.toast('Invitation sent. It counts once they accept.');
 });
+}
+$el('setOut').addEventListener('click', async function () {
+var sure = await U.ask({ title: 'Sign out', line: 'You can sign back in at any time.', yes: 'Sign out', bad: true });
 if (!sure) return;
-var next = await H.signOut();
-if (next) { my = next; go(next.handle, true); U.toast('Signed out. You are on ' + (next.name || next.handle) + ' now.'); }
-else location.href = url('index');
+H.signOut();
+});
+twem(root);
+}
 });
 }
 var RESERVED = ['home', 'explore', 'search', 'notifications', 'bookmarks', 'supernova',
@@ -2523,7 +2638,7 @@ if (first === 'profile') {
 if (!my) return needAccount();
 return go('@' + my.handle, true);
 }
-if (first === 'settings') { setTitle('Settings'); return viewSettings(); }
+if (first === 'settings') { setTitle('Settings'); return openSettings(); }
 if (first === 'staff') {
 setTitle('Staff console');
 if (window.HStaff) return window.HStaff.render(col, { db: db, my: my, role: staffRole, go: go, url: url });
@@ -2628,6 +2743,7 @@ if (undo) {
 db.from('hidden_posts').delete().eq('user_id', my.id).eq('post_id', undo).then(function () { render(); });
 return;
 }
+if (b.closest('[data-settings]')) { openSettings(); return; }
 var fid = b.getAttribute('data-follow');
 if (fid) {
 var on = b.textContent.trim() === 'Follow';
@@ -2707,7 +2823,7 @@ U.menu(btn, items);
 function meMenu(btn) {
 var items = [
 { label: 'Your profile', ic: 'user', run: function () { go('@' + my.handle); } },
-{ label: 'Settings', ic: 'gear', run: function () { go('settings'); } },
+{ label: 'Settings', ic: 'gear', run: function () { openSettings(); } },
 { label: 'Bookmarks', ic: 'bookmark', run: function () { go('bookmarks'); } }
 ];
 var others = H.roster().filter(function (a) { return !a.current; });

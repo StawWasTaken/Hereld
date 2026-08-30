@@ -77,7 +77,8 @@
      Artwork on a transparent ground, 256 by 336, so it is never boxed,
      never stroked and never squared off into whatever slot it lands in.
      Beside other controls it goes in as a mask and takes their colour;
-     where it stands for the product itself it keeps its own. */
+     where it stands for the product itself it keeps its own.
+     The gradient overlay uses the Swiftaw brand colours. */
 
   var MARK_W = 256, MARK_H = 336;
   function novaMark(cls) {
@@ -86,6 +87,11 @@
   function novaArt(cls, h) {
     return '<img class="hd-nva' + (cls ? ' ' + cls : '') + '" src="' + url('Supernova%20mark.png') +
       '" alt="" height="' + h + '" width="' + Math.round(h * MARK_W / MARK_H) + '">';
+  }
+  /* The gradient avatar used in the Supernova card and ask page. */
+  function novaAv(cls, h) {
+    return '<span class="hd-nova-av-wrap' + (cls ? ' ' + cls : '') + '" style="width:' + h + 'px;height:' + h + 'px">' +
+      novaArt('hd-nva--grad', h) + '</span>';
   }
   function go(path, replace) {
     var to = url(path);
@@ -811,6 +817,7 @@
             '<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden data-pic>' +
             '<span class="nb-sr">Add a picture</span></label>' +
           '<button class="nb-icon-btn hd-compose-tool" type="button" data-tag data-tip="Add a topic">' + ic('hash') + '</button>' +
+          '<button class="nb-icon-btn hd-compose-tool" type="button" data-emoji data-tip="Add an emoji">' + ic('smile') + '</button>' +
           (o.replyTo ? '' :
             '<button class="nb-icon-btn hd-compose-tool" type="button" data-pollbtn data-tip="Ask a question">' + ic('chart') + '</button>' +
             '<button class="nb-icon-btn hd-compose-tool" type="button" data-when data-tip="Send it later">' + ic('clock') + '</button>') +
@@ -1057,6 +1064,28 @@
       ta.focus(); tick();
     });
 
+    form.querySelector('[data-emoji]').addEventListener('click', function () {
+      var existing = form.querySelector('.hd-emoji-pop');
+      if (existing) { existing.remove(); return; }
+      var pop = document.createElement('div');
+      pop.className = 'hd-emoji-pop';
+      var emojis = ['😀','😂','🤣','😍','🥰','😘','😎','🤩','🥳','😏','😢','😤','🤯','🥺','🫡','🤔','💀','👀','🔥','❤️','💔','💯','✅','❌','⭐','🎉','🚀','💬','📰','🛠️','🧠','☕','🌙','☀️','🌈','🎵','📸','💡','⚡','🏆','🤝','👋','🫶','💪','🙏','🤣','😭','🫠','😤','🤡','👻','🫣','🤯','🧐','😬','🫡','😴','🫨','🤮','😈','💩','🦄','🐙','🦋','🌸','🍀','🌊','🍕','🍺','🧪','📊','🎮','🎲','🏆','🎬','📚','🔑','💡','🛸'];
+      pop.innerHTML = '<div class="hd-emoji-grid">' + emojis.map(function (e) {
+        return '<button type="button" class="hd-emoji-btn" data-em="' + e + '">' + e + '</button>';
+      }).join('') + '</div>';
+      form.appendChild(pop);
+      pop.addEventListener('click', function (ev) {
+        var btn = ev.target.closest('[data-em]');
+        if (!btn) return;
+        var at = ta.selectionStart;
+        ta.setRangeText(btn.dataset.em, at, at, 'end');
+        ta.focus(); tick();
+        pop.remove();
+      });
+      function closePop(ev) { if (!pop.contains(ev.target) && ev.target.getAttribute('data-emoji') !== '') pop.remove(); }
+      setTimeout(function () { document.addEventListener('click', closePop, { once: true }); }, 10);
+    });
+
     pic.addEventListener('change', function () {
       var f = pic.files && pic.files[0];
       pic.value = '';
@@ -1068,7 +1097,11 @@
         tray.hidden = false;
         tray.innerHTML = '<figure class="hd-compose-pic"><img src="' + read.result + '" alt="">' +
           '<button class="nb-icon-btn nb-icon-btn--round" type="button" data-drop aria-label="Remove picture">' + ic('x') + '</button>' +
-          '<span class="hd-compose-bar" data-bar hidden><i></i></span></figure>';
+          '<span class="hd-compose-bar" data-bar hidden><i></i></span></figure>' +
+          '<div class="hd-compose-media-meta">' +
+            '<input class="nb-input hd-compose-alt" type="text" placeholder="Alt text (description of the image)" maxlength="500" data-alt>' +
+            '<label class="hd-compose-spoiler"><input type="checkbox" data-spoiler> <span>Spoiler / sensitive</span></label>' +
+          '</div>';
         tray.querySelector('[data-drop]').addEventListener('click', function () {
           media = null; tray.hidden = true; tray.innerHTML = ''; tick();
         });
@@ -1145,6 +1178,23 @@
           if (pr.error) {
             await db.from('posts').delete().eq('id', r.data.id);
             throw pr.error;
+          }
+        }
+
+        /* What a picture says, and whether it opens covered. */
+        if (media && r.data) {
+          var altInput = tray.querySelector('[data-alt]');
+          var spoilerInput = tray.querySelector('[data-spoiler]');
+          var mediaUrl = text.match(/(https?:\/\/[^\s]+)$/);
+          if (mediaUrl) {
+            await db.rpc('set_post_media', {
+              p_post: r.data.id,
+              p_media: JSON.stringify([{
+                url: mediaUrl[1],
+                alt_text: altInput ? altInput.value.trim() : '',
+                spoiler: spoilerInput ? spoilerInput.checked : false
+              }])
+            });
           }
         }
 
@@ -1629,7 +1679,7 @@
     box.innerHTML =
       '<div class="hd-pcard-top">' +
         link('@' + p.handle, avatarOf(p, 'hd-av--lg'), 'hd-pcard-face') +
-        (isMe ? link('settings', 'Edit profile', 'nb-btn nb-btn--ghost nb-btn--sm')
+        (isMe ? '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-settings>Edit profile</button>'
               : (my ? '<button class="nb-btn nb-btn--sm ' + (mine.following[p.id] ? 'nb-btn--ghost' : 'nb-btn--primary') +
                       '" type="button" data-follow="' + p.id + '">' + (mine.following[p.id] ? 'Following' : 'Follow') + '</button>'
                     : link('join', 'Follow', 'nb-btn nb-btn--primary nb-btn--sm'))) +
@@ -1740,7 +1790,7 @@
         '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
         '<input class="nb-input" type="search" name="q" placeholder="Search posts, people and topics" aria-label="Search">' +
       '</form>' +
-      '<section class="hd-block"><h2 class="hd-block-h">' + ic('hash') + ' The Horn Line</h2>' +
+      '<section class="hd-block"><h2 class="hd-block-h">' + ic('hash') + ' The Cry</h2>' +
         '<div class="hd-chips" id="exTags">' + skeletons(0) + '<span class="nb-skel nb-skel--line" style="width:60%"></span></div></section>' +
       '<section class="hd-block"><h2 class="hd-block-h">' + ic('users') + ' Worth following</h2>' +
         '<div class="hd-list" id="exWho"></div></section>' +
@@ -1749,7 +1799,7 @@
 
     var token = painting;
     var got = await Promise.all([
-      db.rpc('horn_line', { p_limit: 12 }),
+      db.rpc('the_cry', { p_limit: 12 }),
       db.rpc('who_to_follow', { p_limit: 6 }),
       db.from('posts').select(WITH_AUTHOR).is('reply_to', null).order('created_at', { ascending: false }).limit(15)
     ]);
@@ -1836,52 +1886,124 @@
     mention: 'mentioned you',
     verify: 'ruled on your verification request',
     staff: 'sent you a message from the Hereld team',
-    note: 'published a community note'
+    note: 'published a community note',
+    quote: 'quoted your post',
+    affiliate: 'sent you an invitation'
   };
+
+  var NOTE_ICONS = {
+    endorse: 'heart', relay: 'relay', reply: 'comment', follow: 'follow',
+    mention: 'quill', verify: 'tick', staff: 'shield', note: 'file',
+    quote: 'quote', affiliate: 'users'
+  };
+
+  var NOTE_FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'endorse', label: 'Likes' },
+    { key: 'reply', label: 'Replies' },
+    { key: 'relay', label: 'Reposts' },
+    { key: 'follow', label: 'Follows' },
+    { key: 'mention', label: 'Mentions' }
+  ];
+
+  var noteFilter = 'all';
 
   async function viewNotifications() {
     if (!my) return needAccount();
     col.innerHTML = head('Notifications', '', {
       tools: '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" id="readAll">' + ic('check') + ' Mark all read</button>'
-    }) + '<div class="hd-list" id="notes">' + skeletons(4) + '</div>';
+    }) +
+      '<div class="hd-note-filters" id="noteFilters">' +
+        NOTE_FILTERS.map(function (f) {
+          return '<button class="hd-note-filter' + (f.key === noteFilter ? ' is-on' : '') +
+            '" type="button" data-nf="' + f.key + '">' + esc(f.label) + '</button>';
+        }).join('') +
+      '</div>' +
+      '<div class="hd-list" id="notes">' + skeletons(4) + '</div>';
 
     var token = painting;
-    var r = await db.from('notifications')
-      .select('*, actor:profiles!notifications_actor_fkey(id,handle,name,avatar_url,verified,is_company,is_platform,is_bot)')
-      .eq('user_id', my.id).order('created_at', { ascending: false }).limit(60);
+    var r = await db.rpc('notifications_grouped', { p_limit: 60 });
     if (token !== painting) return;
 
     var host = el('notes');
-    if (r.error) { host.innerHTML = broke(H.trouble(r.error, '')); return; }
-    var rows = r.data || [];
-
-    var quotes = {};
-    var ids = rows.filter(function (n) { return n.post_id; }).map(function (n) { return n.post_id; });
-    if (ids.length) {
-      var q = await db.from('posts').select('id,body').in('id', ids);
-      (q.data || []).forEach(function (p) { quotes[p.id] = p.body; });
+    if (r.error) {
+      /* Fallback to old query if grouped RPC is not deployed yet. */
+      r = await db.from('notifications')
+        .select('*, actor:profiles!notifications_actor_fkey(id,handle,name,avatar_url,verified,is_company,is_platform,is_bot)')
+        .eq('user_id', my.id).order('created_at', { ascending: false }).limit(60);
+      if (token !== painting) return;
+      if (r.error) { host.innerHTML = broke(H.trouble(r.error, '')); return; }
+      renderFlatNotifications(host, r.data || []);
+      twem(host);
+      if (unread) { await db.rpc('notes_read_all'); unread = 0; paintRail(); }
+      return;
     }
-    if (token !== painting) return;
 
+    var data = r.data || {};
+    var rows = data.notifications || [];
+
+    /* Filter. */
+    if (noteFilter !== 'all') {
+      rows = rows.filter(function (n) {
+        return n.kinds && n.kinds.indexOf(noteFilter) !== -1;
+      });
+    }
+
+    renderGroupedNotifications(host, rows);
+    twem(host);
+
+    /* Wire filter buttons. */
+    el('noteFilters').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-nf]');
+      if (!btn) return;
+      noteFilter = btn.dataset.nf;
+      viewNotifications();
+    });
+
+    if (unread) {
+      await db.rpc('notes_read_all');
+      unread = 0;
+      paintRail();
+    }
+  }
+
+  function renderGroupedNotifications(host, rows) {
+    host.innerHTML = rows.length ? rows.map(function (n) {
+      var name = n.actor_name || n.actor_handle || 'Someone';
+      var kinds = n.kinds || [n.kind];
+      var primary = kinds[0];
+      var to = n.post_id ? 'post/' + n.post_id : (n.actor_handle || 'home');
+      var countBadge = n.total > 1
+        ? '<span class="hd-note-group-count">' + n.total + '</span>' : '';
+      var pills = kinds.length > 1
+        ? '<span class="hd-note-kinds">' + kinds.map(function (k) {
+            return '<span class="hd-note-kind-pill">' + ic(NOTE_ICONS[k] || 'info') + ' ' + esc(NOTE_WORDS[k] || k) + '</span>';
+          }).join('') + '</span>' : '';
+      var text = kinds.length === 1 ? esc(NOTE_WORDS[primary] || 'did something') : '';
+      return '<a class="nb-card nb-card--tight hd-note hd-note-group' + (n.unread ? ' is-new' : '') +
+        '" href="' + url(to) + '" data-r>' +
+        '<span class="hd-note-ic" data-k="' + esc(primary) + '">' +
+          countBadge +
+          ic(NOTE_ICONS[primary] || 'info') + '</span>' +
+        '<span class="hd-note-txt"><p><b>' + esc(name) + '</b> ' + text + '</p>' +
+        pills +
+        (n.post_body ? '<p class="hd-note-quote">' + esc(String(n.post_body).slice(0, 160)) + '</p>' : '') +
+        '<span class="hd-note-when">' + esc(H.when(n.first_at || n.last_at)) + '</span></span></a>';
+    }).join('') : empty('Nothing yet', 'Likes, relays, replies and follows land here.');
+  }
+
+  function renderFlatNotifications(host, rows) {
     host.innerHTML = rows.length ? rows.map(function (n) {
       var a = n.actor || {};
       var text = NOTE_WORDS[n.kind] || 'did something';
       var to = n.post_id ? 'post/' + n.post_id : (a.handle || 'home');
       return '<a class="nb-card nb-card--tight hd-note' + (n.read_at ? '' : ' is-new') + '" href="' + url(to) + '" data-r>' +
         '<span class="hd-note-ic" data-k="' + esc(n.kind) + '">' +
-          ic(n.kind === 'endorse' ? 'heart' : n.kind === 'relay' ? 'relay' : n.kind === 'follow' ? 'follow'
-             : n.kind === 'mention' ? 'quill' : n.kind === 'verify' ? 'tick' : 'comment') + '</span>' +
+          ic(NOTE_ICONS[n.kind] || 'info') + '</span>' +
         '<span class="hd-note-txt"><p><b>' + esc(a.name || a.handle || 'Someone') + '</b> ' + esc(text) + '</p>' +
-        (quotes[n.post_id] ? '<p class="hd-note-quote">' + esc(String(quotes[n.post_id]).slice(0, 160)) + '</p>' : '') +
+        (n.meta?.post_body ? '<p class="hd-note-quote">' + esc(String(n.meta.post_body).slice(0, 160)) + '</p>' : '') +
         '<span class="hd-note-when">' + esc(H.when(n.created_at)) + '</span></span></a>';
     }).join('') : empty('Nothing yet', 'Likes, relays, replies and follows land here.');
-
-    twem(host);
-    if (unread) {
-      await db.rpc('notes_read_all');
-      unread = 0;
-      paintRail();
-    }
   }
 
   async function viewBookmarks() {
@@ -2121,7 +2243,7 @@
 
   function profileActs(p, isMe, following, blocked) {
     if (isMe) {
-      return link('settings', ic('edit') + ' Edit profile', 'nb-btn nb-btn--ghost nb-btn--sm');
+      return '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-settings>' + ic('edit') + ' Edit profile</button>';
     }
     var f = my
       ? '<button class="nb-btn nb-btn--sm ' + (following ? 'nb-btn--ghost' : 'nb-btn--primary') + '" type="button" data-follow="' + p.id + '">' +
@@ -2307,7 +2429,7 @@
   function novaTurn(t) {
     return '<div class="hd-nova-turn hd-nova-turn--' + (t.role === 'you' ? 'nova' : 'me') + '">' +
       (t.role === 'you'
-        ? novaArt('hd-nova-av', 30)
+        ? novaAv('hd-nova-av-grad', 30)
         : H.avatar(my, 'hd-av--sm')) +
       '<div class="hd-nova-said">' + body(t.text) + '</div></div>';
   }
@@ -2321,17 +2443,44 @@
     var id = box && box.getAttribute('data-post');
     if (!id) return;
 
-    var r = await db.from('posts').select('body, author:profiles!posts_author_fkey(handle,name)')
+    var r = await db.from('posts').select('body, created_at, endorse_count, reply_count, relay_count, author:profiles!posts_author_fkey(id,handle,name,avatar_url,follower_count,verified,is_company)')
       .eq('id', id).maybeSingle();
     if (r.error || !r.data) return U.toast('That post could not be read.', 'bad');
-    var p = r.data, who = (p.author && (p.author.name || p.author.handle)) || 'Someone';
+    var p = r.data, a = p.author || {};
+    var who = a.name || a.handle || 'Someone';
+    var avatar = H.avatar(a, 'hd-av--md');
+    var verified = a.verified ? ' <span class="hd-badge hd-badge--ver">' + ic('tick') + '</span>' : '';
+    var company = a.is_company ? ' <span class="hd-badge hd-badge--co">' + ic('building') + '</span>' : '';
 
     U.sheet({
-      title: 'Ask Supernova',
+      title: '',
       html:
-        '<blockquote class="hd-nova-quote"><b>' + esc(who) + '</b><p>' + body(p.body) + '</p></blockquote>' +
-        '<div class="hd-nova-answer" id="novaAns" aria-live="polite">' +
-          '<span class="hd-nova-dots"><i></i><i></i><i></i></span></div>' +
+        '<div class="hd-nova-post-card">' +
+          '<div class="hd-nova-post-head">' +
+            '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-av">' + avatar + '</a>' +
+            '<div class="hd-nova-post-who">' +
+              '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-name">' + esc(who) + verified + company + '</a>' +
+              '<span class="hd-nova-post-handle">' + H.tag(a.handle || '') + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="hd-nova-post-body">' + body(p.body) + '</div>' +
+          '<div class="hd-nova-post-meta">' +
+            '<span>' + esc(H.when(p.created_at)) + '</span>' +
+            '<span class="hd-dot">&middot;</span>' +
+            '<span>' + num(p.endorse_count || 0) + ' likes</span>' +
+            '<span class="hd-dot">&middot;</span>' +
+            '<span>' + num(p.reply_count || 0) + ' replies</span>' +
+            (a.follower_count ? '<span class="hd-dot">&middot;</span><span>' + num(a.follower_count) + ' followers</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="hd-nova-answer-box">' +
+          '<div class="hd-nova-answer-head">' +
+            novaAv('hd-nova-answer-av', 32) +
+            '<span class="hd-nova-answer-label">Supernova</span>' +
+          '</div>' +
+          '<div class="hd-nova-answer-body hd-nova-answer" id="novaAns" aria-live="polite">' +
+            '<span class="hd-nova-dots"><i></i><i></i><i></i></span></div>' +
+        '</div>' +
         '<div class="hd-ask-foot"><button class="nb-btn nb-btn--ghost" type="button" data-no>Close</button>' +
         '<a class="nb-btn nb-btn--primary" href="' + url('supernova') + '" data-r>Keep asking</a></div>',
       wire: function (api) {
@@ -2365,7 +2514,7 @@
     if (ready.error || !ready.data) {
       col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
         '<div class="nb-card nb-card--lg hd-nova-off">' +
-          novaArt('hd-nova-mark', 62) +
+          novaAv('hd-nova-mark-grad', 62) +
           '<h2 class="nb-h3">Supernova is not answering yet</h2>' +
           '<p>Hereld reaches Supernova through Swiftaw, and Swiftaw has not pointed it at a model yet. ' +
           'Nothing you type would go anywhere, so there is nothing to type into.</p>' +
@@ -2379,7 +2528,7 @@
         '<div class="hd-nova-talk" id="novaTalk" aria-live="polite">' +
           (novaTalk.length ? novaTalk.map(novaTurn).join('') :
             '<div class="nb-card hd-nova-hello">' +
-              novaArt('hd-nova-mark', 48) +
+              novaAv('hd-nova-hello-av', 48) +
               '<p>Ask about a post, a word you have not met, or anything else. ' +
               'Supernova cannot post, follow or moderate for you, and it will say so rather than pretend.</p>' +
             '</div>') +
@@ -2410,7 +2559,7 @@
     function paint() {
       talk.innerHTML = novaTalk.map(novaTurn).join('') +
         (busy ? '<div class="hd-nova-turn hd-nova-turn--nova hd-nova-wait">' +
-          novaArt('hd-nova-av', 30) +
+          novaAv('hd-nova-av-grad', 30) +
           '<div class="hd-nova-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div></div>' : '');
       twem(talk);
       talk.scrollTop = talk.scrollHeight;
@@ -2460,7 +2609,7 @@
         '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
         '<input class="nb-input" type="search" name="q" placeholder="Search Hereld" aria-label="Search Hereld">' +
       '</form>' +
-      '<section class="nb-card hd-aside-card" id="asideTags"><h2>' + ic('hash') + ' The Horn Line</h2>' +
+      '<section class="nb-card hd-aside-card" id="asideTags"><h2>' + ic('hash') + ' The Cry</h2>' +
         '<p class="nb-muted">Reading the room…</p></section>' +
       '<section class="nb-card hd-aside-card" id="asideWho"><h2>' + ic('users') + ' Worth following</h2>' +
         '<p class="nb-muted">Looking…</p></section>' +
@@ -2471,14 +2620,14 @@
         '<span>© 2026 Swiftaw</span></nav>';
 
     var got = await Promise.all([
-      db.rpc('horn_line', { p_limit: 6 }),
+      db.rpc('the_cry', { p_limit: 6 }),
       db.rpc('who_to_follow', { p_limit: 3 })
     ]);
 
     var tags = got[0].data || [];
     var tagBox = el('asideTags');
     if (tagBox) {
-      tagBox.innerHTML = '<h2>' + ic('hash') + ' The Horn Line</h2>' + (tags.length
+      tagBox.innerHTML = '<h2>' + ic('hash') + ' The Cry</h2>' + (tags.length
         ? tags.map(function (t) {
             return link('search?q=' + encodeURIComponent('#' + t.tag),
               '<b>#' + esc(t.tag) + '</b><i>' + t.posts + ' post' + (t.posts === 1 ? '' : 's') + '</i>', 'hd-aside-row');
@@ -2508,9 +2657,7 @@
   }
 
   /* ── Settings ────────────────────────────────────────────────────────────
-     Cards in the middle column, not a separate document. Leaving the
-     application to change a name is the sort of thing that makes a product
-     feel like a set of web pages. */
+     A sheet, not a page. Opens over whatever you were looking at. */
 
   function setCard(title, line, inner, cls) {
     return '<section class="nb-card hd-set-card' + (cls ? ' ' + cls : '') + '">' +
@@ -2537,431 +2684,398 @@
     }).join('') + '</ul>';
   }
 
-  async function viewSettings() {
+  function openSettings() {
     if (!my) return needAccount();
 
-    col.innerHTML = head('Settings', 'Everything on this page is public except the last card.') +
-      '<div class="hd-set" id="setBody">' +
+    var sheet = U.sheet({
+      title: 'Settings',
+      wide: true,
+      html:
+        '<div class="hd-set" id="setBody">' +
 
-      setCard('Pictures',
-        'Your picture sits on every post. Your banner sits across the top of your profile.',
-        '<div class="hd-set-pics">' +
-          '<span id="setFace"></span>' +
-          '<div class="hd-set-pics-do">' +
-            '<label class="nb-btn nb-btn--sm">Change picture' +
-              '<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden id="pickFace"></label>' +
-            '<p class="nb-hint">PNG, JPEG, WebP or GIF, up to 24 MB.</p>' +
+        setCard('Pictures',
+          'Your picture sits on every post. Your banner sits across the top of your profile.',
+          '<div class="hd-set-pics">' +
+            '<span id="setFace"></span>' +
+            '<div class="hd-set-pics-do">' +
+              '<label class="nb-btn nb-btn--sm">Change picture' +
+                '<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden id="pickFace"></label>' +
+              '<p class="nb-hint">PNG, JPEG, WebP or GIF, up to 24 MB.</p>' +
+            '</div>' +
           '</div>' +
-        '</div>' +
-        '<div class="hd-set-cover" id="setCover"></div>' +
-        '<div class="hd-set-foot">' +
-          '<label class="nb-btn nb-btn--sm">Change banner' +
-            '<input type="file" accept="image/png,image/jpeg,image/webp" hidden id="pickCover"></label>' +
-          '<button type="button" class="nb-btn nb-btn--ghost nb-btn--sm" id="dropCover" hidden>Remove banner</button>' +
-          '<span class="hd-busy" id="picBusy" hidden><span class="nb-loader nb-loader--sm"></span> Uploading</span>' +
-        '</div>' +
-        '<p class="nb-alert nb-alert--error hd-say" id="picSay" hidden></p>') +
+          '<div class="hd-set-cover" id="setCover"></div>' +
+          '<div class="hd-set-foot">' +
+            '<label class="nb-btn nb-btn--sm">Change banner' +
+              '<input type="file" accept="image/png,image/jpeg,image/webp" hidden id="pickCover"></label>' +
+            '<button type="button" class="nb-btn nb-btn--ghost nb-btn--sm" id="dropCover" hidden>Remove banner</button>' +
+            '<span class="hd-busy" id="picBusy" hidden><span class="nb-loader nb-loader--sm"></span> Uploading</span>' +
+          '</div>' +
+          '<p class="nb-alert nb-alert--error hd-say" id="picSay" hidden></p>') +
 
-      '<form class="nb-card hd-set-card" id="setForm">' +
-        '<h2>Who you are</h2>' +
-        '<p class="hd-set-line">Your handle is fixed. It is on every post you have already made.</p>' +
-        '<div class="hd-set-fields">' +
-          '<div class="nb-field"><span class="nb-label">Handle</span>' +
-            '<p class="hd-set-handle">' + H.tag(my.handle) + '</p></div>' +
-          '<div class="nb-field"><label class="nb-label" for="sName">Name</label>' +
-            '<input class="nb-input" id="sName" type="text" maxlength="50" autocomplete="name" value="' + esc(my.name || '') + '"></div>' +
-          '<div class="nb-field"><label class="nb-label" for="sHead">What you do</label>' +
-            '<input class="nb-input" id="sHead" type="text" maxlength="120" placeholder="One line, under your name on every post" value="' + esc(my.headline || '') + '">' +
-            '<p class="nb-hint"><span class="hd-set-count" id="cHead"></span></p></div>' +
-          '<div class="nb-field"><label class="nb-label" for="sBio">About you</label>' +
-            '<textarea class="nb-textarea" id="sBio" maxlength="400" rows="4" placeholder="A short paragraph on your profile.">' + esc(my.bio || '') + '</textarea>' +
-            '<p class="nb-hint"><span class="hd-set-count" id="cBio"></span></p></div>' +
-          '<div class="nb-field"><label class="nb-label" for="sLoc">Where you are</label>' +
-            '<input class="nb-input" id="sLoc" type="text" maxlength="60" placeholder="City, country" value="' + esc(my.location || '') + '"></div>' +
-          '<div class="nb-field"><label class="nb-label" for="sSite">Website</label>' +
-            '<input class="nb-input" id="sSite" type="url" maxlength="120" placeholder="https://" value="' + esc(my.website || '') + '"></div>' +
-        '</div>' +
-        '<p class="nb-alert nb-alert--error hd-say" id="setSay" hidden></p>' +
-        '<div class="hd-set-foot">' +
-          '<span class="hd-busy" id="setBusy" hidden><span class="nb-loader nb-loader--sm"></span> Saving</span>' +
-          '<button type="submit" class="nb-btn nb-btn--primary" id="setSave">Save changes</button>' +
-          link(my.handle, 'View profile', 'nb-btn nb-btn--ghost') +
-        '</div>' +
-      '</form>' +
+        '<form class="nb-card hd-set-card" id="setForm">' +
+          '<h2>Who you are</h2>' +
+          '<p class="hd-set-line">Your handle is fixed. It is on every post you have already made.</p>' +
+          '<div class="hd-set-fields">' +
+            '<div class="nb-field"><span class="nb-label">Handle</span>' +
+              '<p class="hd-set-handle">' + H.tag(my.handle) + '</p></div>' +
+            '<div class="nb-field"><label class="nb-label" for="sName">Name</label>' +
+              '<input class="nb-input" id="sName" type="text" maxlength="50" autocomplete="name" value="' + esc(my.name || '') + '"></div>' +
+            '<div class="nb-field"><label class="nb-label" for="sHead">What you do</label>' +
+              '<input class="nb-input" id="sHead" type="text" maxlength="120" placeholder="One line, under your name on every post" value="' + esc(my.headline || '') + '">' +
+              '<p class="nb-hint"><span class="hd-set-count" id="cHead"></span></p></div>' +
+            '<div class="nb-field"><label class="nb-label" for="sBio">About you</label>' +
+              '<textarea class="nb-textarea" id="sBio" maxlength="400" rows="4" placeholder="A short paragraph on your profile.">' + esc(my.bio || '') + '</textarea>' +
+              '<p class="nb-hint"><span class="hd-set-count" id="cBio"></span></p></div>' +
+            '<div class="nb-field"><label class="nb-label" for="sLoc">Where you are</label>' +
+              '<input class="nb-input" id="sLoc" type="text" maxlength="60" placeholder="City, country" value="' + esc(my.location || '') + '"></div>' +
+            '<div class="nb-field"><label class="nb-label" for="sSite">Website</label>' +
+              '<input class="nb-input" id="sSite" type="url" maxlength="120" placeholder="https://" value="' + esc(my.website || '') + '"></div>' +
+          '</div>' +
+          '<p class="nb-alert nb-alert--error hd-say" id="setSay" hidden></p>' +
+          '<div class="hd-set-foot">' +
+            '<span class="hd-busy" id="setBusy" hidden><span class="nb-loader nb-loader--sm"></span> Saving</span>' +
+            '<button type="submit" class="nb-btn nb-btn--primary" id="setSave">Save changes</button>' +
+          '</div>' +
+        '</form>' +
 
-      setCard('Accounts on this device',
-        'Signing in another account does not sign this one out. Switching is instant and asks for nothing.',
-        '<div id="setRoster">' + rosterHTML() + '</div>' +
-        '<div class="hd-set-foot">' +
-          '<button type="button" class="nb-btn nb-btn--sm" id="addAcct">Add an account</button>' +
-        '</div>') +
+        setCard('Accounts on this device',
+          'Signing in another account does not sign this one out. Switching is instant and asks for nothing.',
+          '<div id="setRoster">' + rosterHTML() + '</div>' +
+          '<div class="hd-set-foot">' +
+            '<button type="button" class="nb-btn nb-btn--sm" id="addAcct">Add an account</button>' +
+          '</div>') +
 
-      setCard('Company mode',
-        'A company account carries a square picture, an Articles tab and associated accounts. ' +
-        'Turning it on files a verification request. It does not grant the badge.',
-        '<div class="hd-set-state" id="coState"><span class="nb-skel nb-skel--line" style="width:60%"></span></div>' +
-        '<div class="nb-field" id="claimField"><label class="nb-label" for="sClaim">What is this account for?</label>' +
-          '<textarea class="nb-textarea" id="sClaim" maxlength="400" rows="3" placeholder="The organisation, and how it can be checked."></textarea></div>' +
-        '<p class="nb-alert nb-alert--error hd-say" id="coSay" hidden></p>' +
-        '<div class="hd-set-foot">' +
-          '<span class="hd-busy" id="coBusy" hidden><span class="nb-loader nb-loader--sm"></span> Saving</span>' +
-          '<button type="button" class="nb-btn nb-btn--primary nb-btn--sm" id="coOn">Turn company mode on</button>' +
-          '<button type="button" class="nb-btn nb-btn--ghost nb-btn--sm" id="coOff" hidden>Turn it off</button>' +
-        '</div>') +
+        setCard('Company mode',
+          'A company account carries a square picture, an Articles tab and associated accounts. ' +
+          'Turning it on files a verification request. It does not grant the badge.',
+          '<div class="hd-set-state" id="coState"><span class="nb-skel nb-skel--line" style="width:60%"></span></div>' +
+          '<div class="nb-field" id="claimField"><label class="nb-label" for="sClaim">What is this account for?</label>' +
+            '<textarea class="nb-textarea" id="sClaim" maxlength="400" rows="3" placeholder="The organisation, and how it can be checked."></textarea></div>' +
+          '<p class="nb-alert nb-alert--error hd-say" id="coSay" hidden></p>' +
+          '<div class="hd-set-foot">' +
+            '<span class="hd-busy" id="coBusy" hidden><span class="nb-loader nb-loader--sm"></span> Saving</span>' +
+            '<button type="button" class="nb-btn nb-btn--primary nb-btn--sm" id="coOn">Turn company mode on</button>' +
+            '<button type="button" class="nb-btn nb-btn--ghost nb-btn--sm" id="coOff" hidden>Turn it off</button>' +
+          '</div>') +
 
-      setCard('Who can open your lists',
-        'These are on. Turning one off closes that list to everybody but you. ' +
-        'Nobody is told you turned it off; the list simply will not open.',
-        '<div class="hd-set-checks">' +
-          '<label class="nb-check"><input type="checkbox" id="sShowFol"' + (my.show_follows === false ? '' : ' checked') +
-            '><span class="nb-box"></span><span>Followers and following</span></label>' +
-          '<label class="nb-check"><input type="checkbox" id="sShowAff"' + (my.show_affiliates === false ? '' : ' checked') +
-            '><span class="nb-box"></span><span>Associated accounts</span></label>' +
-        '</div>' +
-        '<p class="nb-alert nb-alert--error hd-say" id="prSay" hidden></p>') +
+        setCard('Who can open your lists',
+          'These are on. Turning one off closes that list to everybody but you. ' +
+          'Nobody is told you turned it off; the list simply will not open.',
+          '<div class="hd-set-checks">' +
+            '<label class="nb-check"><input type="checkbox" id="sShowFol"' + (my.show_follows === false ? '' : ' checked') +
+              '><span class="nb-box"></span><span>Followers and following</span></label>' +
+            '<label class="nb-check"><input type="checkbox" id="sShowAff"' + (my.show_affiliates === false ? '' : ' checked') +
+              '><span class="nb-box"></span><span>Associated accounts</span></label>' +
+          '</div>' +
+          '<p class="nb-alert nb-alert--error hd-say" id="prSay" hidden></p>') +
 
-      setCard('Associated accounts',
-        my.is_company
-          ? 'Product accounts, regional accounts and the people who speak for this company. ' +
-            'An invitation only counts once the other account accepts it. You can post from an account you hold.'
-          : 'Companies that have asked to associate this account, and the ones it already belongs to. ' +
-            'Nothing appears on your profile until you accept.',
-        (my.is_company
-          ? '<form class="hd-assoc-add" id="assocAdd">' +
-              '<div class="nb-field"><label class="nb-label" for="aHandle">Handle</label>' +
-                '<input class="nb-input" id="aHandle" placeholder="handle" maxlength="20" autocomplete="off"></div>' +
-              '<div class="nb-field"><label class="nb-label" for="aRole">Role <span class="nb-hint">optional</span></label>' +
-                '<input class="nb-input" id="aRole" placeholder="Chief Safety Officer" maxlength="60"></div>' +
-              '<div class="nb-field"><label class="nb-label" for="aKind">Kind</label>' +
-                '<select class="nb-select" id="aKind">' +
-                  '<option value="person">A person who speaks for us</option>' +
-                  '<option value="account">An account we hold</option>' +
-                '</select></div>' +
-              '<button class="nb-btn nb-btn--primary nb-btn--sm" type="submit">Invite</button>' +
-            '</form>'
-          : '') +
-        '<div id="assocBody">' + skeletons(2) + '</div>' +
-        '<p class="nb-alert nb-alert--error hd-say" id="asSay" hidden></p>') +
+        setCard('Associated accounts',
+          my.is_company
+            ? 'Product accounts, regional accounts and the people who speak for this company. ' +
+              'An invitation only counts once the other account accepts it. You can post from an account you hold.'
+            : 'Companies that have asked to associate this account, and the ones it already belongs to. ' +
+              'Nothing appears on your profile until you accept.',
+          (my.is_company
+            ? '<form class="hd-assoc-add" id="assocAdd">' +
+                '<div class="nb-field"><label class="nb-label" for="aHandle">Handle</label>' +
+                  '<input class="nb-input" id="aHandle" placeholder="handle" maxlength="20" autocomplete="off"></div>' +
+                '<div class="nb-field"><label class="nb-label" for="aRole">Role <span class="nb-hint">optional</span></label>' +
+                  '<input class="nb-input" id="aRole" placeholder="Chief Safety Officer" maxlength="60"></div>' +
+                '<div class="nb-field"><label class="nb-label" for="aKind">Kind</label>' +
+                  '<select class="nb-select" id="aKind">' +
+                    '<option value="person">A person who speaks for us</option>' +
+                    '<option value="account">An account we hold</option>' +
+                  '</select></div>' +
+                '<button class="nb-btn nb-btn--primary nb-btn--sm" type="submit">Invite</button>' +
+              '</form>'
+            : '') +
+          '<div id="assocBody">' + skeletons(2) + '</div>' +
+          '<p class="nb-alert nb-alert--error hd-say" id="asSay" hidden></p>') +
 
-      setCard('Signing out',
-        'This ends the session for this account on this device. Any other account signed in here stays. ' +
-        'Your Swiftaw and Fortized accounts are separate and are untouched.',
-        '<div class="hd-set-foot">' +
-          '<button type="button" class="nb-btn nb-btn--red nb-btn--sm" id="setOut">Sign out of Hereld</button>' +
-        '</div>', 'hd-set-card--last') +
+        setCard('Signing out',
+          'This ends the session for this account on this device. Any other account signed in here stays. ' +
+          'Your Swiftaw and Fortized accounts are separate and are untouched.',
+          '<div class="hd-set-foot">' +
+            '<button type="button" class="nb-btn nb-btn--red nb-btn--sm" id="setOut">Sign out of Hereld</button>' +
+          '</div>', 'hd-set-card--last') +
 
-      '</div>';
+        '</div>',
+      wire: function (api) {
+        var root = api.body;
+        function $el(id) { return root.querySelector('#' + id); }
 
-    wireSettings();
-    twem(col);
-  }
+        var picSay = $el('picSay'), picBusy = $el('picBusy');
 
-  function wireSettings() {
-    var picSay = el('picSay'), picBusy = el('picBusy');
-
-    function faces() {
-      el('setFace').innerHTML = avatarOf(my, 'hd-av--lg');
-      el('setCover').innerHTML = my.banner_url
-        ? '<img src="' + esc(my.banner_url) + '" alt="Your banner">'
-        : '<span>No banner yet</span>';
-      el('dropCover').hidden = !my.banner_url;
-    }
-    faces();
-
-    function counter(id, out, max) {
-      var f = el(id), c = el(out);
-      function tick() { c.textContent = f.value.length + ' / ' + max; }
-      f.addEventListener('input', tick);
-      tick();
-    }
-    counter('sHead', 'cHead', 120);
-    counter('sBio', 'cBio', 400);
-
-    function picFail(m) { picSay.textContent = m; picSay.hidden = false; picBusy.hidden = true; }
-
-    async function upload(file, kind) {
-      if (file.size > 24 * 1024 * 1024) return picFail('That picture is over 24 MB.');
-      picSay.hidden = true; picBusy.hidden = false;
-
-      var ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
-      var path = my.id + '/' + kind + '.' + ext;
-      var up = await db.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
-      if (up.error) return picFail(H.trouble(up.error, 'The picture did not upload.'));
-
-      var to = db.storage.from('avatars').getPublicUrl(path).data.publicUrl + '?t=' + Date.now();
-      var patch = {};
-      patch[kind === 'avatar' ? 'avatar_url' : 'banner_url'] = to;
-      var w = await db.from('profiles').update(patch).eq('id', my.id);
-      picBusy.hidden = true;
-      if (w.error) return picFail(H.trouble(w.error, 'It uploaded but did not save.'));
-
-      if (kind === 'avatar') my.avatar_url = to; else my.banner_url = to;
-      faces();
-      await H.refreshMe();
-      paintRail();
-      U.toast(kind === 'avatar' ? 'Picture changed.' : 'Banner changed.');
-    }
-
-    el('pickFace').addEventListener('change', function () { if (this.files[0]) upload(this.files[0], 'avatar'); this.value = ''; });
-    el('pickCover').addEventListener('change', function () { if (this.files[0]) upload(this.files[0], 'banner'); this.value = ''; });
-
-    el('dropCover').addEventListener('click', async function () {
-      var sure = await U.ask({ title: 'Remove your banner', line: 'Your profile goes back to the plain header.', yes: 'Remove it' });
-      if (!sure) return;
-      picBusy.hidden = false;
-      var w = await db.from('profiles').update({ banner_url: null }).eq('id', my.id);
-      picBusy.hidden = true;
-      if (w.error) return picFail(H.trouble(w.error, 'That did not save.'));
-      my.banner_url = null;
-      faces();
-      await H.refreshMe();
-      U.toast('Banner removed.');
-    });
-
-    var say = el('setSay'), busy = el('setBusy'), save = el('setSave');
-    function fail(m) { say.textContent = m; say.hidden = false; busy.hidden = true; save.disabled = false; }
-
-    el('setForm').addEventListener('submit', async function (e) {
-      e.preventDefault();
-      var site = el('sSite').value.trim();
-      if (site && !/^https?:\/\//i.test(site)) site = 'https://' + site;
-      if (site && !/^https?:\/\/[^\s.]+\.[^\s]{2,}$/i.test(site)) return fail('That does not look like a web address.');
-
-      say.hidden = true; busy.hidden = false; save.disabled = true;
-      var w = await db.from('profiles').update({
-        name: el('sName').value.trim(),
-        headline: el('sHead').value.trim(),
-        bio: el('sBio').value.trim(),
-        location: el('sLoc').value.trim(),
-        website: site
-      }).eq('id', my.id);
-      busy.hidden = true; save.disabled = false;
-      if (w.error) return fail(H.trouble(w.error, 'That did not save.'));
-
-      await H.refreshMe();
-      my = H.me() || my;
-      el('sSite').value = site;
-      paintRail();
-      U.toast('Saved.');
-    });
-
-    /* Accounts */
-    el('addAcct').addEventListener('click', function () {
-      location.href = url(H.joinPage + '?add=1&next=' + encodeURIComponent(here()));
-    });
-
-    el('setRoster').addEventListener('click', async function (e) {
-      var b = e.target.closest && e.target.closest('button');
-      if (!b) return;
-
-      var drop = b.getAttribute('data-forget');
-      if (drop) {
-        var sure = await U.ask({
-          title: 'Remove this account',
-          line: 'It comes off this device. The account itself is untouched and you can sign back in.',
-          yes: 'Remove it'
-        });
-        if (!sure) return;
-        H.forget(drop);
-        el('setRoster').innerHTML = rosterHTML();
-        twem(el('setRoster'));
-        return;
-      }
-
-      var to = b.getAttribute('data-switch');
-      if (!to) return;
-      b.disabled = true;
-      try {
-        await H.switchTo(to);
-        my = H.me();
-        U.toast('Switched to ' + ((my && (my.name || my.handle)) || 'your other account') + '.');
-        go(my && my.handle ? my.handle : 'home', true);
-      } catch (err) {
-        b.disabled = false;
-        el('setRoster').innerHTML = rosterHTML();
-        twem(el('setRoster'));
-        U.toast((err && err.message) || 'That did not switch.', 'bad');
-      }
-    });
-
-    /* Company mode */
-    var coSay = el('coSay'), coBusy = el('coBusy');
-
-    async function paintCompany() {
-      var v = await db.from('verifications').select('status,note,created_at')
-        .eq('subject', my.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      var row = (v && !v.error && v.data) || null;
-
-      var line;
-      if (my.verified) line = 'Verified. The badge is on your profile and beside your name on every post.';
-      else if (!row) line = 'No request has been filed.';
-      else if (row.status === 'pending') line = 'A request is with the staff. Filed ' + H.when(row.created_at) + ' ago.';
-      else if (row.status === 'more_info') line = 'The staff asked for more: ' + (row.note || 'no detail was given.');
-      else if (row.status === 'rejected') line = 'The last request was turned down' + (row.note ? ': ' + row.note : '.');
-      else line = 'Approved.';
-
-      el('coState').innerHTML = '<b>' + (my.is_company ? 'Company mode is on' : 'Company mode is off') + '</b>' +
-        '<span>' + esc(line) + '</span>';
-      el('coOn').hidden = my.is_company && row && row.status === 'pending';
-      el('coOn').textContent = my.is_company ? 'File a request again' : 'Turn company mode on';
-      el('coOff').hidden = !my.is_company;
-      el('claimField').hidden = !!my.verified;
-    }
-    paintCompany();
-
-    async function company(on) {
-      coSay.hidden = true; coBusy.hidden = false;
-      var r = await db.rpc('company_mode', { p_on: on, p_claim: el('sClaim').value.trim() });
-      coBusy.hidden = true;
-      if (r.error) { coSay.textContent = H.trouble(r.error, 'That did not go through.'); coSay.hidden = false; return; }
-      my.is_company = on;
-      await H.refreshMe();
-      my = H.me() || my;
-      el('setFace').innerHTML = avatarOf(my, 'hd-av--lg');
-      paintCompany();
-      paintRail();
-      U.toast(on ? 'Company mode on. Your request is filed.' : 'Company mode off.');
-    }
-
-    el('coOn').addEventListener('click', function () {
-      if (!el('sClaim').value.trim()) { coSay.textContent = 'Say what the account is for first.'; coSay.hidden = false; return; }
-      company(true);
-    });
-    el('coOff').addEventListener('click', async function () {
-      var sure = await U.ask({
-        title: 'Turn company mode off',
-        line: 'Your profile goes back to a personal one. A verification you already hold is not removed by this.',
-        yes: 'Turn it off'
-      });
-      if (sure) company(false);
-    });
-
-    /* Lists */
-    var prSay = el('prSay');
-    function privacy(field, box) {
-      box.addEventListener('change', async function () {
-        var patch = {};
-        patch[field] = box.checked;
-        var r = await db.from('profiles').update(patch).eq('id', my.id);
-        if (r.error) {
-          box.checked = !box.checked;
-          prSay.textContent = H.trouble(r.error, 'That did not save.');
-          prSay.hidden = false;
-          return;
+        function faces() {
+          $el('setFace').innerHTML = avatarOf(my, 'hd-av--lg');
+          $el('setCover').innerHTML = my.banner_url
+            ? '<img src="' + esc(my.banner_url) + '" alt="Your banner">'
+            : '<span>No banner yet</span>';
+          $el('dropCover').hidden = !my.banner_url;
         }
-        prSay.hidden = true;
-        my[field] = box.checked;
-        U.toast(box.checked ? 'That list is open again.' : 'That list is closed.');
-      });
-    }
-    privacy('show_follows', el('sShowFol'));
-    privacy('show_affiliates', el('sShowAff'));
+        faces();
 
-    /* Associated accounts */
-    var asSay = el('asSay');
+        function counter(id, out, max) {
+          var f = $el(id), c = $el(out);
+          function tick() { c.textContent = f.value.length + ' / ' + max; }
+          f.addEventListener('input', tick);
+          tick();
+        }
+        counter('sHead', 'cHead', 120);
+        counter('sBio', 'cBio', 400);
 
-    async function paintAssoc() {
-      var box = el('assocBody');
-      if (!box) return;
-      var r = await db.from('associations')
-        .select('company,member,role,kind,state,' +
-          'co:profiles!associations_company_fkey(id,handle,name,avatar_url,verified,is_company,is_platform,is_bot),' +
-          'me:profiles!associations_member_fkey(id,handle,name,avatar_url,verified,is_company,is_platform,is_bot)')
-        .or('company.eq.' + my.id + ',member.eq.' + my.id)
-        .limit(100);
-      if (r.error) { box.innerHTML = broke(H.trouble(r.error, 'That list did not load.')); return; }
+        function picFail(m) { picSay.textContent = m; picSay.hidden = false; picBusy.hidden = true; }
 
-      var rows = r.data || [];
-      if (!rows.length) {
-        box.innerHTML = empty('Nothing yet', my.is_company
-          ? 'Invite an account by its handle and it appears here once accepted.'
-          : 'A company that wants to associate this account will show up here.');
-        return;
-      }
-      box.innerHTML = rows.map(function (a) {
-        var them = a.company === my.id ? a.me : a.co;
-        var theirs = a.company !== my.id;
-        var waiting = a.state !== 'accepted';
-        var note = waiting
-          ? (theirs ? 'Wants to associate this account' : 'Invited, waiting on them')
-          : (a.role || (a.kind === 'account' ? 'An account you hold' : 'Associated'));
-        return '<div class="nb-card nb-card--tight hd-person">' +
-          '<a class="hd-av-btn" href="' + who(them.handle) + '" data-r aria-hidden="true" tabindex="-1">' +
-            avatarOf(them, 'hd-av--sm') + '</a>' +
-          '<div class="hd-person-txt">' + nameMark(them) +
-            '<i>' + H.tag(them.handle) + '</i><p>' + esc(note) + '</p></div>' +
-          (waiting && theirs
-            ? '<span class="hd-person-do">' +
-                '<button class="nb-btn nb-btn--primary nb-btn--sm" type="button" data-assoc-yes="' + a.company + '">Accept</button>' +
-                '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-assoc-no="' + a.company + '">Decline</button>' +
-              '</span>'
-            : '<button class="nb-btn nb-btn--red nb-btn--sm" type="button" data-assoc-end="' +
-                a.company + '|' + a.member + '">' + (waiting ? 'Withdraw' : 'End') + '</button>') +
-          '</div>';
-      }).join('');
-      twem(box);
-    }
-    paintAssoc();
+        async function upload(file, kind) {
+          if (file.size > 24 * 1024 * 1024) return picFail('That picture is over 24 MB.');
+          picSay.hidden = true; picBusy.hidden = false;
+          var ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+          var path = my.id + '/' + kind + '.' + ext;
+          var up = await db.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
+          if (up.error) return picFail(H.trouble(up.error, 'The picture did not upload.'));
+          var to = db.storage.from('avatars').getPublicUrl(path).data.publicUrl + '?t=' + Date.now();
+          var patch = {};
+          patch[kind === 'avatar' ? 'avatar_url' : 'banner_url'] = to;
+          var w = await db.from('profiles').update(patch).eq('id', my.id);
+          picBusy.hidden = true;
+          if (w.error) return picFail(H.trouble(w.error, 'It uploaded but did not save.'));
+          if (kind === 'avatar') my.avatar_url = to; else my.banner_url = to;
+          faces();
+          await H.refreshMe();
+          paintRail();
+          U.toast(kind === 'avatar' ? 'Picture changed.' : 'Banner changed.');
+        }
 
-    var addForm = el('assocAdd');
-    if (addForm) addForm.addEventListener('submit', async function (e) {
-      e.preventDefault();
-      var h = el('aHandle').value.trim().replace(/^@/, '').toLowerCase();
-      if (!h) return;
-      var btn = addForm.querySelector('button[type="submit"]');
-      btn.disabled = true;
-      var r = await db.rpc('affiliate_invite', {
-        p_handle: h, p_role: el('aRole').value.trim(), p_kind: el('aKind').value
-      });
-      btn.disabled = false;
-      if (r.error) { asSay.textContent = H.trouble(r.error, 'That invitation did not go out.'); asSay.hidden = false; return; }
-      asSay.hidden = true;
-      el('aHandle').value = ''; el('aRole').value = '';
-      U.toast('Invitation sent. It counts once they accept.');
-      paintAssoc();
-    });
+        $el('pickFace').addEventListener('change', function () { if (this.files[0]) upload(this.files[0], 'avatar'); this.value = ''; });
+        $el('pickCover').addEventListener('change', function () { if (this.files[0]) upload(this.files[0], 'banner'); this.value = ''; });
 
-    el('assocBody').addEventListener('click', async function (e) {
-      var b = e.target.closest && e.target.closest('button');
-      if (!b) return;
-      var yes = b.getAttribute('data-assoc-yes');
-      var no = b.getAttribute('data-assoc-no');
-      var end = b.getAttribute('data-assoc-end');
-      var r;
-      b.disabled = true;
-      if (yes || no) {
-        r = await db.rpc('affiliate_answer', { p_company: yes || no, p_yes: !!yes });
-      } else if (end) {
-        var sure = await U.ask({
-          title: 'End this association',
-          line: 'It comes off both profiles. Either account can be invited again later.',
-          yes: 'End it', bad: true
+        $el('dropCover').addEventListener('click', async function () {
+          var sure = await U.ask({ title: 'Remove your banner', line: 'Your profile goes back to the plain header.', yes: 'Remove it' });
+          if (!sure) return;
+          picBusy.hidden = false;
+          var w = await db.from('profiles').update({ banner_url: null }).eq('id', my.id);
+          picBusy.hidden = true;
+          if (w.error) return picFail(H.trouble(w.error, 'That did not save.'));
+          my.banner_url = null;
+          faces();
+          await H.refreshMe();
+          U.toast('Banner removed.');
         });
-        if (!sure) { b.disabled = false; return; }
-        var pair = end.split('|');
-        r = await db.rpc('affiliate_remove', { p_company: pair[0], p_member: pair[1] });
-      } else { b.disabled = false; return; }
 
-      b.disabled = false;
-      if (r.error) { asSay.textContent = H.trouble(r.error, 'That did not go through.'); asSay.hidden = false; return; }
-      asSay.hidden = true;
-      loadHeld();
-      paintAssoc();
-    });
+        var say = $el('setSay'), busy = $el('setBusy'), save = $el('setSave');
+        function fail(m) { say.textContent = m; say.hidden = false; busy.hidden = true; save.disabled = false; }
 
-    el('setOut').addEventListener('click', async function () {
-      var others = H.roster().filter(function (a) { return !a.current; }).length;
-      var sure = await U.ask({
-        title: 'Sign out',
-        line: others
-          ? 'Sign out of this account? You stay signed in on ' + others + ' other account' + (others === 1 ? '' : 's') + ' here.'
-          : 'Sign out of Hereld on this device?',
-        yes: 'Sign out', bad: true
-      });
-      if (!sure) return;
-      var next = await H.signOut();
-      if (next) { my = next; go(next.handle, true); U.toast('Signed out. You are on ' + (next.name || next.handle) + ' now.'); }
-      else location.href = url('index');
+        $el('setForm').addEventListener('submit', async function (e) {
+          e.preventDefault();
+          var site = $el('sSite').value.trim();
+          if (site && !/^https?:\/\//i.test(site)) site = 'https://' + site;
+          if (site && !/^https?:\/\/[^\s.]+\.[^\s]{2,}$/i.test(site)) return fail('That does not look like a web address.');
+          say.hidden = true; busy.hidden = false; save.disabled = true;
+          var w = await db.from('profiles').update({
+            name: $el('sName').value.trim(),
+            headline: $el('sHead').value.trim(),
+            bio: $el('sBio').value.trim(),
+            location: $el('sLoc').value.trim(),
+            website: site
+          }).eq('id', my.id);
+          busy.hidden = true; save.disabled = false;
+          if (w.error) return fail(H.trouble(w.error, 'That did not save.'));
+          await H.refreshMe();
+          my = H.me() || my;
+          paintRail();
+          U.toast('Saved.');
+        });
+
+        $el('addAcct').addEventListener('click', function () {
+          location.href = url(H.joinPage + '?add=1&next=' + encodeURIComponent(here()));
+        });
+
+        $el('setRoster').addEventListener('click', async function (e) {
+          var b = e.target.closest && e.target.closest('button');
+          if (!b) return;
+          var drop = b.getAttribute('data-forget');
+          if (drop) {
+            var sure = await U.ask({ title: 'Remove this account', line: 'It comes off this device. The account itself is untouched.', yes: 'Remove it' });
+            if (!sure) return;
+            H.forget(drop);
+            $el('setRoster').innerHTML = rosterHTML();
+            twem($el('setRoster'));
+            return;
+          }
+          var to = b.getAttribute('data-switch');
+          if (!to) return;
+          b.disabled = true;
+          try {
+            await H.switchTo(to);
+            my = H.me();
+            api.close();
+            go(my && my.handle ? my.handle : 'home', true);
+          } catch (err) {
+            b.disabled = false;
+            U.toast((err && err.message) || 'That did not switch.', 'bad');
+          }
+        });
+
+        var coSay = $el('coSay'), coBusy = $el('coBusy');
+        async function paintCompany() {
+          var v = await db.from('verifications').select('status,note,created_at')
+            .eq('subject', my.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+          var row = (v && !v.error && v.data) || null;
+          var line;
+          if (my.verified) line = 'Verified.';
+          else if (!row) line = 'No request has been filed.';
+          else if (row.status === 'pending') line = 'A request is with the staff. Filed ' + H.when(row.created_at) + ' ago.';
+          else if (row.status === 'more_info') line = 'The staff asked for more: ' + (row.note || 'no detail was given.');
+          else if (row.status === 'rejected') line = 'The last request was turned down' + (row.note ? ': ' + row.note : '.');
+          else line = 'Approved.';
+          $el('coState').innerHTML = '<b>' + (my.is_company ? 'Company mode is on' : 'Company mode is off') + '</b><span>' + esc(line) + '</span>';
+          $el('coOn').hidden = my.is_company && row && row.status === 'pending';
+          $el('coOn').textContent = my.is_company ? 'File a request again' : 'Turn company mode on';
+          $el('coOff').hidden = !my.is_company;
+          $el('claimField').hidden = !!my.verified;
+        }
+        paintCompany();
+
+        async function company(on) {
+          coSay.hidden = true; coBusy.hidden = false;
+          var r = await db.rpc('company_mode', { p_on: on, p_claim: $el('sClaim').value.trim() });
+          coBusy.hidden = true;
+          if (r.error) { coSay.textContent = H.trouble(r.error, 'That did not go through.'); coSay.hidden = false; return; }
+          my.is_company = on;
+          await H.refreshMe();
+          my = H.me() || my;
+          $el('setFace').innerHTML = avatarOf(my, 'hd-av--lg');
+          paintCompany();
+          paintRail();
+          U.toast(on ? 'Company mode on. Your request is filed.' : 'Company mode off.');
+        }
+
+        $el('coOn').addEventListener('click', function () {
+          if (!$el('sClaim').value.trim()) { coSay.textContent = 'Say what the account is for first.'; coSay.hidden = false; return; }
+          company(true);
+        });
+        $el('coOff').addEventListener('click', async function () {
+          var sure = await U.ask({ title: 'Turn company mode off', line: 'Your profile goes back to a personal one.', yes: 'Turn it off' });
+          if (sure) company(false);
+        });
+
+        var prSay = $el('prSay');
+        function privacy(field, box) {
+          box.addEventListener('change', async function () {
+            var patch = {}; patch[field] = box.checked;
+            var r = await db.from('profiles').update(patch).eq('id', my.id);
+            if (r.error) { box.checked = !box.checked; prSay.textContent = H.trouble(r.error, 'That did not save.'); prSay.hidden = false; return; }
+            prSay.hidden = true; my[field] = box.checked;
+            U.toast(box.checked ? 'That list is open again.' : 'That list is closed.');
+          });
+        }
+        privacy('show_follows', $el('sShowFol'));
+        privacy('show_affiliates', $el('sShowAff'));
+
+        var asSay = $el('asSay');
+        async function paintAssoc() {
+          var box = $el('assocBody');
+          if (!box) return;
+          var r = await db.from('associations')
+            .select('company,member,role,kind,state,' +
+              'co:profiles!associations_company_fkey(id,handle,name,avatar_url,verified,is_company,is_platform,is_bot),' +
+              'me:profiles!associations_member_fkey(id,handle,name,avatar_url,verified,is_company,is_platform,is_bot)')
+            .or('company.eq.' + my.id + ',member.eq.' + my.id)
+            .limit(100);
+          if (r.error) { box.innerHTML = broke(H.trouble(r.error, 'That list did not load.')); return; }
+
+          var rows = r.data || [];
+          if (!rows.length) {
+            box.innerHTML = empty('Nothing yet', my.is_company
+              ? 'Invite an account by its handle and it appears here once accepted.'
+              : 'A company that wants to associate this account will show up here.');
+            return;
+          }
+          box.innerHTML = rows.map(function (a) {
+            var them = a.company === my.id ? a.me : a.co;
+            var theirs = a.company !== my.id;
+            var waiting = a.state !== 'accepted';
+            var note = waiting
+              ? (theirs ? 'Wants to associate this account' : 'Invited, waiting on them')
+              : (a.role || (a.kind === 'account' ? 'An account you hold' : 'Associated'));
+            return '<div class="nb-card nb-card--tight hd-person">' +
+              '<a class="hd-av-btn" href="' + who(them.handle) + '" data-r aria-hidden="true" tabindex="-1">' +
+                avatarOf(them, 'hd-av--sm') + '</a>' +
+              '<div class="hd-person-txt">' + nameMark(them) +
+                '<i>' + H.tag(them.handle) + '</i><p>' + esc(note) + '</p></div>' +
+              (waiting && theirs
+                ? '<span class="hd-person-do">' +
+                    '<button class="nb-btn nb-btn--primary nb-btn--sm" type="button" data-assoc-yes="' + a.company + '">Accept</button>' +
+                    '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-assoc-no="' + a.company + '">Decline</button>' +
+                  '</span>'
+                : '<button class="nb-btn nb-btn--red nb-btn--sm" type="button" data-assoc-end="' +
+                    a.company + '|' + a.member + '">' + (waiting ? 'Withdraw' : 'End') + '</button>') +
+              '</div>';
+          }).join('');
+          twem(box);
+        }
+        paintAssoc();
+
+        /* Answering an invitation, and ending one. Both are the same two rows
+           in the table, so one handler covers the panel. */
+        $el('assocBody').addEventListener('click', async function (e) {
+          var b = e.target.closest && e.target.closest('button');
+          if (!b) return;
+          var yes = b.getAttribute('data-assoc-yes');
+          var no = b.getAttribute('data-assoc-no');
+          var end = b.getAttribute('data-assoc-end');
+          asSay.hidden = true;
+          b.disabled = true;
+          var r;
+          if (yes || no) {
+            r = await db.rpc('affiliate_answer', { p_company: yes || no, p_yes: !!yes });
+          } else if (end) {
+            var sure = await U.ask({
+              title: 'End this association',
+              line: 'The mark comes off the profile and the account stops appearing in the list.',
+              yes: 'End it', bad: true
+            });
+            if (!sure) { b.disabled = false; return; }
+            var pair = end.split('|');
+            r = await db.rpc('affiliate_remove', { p_company: pair[0], p_member: pair[1] });
+          } else { b.disabled = false; return; }
+          if (r.error) {
+            b.disabled = false;
+            asSay.textContent = H.trouble(r.error, 'That did not go through.');
+            asSay.hidden = false;
+            return;
+          }
+          await H.refreshMe();
+          my = H.me() || my;
+          loadHeld();
+          paintAssoc();
+          U.toast(yes ? 'Accepted.' : no ? 'Declined.' : 'Ended.');
+        });
+
+        if ($el('assocAdd')) {
+          $el('assocAdd').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var h = $el('aHandle').value.trim().toLowerCase().replace(/^@/, '');
+            var role = $el('aRole').value.trim();
+            var kind = $el('aKind').value;
+            if (!h) { asSay.textContent = 'Type a handle.'; asSay.hidden = false; return; }
+            asSay.hidden = true;
+            var r = await db.rpc('affiliate_invite', { p_handle: h, p_role: role, p_kind: kind });
+            if (r.error) { asSay.textContent = H.trouble(r.error, 'That did not go through.'); asSay.hidden = false; return; }
+            $el('aHandle').value = ''; $el('aRole').value = '';
+            paintAssoc();
+            U.toast('Invitation sent. It counts once they accept.');
+          });
+        }
+
+        $el('setOut').addEventListener('click', async function () {
+          var sure = await U.ask({ title: 'Sign out', line: 'You can sign back in at any time.', yes: 'Sign out', bad: true });
+          if (!sure) return;
+          H.signOut();
+        });
+
+        twem(root);
+      }
     });
   }
 
@@ -3000,7 +3114,7 @@
       if (!my) return needAccount();
       return go('@' + my.handle, true);
     }
-    if (first === 'settings') { setTitle('Settings'); return viewSettings(); }
+    if (first === 'settings') { setTitle('Settings'); return openSettings(); }
     if (first === 'staff') {
       setTitle('Staff console');
       if (window.HStaff) return window.HStaff.render(col, { db: db, my: my, role: staffRole, go: go, url: url });
@@ -3133,6 +3247,8 @@
         return;
       }
 
+      if (b.closest('[data-settings]')) { openSettings(); return; }
+
       var fid = b.getAttribute('data-follow');
       if (fid) {
         var on = b.textContent.trim() === 'Follow';
@@ -3224,7 +3340,7 @@
   function meMenu(btn) {
     var items = [
       { label: 'Your profile', ic: 'user', run: function () { go('@' + my.handle); } },
-      { label: 'Settings', ic: 'gear', run: function () { go('settings'); } },
+      { label: 'Settings', ic: 'gear', run: function () { openSettings(); } },
       { label: 'Bookmarks', ic: 'bookmark', run: function () { go('bookmarks'); } }
     ];
 
