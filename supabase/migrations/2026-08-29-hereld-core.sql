@@ -1443,13 +1443,16 @@ begin
   -- The ceiling moving is a decision about participation, never about
   -- existence. Nothing here deletes a bot account.
   if p_key = 'bots_active' and p_number is not null then
-    update bots set active = false;
+    -- The `where active` is not a tidiness: the platform loads a guard that
+    -- refuses an update with no clause at all, and it applies inside a
+    -- definer function too. It also spares every row already off.
+    update bots set active = false where active;
     update bots set active = true
      where id in (select id from bots order by created_at limit greatest(p_number, 0));
   end if;
 
   if p_key = 'bots_emergency' and coalesce(p_on, false) then
-    update bots set active = false;
+    update bots set active = false where active;
     update platform_flags set on_off = false where key = 'bots_enabled';
     insert into bot_log (kind, detail) values ('emergency_stop', 'All automated activity stopped.');
   end if;

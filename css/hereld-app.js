@@ -7,12 +7,14 @@ var esc = U.esc, ic = U.icon;
 var MAX = 600;
 var TWEMOJI = 'https://cdn.jsdelivr.net/npm/@twemoji/api@15.1.0/dist/twemoji.min.js';
 var TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/';
-var WITH_AUTHOR = '*, author:profiles!posts_author_fkey(id,handle,name,headline,avatar_url,verified,is_company,is_platform,is_bot,banned,parent_id,follower_count)';
+var WITH_AUTHOR = '*, author:profiles!posts_author_fkey(id,handle,name,headline,avatar_url,verified,is_company,is_platform,is_bot,banned,parent_id,assoc_of,assoc_kind,assoc_role,follower_count)' +
+', poll:polls(post_id)';
 var mine = { liked: {}, relayed: {}, saved: {}, following: {} };
 var staffRole = null;
 var twemojiAsked = false;
 function twem(node) {
 if (!node) return;
+if (typeof paintPolls === 'function') paintPolls(node);
 if (window.twemoji) {
 try {
 window.twemoji.parse(node, { folder: 'svg', ext: '.svg', className: 'hd-emo', base: TWEMOJI_BASE });
@@ -132,11 +134,20 @@ out += p.is_company
 }
 if (p.parent) {
 out += '<a class="hd-badge hd-badge--par" href="' + url(p.parent.handle) + '" data-r ' +
-'title="Part of ' + esc(p.parent.name || p.parent.handle) + '">' +
+'title="' + esc(assocWord(p)) + '">' +
 H.avatar(p.parent, 'hd-av--pin') +
-'<span class="nb-sr">Part of ' + esc(p.parent.name || p.parent.handle) + '</span></a>';
+'<span class="nb-sr">' + esc(assocWord(p)) + '</span></a>';
 }
 return out;
+}
+function assocWord(p) {
+var co = (p.parent && (p.parent.name || p.parent.handle)) || 'a company';
+var held = p.assoc_kind ? p.assoc_kind === 'account' : !!p.parent_id;
+var what = held ? 'Account held by ' + co : 'Associated with ' + co;
+return p.assoc_role ? p.assoc_role + ' - ' + what : what;
+}
+function nameMark(p, txt) {
+return '<span class="hd-nm"><b>' + esc(txt || p.name || p.handle) + '</b>' + badges(p) + '</span>';
 }
 function avatarOf(p, cls) {
 return H.avatar(p, cls || '');
@@ -208,9 +219,80 @@ lead +
 (a.headline ? '<i class="hd-head">' + esc(a.headline) + '</i>' : '') +
 '</div>' +
 '</div>' +
+discHTML(p.disclosure) +
+(p.scheduled_for
+? '<p class="hd-planned">' + ic('clock') + ' Going out ' +
+esc(new Date(p.scheduled_for).toLocaleString(undefined,
+{ weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) +
+'. Only you can see it until then.</p>'
+: '') +
 (said ? '<p class="hd-post-body">' + said + '</p>' : '') +
-shots + quoted + note + acts(p) +
+shots + pollHTML(p) + quoted + note +
+scopeNote(p) + acts(p) +
 '</article>';
+}
+function discHTML(list) {
+if (!list || !list.length) return '';
+return '<p class="hd-disc">' + list.map(function (k) {
+var d = DISCLOSE.filter(function (x) { return x.k === k; })[0];
+return d ? '<span>' + ic('info') + esc(d.t) + '</span>' : '';
+}).join('') + '</p>';
+}
+function scopeNote(p) {
+if (!p.reply_scope || p.reply_scope === 'all') return '';
+var s = scopeOf(p.reply_scope);
+return '<p class="hd-scope-note">' + ic(s.i) + ' ' + esc(s.t) + ' can reply</p>';
+}
+function pollHTML(p) {
+if (!p.poll && !p.has_poll) return '';
+return '<div class="hd-poll" data-pollof="' + p.id + '"><div class="hd-poll-wait">' +
+'<span class="nb-skel nb-skel--line"></span><span class="nb-skel nb-skel--line"></span></div></div>';
+}
+function pollBars(st, id) {
+var opts = st.options || [];
+var counts = st.counts || [];
+var total = Number(st.total || 0);
+var done = st.closed || st.mine != null;
+var out = opts.map(function (t, i) {
+var n = Number(counts[i] || 0);
+var pc = total ? Math.round(n / total * 100) : 0;
+if (!done) {
+return '<button class="hd-poll-one" type="button" data-answer="' + i + '">' + esc(t) + '</button>';
+}
+return '<div class="hd-poll-done' + (st.mine === i ? ' is-mine' : '') + '">' +
+'<span class="hd-poll-fill" style="width:' + pc + '%"></span>' +
+'<span class="hd-poll-t">' + esc(t) + (st.mine === i ? ' ' + ic('tick') : '') + '</span>' +
+'<span class="hd-poll-pc">' + pc + '%</span></div>';
+}).join('');
+var left = '';
+if (st.closed) left = 'Closed';
+else {
+var ms = new Date(st.closes_at).getTime() - Date.now();
+var hrs = Math.max(0, Math.round(ms / 3600000));
+left = hrs >= 24 ? Math.round(hrs / 24) + (hrs < 48 ? ' day left' : ' days left')
+: hrs >= 1 ? hrs + (hrs === 1 ? ' hour left' : ' hours left')
+: 'Less than an hour left';
+}
+return out + '<p class="hd-poll-sum">' +
+(total === 1 ? '1 answer' : num(total) + ' answers') + ' · ' + esc(left) + '</p>';
+}
+async function paintPolls(root) {
+var boxes = [].slice.call((root || document).querySelectorAll('[data-pollof]:not([data-done])'));
+for (var i = 0; i < boxes.length; i++) {
+var box = boxes[i];
+box.setAttribute('data-done', '1');
+var id = box.getAttribute('data-pollof');
+var r = await db.rpc('poll_state', { p_post: id });
+if (r.error || !r.data) { box.remove(); continue; }
+box.innerHTML = pollBars(r.data, id);
+}
+}
+async function answerPoll(box, id, choice) {
+box.classList.add('is-busy');
+var r = await db.rpc('poll_vote', { p_post: id, p_choice: choice });
+box.classList.remove('is-busy');
+if (r.error) return U.toast(H.trouble(r.error, 'That answer did not go through.'));
+box.innerHTML = pollBars(r.data, id);
 }
 function feedHTML(rows, o) {
 if (!rows.length) return '';
@@ -299,17 +381,34 @@ return rows;
 async function attachParents(rows) {
 var need = [], seen = {};
 rows.forEach(function (p) {
-var a = p.author;
-if (a && a.parent_id && !seen[a.parent_id]) { seen[a.parent_id] = 1; need.push(a.parent_id); }
+var a = p.author, k = a && (a.assoc_of || a.parent_id);
+if (k && !seen[k]) { seen[k] = 1; need.push(k); }
 });
 if (!need.length) return rows;
 var r = await db.from('profiles').select('id,handle,name,avatar_url,is_company').in('id', need);
 var by = {};
 (r.data || []).forEach(function (x) { by[x.id] = x; });
 rows.forEach(function (p) {
-if (p.author && p.author.parent_id && by[p.author.parent_id]) p.author.parent = by[p.author.parent_id];
+var a = p.author, k = a && (a.assoc_of || a.parent_id);
+if (k && by[k]) a.parent = by[k];
 });
 return rows;
+}
+async function attachAssoc(people) {
+var need = [], seen = {};
+(people || []).forEach(function (p) {
+var k = p && (p.assoc_of || p.parent_id);
+if (k && !seen[k]) { seen[k] = 1; need.push(k); }
+});
+if (!need.length) return people;
+var r = await db.from('profiles').select('id,handle,name,avatar_url,is_company').in('id', need);
+var by = {};
+(r.data || []).forEach(function (x) { by[x.id] = x; });
+people.forEach(function (p) {
+var k = p && (p.assoc_of || p.parent_id);
+if (k && by[k]) p.parent = by[k];
+});
+return people;
 }
 async function hydrate(rows) {
 rows = rows || [];
@@ -411,6 +510,83 @@ if (!my || !my.is_company) { held = []; return; }
 var r = await db.from('profiles').select('id,handle,name').eq('parent_id', my.id).limit(50);
 held = (r.data || []);
 }
+var NOVA_WAYS = [
+{ k: 'tidy',   t: 'Tidy it up' },
+{ k: 'short',  t: 'Make it shorter' },
+{ k: 'plain',  t: 'Say it plainly' },
+{ k: 'warm',   t: 'Warmer' },
+{ k: 'sharp',  t: 'Sharper' },
+{ k: 'more',   t: 'Say more of it' }
+];
+function novaWrite(start, keep) {
+var way = 'tidy';
+var s = U.sheet({
+title: 'Work on this',
+html: '<p class="hd-modal-line">Supernova rewrites what you have written. Nothing goes out until you post it yourself.</p>' +
+'<div class="hd-nova-was">' + esc(start) + '</div>' +
+'<div class="hd-nova-ways">' + NOVA_WAYS.map(function (w) {
+return '<button class="hd-nova-way' + (w.k === way ? ' is-on' : '') + '" type="button" data-w="' + w.k + '">' +
+esc(w.t) + '</button>';
+}).join('') + '</div>' +
+'<div class="nb-field"><label class="nb-label" for="nvAs">Or say how ' +
+'<span class="nb-hint">optional</span></label>' +
+'<input class="nb-input" id="nvAs" maxlength="120" placeholder="As a shipping note. As if I were annoyed."></div>' +
+'<div class="hd-modal-do">' +
+'<button class="nb-btn nb-btn--primary" type="button" data-run>Rewrite it</button>' +
+'<button class="nb-btn nb-btn--ghost" type="button" data-shut>Keep mine</button></div>' +
+'<div class="hd-nova-out" data-out hidden></div>'
+});
+s.body.addEventListener('click', function (e) {
+var w = e.target.closest('[data-w]');
+if (!w) return;
+way = w.getAttribute('data-w');
+[].forEach.call(s.body.querySelectorAll('[data-w]'), function (b) {
+b.classList.toggle('is-on', b === w);
+});
+});
+s.q('[data-shut]').addEventListener('click', s.close);
+var run = s.q('[data-run]');
+run.addEventListener('click', async function () {
+var out = s.q('[data-out]');
+run.disabled = true;
+run.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Working';
+out.hidden = false;
+out.innerHTML = '<div class="hd-nova-line"></div><div class="hd-nova-line"></div>';
+try {
+var got = await H.fn('supernova?job=write', {
+text: start, way: way, how: (s.q('#nvAs').value || '').trim(), limit: MAX
+});
+var made = String((got && got.text) || '').trim();
+if (!made) throw new Error('nothing came back');
+out.innerHTML = '<p class="hd-nova-lb">' + ic('icon') + ' Supernova wrote this</p>' +
+'<div class="hd-nova-new" data-new></div>' +
+'<div class="hd-modal-do"><button class="nb-btn nb-btn--primary" type="button" data-use>Use this</button>' +
+'<button class="nb-btn nb-btn--ghost" type="button" data-again>Try again</button></div>';
+s.q('[data-new]').textContent = made;
+s.q('[data-use]').addEventListener('click', function () { keep(made); s.close(); });
+s.q('[data-again]').addEventListener('click', function () { out.hidden = true; });
+} catch (err) {
+out.innerHTML = '<p class="nb-note is-bad">' +
+esc(H.trouble(err, 'Supernova could not work on that just now.')) + '</p>';
+}
+run.disabled = false;
+run.textContent = 'Rewrite it';
+});
+}
+var SCOPES = [
+{ k: 'all',       t: 'Everyone',                   i: 'users' },
+{ k: 'following', t: 'Accounts you follow',        i: 'follow' },
+{ k: 'mentioned', t: 'Only accounts you mention',  i: 'at' },
+{ k: 'verified',  t: 'Verified accounts',          i: 'verified' }
+];
+function scopeOf(k) {
+for (var i = 0; i < SCOPES.length; i++) if (SCOPES[i].k === k) return SCOPES[i];
+return SCOPES[0];
+}
+var DISCLOSE = [
+{ k: 'paid', t: 'Paid partnership', s: 'Someone paid for this, or gave you what it is about.' },
+{ k: 'ai',   t: 'Made with AI',     s: 'The words or the picture were made by a machine.' }
+];
 function composerHTML(o) {
 o = o || {};
 var id = 'c' + (++composeSeq);
@@ -420,7 +596,16 @@ return '<form class="hd-compose" data-c="' + id + '">' +
 '<textarea class="hd-compose-in" rows="' + (o.rows || 2) + '" maxlength="' + MAX + '" ' +
 'placeholder="' + esc(o.placeholder || 'What is worth saying?') + '"></textarea>' +
 '</div>' +
+'<div class="hd-compose-see" data-see hidden>' +
+'<span class="hd-compose-see-lb">As it will read</span>' +
+'<div class="hd-post-body" data-seen></div>' +
+'</div>' +
 '<div class="hd-compose-media" hidden></div>' +
+'<div class="hd-compose-poll" data-poll hidden></div>' +
+'<div class="hd-compose-flags" data-flags hidden></div>' +
+(o.replyTo ? '' :
+'<button class="hd-scope" type="button" data-scope>' + ic('users') +
+'<span data-scope-t>Everyone can reply</span></button>') +
 (held.length
 ? '<label class="hd-compose-as"><span>Post as</span><select class="nb-select" data-as>' +
 '<option value="' + my.id + '">' + esc(my.name || my.handle) + '</option>' +
@@ -434,6 +619,12 @@ return '<option value="' + h.id + '">' + esc(h.name || h.handle) + '</option>';
 '<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden data-pic>' +
 '<span class="nb-sr">Add a picture</span></label>' +
 '<button class="nb-icon-btn hd-compose-tool" type="button" data-tag data-tip="Add a topic">' + ic('hash') + '</button>' +
+(o.replyTo ? '' :
+'<button class="nb-icon-btn hd-compose-tool" type="button" data-pollbtn data-tip="Ask a question">' + ic('chart') + '</button>' +
+'<button class="nb-icon-btn hd-compose-tool" type="button" data-when data-tip="Send it later">' + ic('clock') + '</button>') +
+'<button class="nb-icon-btn hd-compose-tool" type="button" data-disc data-tip="Say what this is">' + ic('info') + '</button>' +
+'<button class="nb-icon-btn hd-compose-tool hd-compose-nv" type="button" data-nova data-tip="Ask Supernova to work on it">' +
+novaMark('hd-compose-nvm') + '</button>' +
 '</div>' +
 '<span class="hd-count" data-count>' + MAX + '</span>' +
 '<button class="nb-btn nb-btn--primary nb-btn--sm" type="submit" disabled data-go>' +
@@ -450,20 +641,191 @@ var count = form.querySelector('[data-count]');
 var say = form.querySelector('[data-say]');
 var tray = form.querySelector('.hd-compose-media');
 var pic = form.querySelector('[data-pic]');
+var see = form.querySelector('[data-see]');
+var seen = form.querySelector('[data-seen]');
+var pollBox = form.querySelector('[data-poll]');
+var flagBox = form.querySelector('[data-flags]');
 var media = null;
 var busy = false;
+var scope = 'all';
+var when = null;
+var flags = [];
+var poll = null;
 function grow() {
 ta.style.height = 'auto';
 ta.style.height = Math.min(ta.scrollHeight, 320) + 'px';
+}
+var RICH = /(^|[\s(])[@#][a-z0-9_]/i;
+function worthSeeing(t) {
+return RICH.test(t) || /https?:\/\//i.test(t) ||
+/\*\*[^*\n]+\*\*|(^|[^*\w])\*[^*\n]+\*|(^|[^_\w])_[^_\n]+_|~~[^~\n]+~~|`[^`\n]+`/.test(t) ||
+/(^|\n)>/.test(t);
+}
+function preview() {
+var t = ta.value;
+if (!worthSeeing(t)) { see.hidden = true; seen.innerHTML = ''; return; }
+see.hidden = false;
+seen.innerHTML = body(t, { keepMedia: true });
+twem(seen);
 }
 function tick() {
 var left = MAX - ta.value.length;
 count.textContent = left;
 count.classList.toggle('is-low', left <= 60);
 count.classList.toggle('is-over', left < 0);
-go.disabled = busy || left < 0 || (!ta.value.trim() && !media);
+go.disabled = busy || left < 0 || (!ta.value.trim() && !media && !poll);
+go.textContent = when ? 'Schedule' : (o.label || 'Post');
 grow();
+preview();
 }
+function paintScope() {
+var pill = form.querySelector('[data-scope]');
+if (!pill) return;
+var s = scopeOf(scope);
+pill.innerHTML = ic(s.i) + '<span data-scope-t>' +
+(s.k === 'all' ? 'Everyone can reply' : s.t + ' can reply') + '</span>';
+pill.classList.toggle('is-set', s.k !== 'all');
+}
+paintScope();
+var scopeBtn = form.querySelector('[data-scope]');
+if (scopeBtn) scopeBtn.addEventListener('click', function () {
+var s = U.sheet({
+title: 'Who can reply',
+html: '<p class="hd-modal-line">Anyone can see this post and pass it on. Only the accounts you pick can answer it.</p>' +
+'<div class="hd-pick">' + SCOPES.map(function (x) {
+return '<button class="hd-pick-one' + (x.k === scope ? ' is-on' : '') + '" type="button" data-k="' + x.k + '">' +
+ic(x.i) + '<span>' + esc(x.t) + '</span>' + (x.k === scope ? ic('tick') : '') + '</button>';
+}).join('') + '</div>'
+});
+s.body.addEventListener('click', function (e) {
+var b = e.target.closest('[data-k]');
+if (!b) return;
+scope = b.getAttribute('data-k');
+paintScope(); s.close();
+});
+});
+function paintFlags() {
+var bits = [];
+if (when) {
+bits.push('<span class="hd-fchip">' + ic('clock') + 'Going out ' + esc(whenWord(when)) +
+'<button type="button" data-off="when" aria-label="Send it now instead">' + ic('x') + '</button></span>');
+}
+flags.forEach(function (k) {
+var d = DISCLOSE.filter(function (x) { return x.k === k; })[0];
+if (!d) return;
+bits.push('<span class="hd-fchip">' + ic('info') + esc(d.t) +
+'<button type="button" data-off="' + k + '" aria-label="Take that off">' + ic('x') + '</button></span>');
+});
+flagBox.innerHTML = bits.join('');
+flagBox.hidden = !bits.length;
+}
+flagBox.addEventListener('click', function (e) {
+var b = e.target.closest('[data-off]');
+if (!b) return;
+var k = b.getAttribute('data-off');
+if (k === 'when') when = null;
+else flags = flags.filter(function (x) { return x !== k; });
+paintFlags(); tick();
+});
+function whenWord(d) {
+var day = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+var at = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+var today = new Date();
+var same = d.toDateString() === today.toDateString();
+return (same ? 'today' : day) + ' at ' + at;
+}
+var whenBtn = form.querySelector('[data-when]');
+if (whenBtn) whenBtn.addEventListener('click', function () {
+var soon = new Date(Date.now() + 60 * 60 * 1000);
+soon.setSeconds(0, 0);
+var val = new Date(soon.getTime() - soon.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+var s = U.sheet({
+title: 'Send it later',
+html: '<p class="hd-modal-line">It stays out of sight until then, and nobody but you can see it in the meantime.</p>' +
+'<div class="nb-field"><label class="nb-label" for="wIn">Date and time</label>' +
+'<input class="nb-input" id="wIn" type="datetime-local" data-focus value="' + esc(val) + '"></label></div>' +
+'<p class="nb-note" data-wsay hidden></p>' +
+'<div class="hd-modal-do"><button class="nb-btn nb-btn--primary" type="button" data-ok>Schedule it</button>' +
+'<button class="nb-btn nb-btn--ghost" type="button" data-now>Send it now instead</button></div>'
+});
+s.q('[data-now]').addEventListener('click', function () { when = null; paintFlags(); tick(); s.close(); });
+s.q('[data-ok]').addEventListener('click', function () {
+var d = new Date(s.q('#wIn').value);
+var bad = s.q('[data-wsay]');
+if (isNaN(d.getTime()) || d.getTime() <= Date.now() + 60000) {
+bad.hidden = false; bad.textContent = 'Pick a time at least a minute from now.'; return;
+}
+when = d; paintFlags(); tick(); s.close();
+});
+});
+form.querySelector('[data-disc]').addEventListener('click', function () {
+var s = U.sheet({
+title: 'Say what this is',
+html: '<p class="hd-modal-line">Both of these show on the post itself. Use them when they are true.</p>' +
+DISCLOSE.map(function (d) {
+return '<label class="nb-check hd-disc-one"><input type="checkbox" data-d="' + d.k + '"' +
+(flags.indexOf(d.k) > -1 ? ' checked' : '') + '><span class="nb-box"></span>' +
+'<span><b>' + esc(d.t) + '</b><i>' + esc(d.s) + '</i></span></label>';
+}).join('') +
+'<div class="hd-modal-do"><button class="nb-btn nb-btn--primary" type="button" data-ok>Done</button></div>'
+});
+s.q('[data-ok]').addEventListener('click', function () {
+flags = [];
+[].forEach.call(s.body.querySelectorAll('[data-d]'), function (c) {
+if (c.checked) flags.push(c.getAttribute('data-d'));
+});
+paintFlags(); s.close();
+});
+});
+function paintPoll() {
+if (!poll) { pollBox.hidden = true; pollBox.innerHTML = ''; return; }
+pollBox.hidden = false;
+pollBox.innerHTML = poll.options.map(function (v, i) {
+return '<div class="hd-pollrow"><input class="nb-input" maxlength="40" data-o="' + i + '" ' +
+'placeholder="Answer ' + (i + 1) + '" value="' + esc(v) + '">' +
+(poll.options.length > 2
+? '<button class="nb-icon-btn" type="button" data-drop-o="' + i + '" aria-label="Remove this answer">' + ic('x') + '</button>'
+: '') + '</div>';
+}).join('') +
+'<div class="hd-poll-foot">' +
+(poll.options.length < 4
+? '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-add-o>Add an answer</button>' : '') +
+'<label class="hd-poll-len"><span>Open for</span><select class="nb-select" data-len>' +
+[[6, '6 hours'], [24, 'a day'], [72, 'three days'], [168, 'a week']].map(function (x) {
+return '<option value="' + x[0] + '"' + (poll.hours === x[0] ? ' selected' : '') + '>' + x[1] + '</option>';
+}).join('') + '</select></label>' +
+'<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-drop-poll>Remove poll</button>' +
+'</div>';
+}
+pollBox.addEventListener('input', function (e) {
+var o1 = e.target.getAttribute('data-o');
+if (o1 != null && poll) poll.options[+o1] = e.target.value;
+if (e.target.hasAttribute('data-len') && poll) poll.hours = +e.target.value;
+tick();
+});
+pollBox.addEventListener('click', function (e) {
+var b = e.target.closest('button');
+if (!b || !poll) return;
+if (b.hasAttribute('data-add-o') && poll.options.length < 4) poll.options.push('');
+else if (b.hasAttribute('data-drop-poll')) poll = null;
+else if (b.hasAttribute('data-drop-o')) poll.options.splice(+b.getAttribute('data-drop-o'), 1);
+else return;
+paintPoll(); tick();
+var first = pollBox.querySelector('input');
+if (first) first.focus();
+});
+var pollBtn = form.querySelector('[data-pollbtn]');
+if (pollBtn) pollBtn.addEventListener('click', function () {
+poll = poll ? null : { options: ['', ''], hours: 24 };
+paintPoll(); tick();
+var first = pollBox.querySelector('input');
+if (first) first.focus();
+});
+form.querySelector('[data-nova]').addEventListener('click', function () {
+var startWith = ta.value.trim();
+if (!startWith) { warn('Write something first and Supernova will work on that.'); return; }
+novaWrite(startWith, function (out) { ta.value = out; tick(); ta.focus(); });
+});
 ta.addEventListener('input', tick);
 ta.addEventListener('keydown', function (e) {
 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') form.requestSubmit();
@@ -497,9 +859,21 @@ form.addEventListener('submit', async function (e) {
 e.preventDefault();
 if (busy) return;
 var text = ta.value.trim();
-if (!text && !media) return;
+if (!text && !media && !poll) return;
+var answers = null;
+if (poll) {
+answers = poll.options.map(function (v) { return v.trim(); }).filter(Boolean);
+if (answers.length < 2) return warn('A poll needs at least two answers.');
+var seenAns = {};
+for (var ai = 0; ai < answers.length; ai++) {
+var lower = answers[ai].toLowerCase();
+if (seenAns[lower]) return warn('Two of those answers are the same.');
+seenAns[lower] = 1;
+}
+if (!text) return warn('A poll needs a question. Write it above the answers.');
+}
 busy = true; go.disabled = true; say.hidden = true;
-go.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Posting';
+go.innerHTML = '<span class="nb-loader nb-loader--sm"></span> ' + (when ? 'Scheduling' : 'Posting');
 try {
 if (media) {
 var bar = tray.querySelector('[data-bar]');
@@ -516,21 +890,36 @@ var r;
 if (asId && asId !== my.id) {
 var made = await db.rpc('post_as', {
 p_as: asId, p_body: text,
-p_reply_to: o.replyTo || null, p_relay_of: o.quoteOf || null
+p_reply_to: o.replyTo || null, p_relay_of: o.quoteOf || null,
+p_scope: scope, p_disclosure: flags
 });
 if (made.error) throw made.error;
 r = await db.from('posts').select(WITH_AUTHOR).eq('id', made.data).single();
 } else {
-var row = { author: my.id, body: text };
+var row = { author: my.id, body: text, reply_scope: scope, disclosure: flags };
 if (o.replyTo) row.reply_to = o.replyTo;
 if (o.quoteOf) row.relay_of = o.quoteOf;
+if (when) row.scheduled_for = when.toISOString();
 r = await db.from('posts').insert(row).select(WITH_AUTHOR).single();
 }
 if (r.error) throw r.error;
+if (answers) {
+var pr = await db.from('polls').insert({
+post_id: r.data.id, options: answers,
+closes_at: new Date(Date.now() + poll.hours * 3600 * 1000).toISOString()
+});
+if (pr.error) {
+await db.from('posts').delete().eq('id', r.data.id);
+throw pr.error;
+}
+}
 ta.value = ''; media = null; tray.hidden = true; tray.innerHTML = '';
+poll = null; when = null; flags = []; scope = 'all';
+paintPoll(); paintFlags(); paintScope();
 tick();
-U.toast(o.replyTo ? 'Reply posted.' : 'Posted.');
-if (o.after) o.after(r.data);
+U.toast(o.replyTo ? 'Reply posted.'
+: (r.data.scheduled_for ? 'Scheduled. It goes out on its own.' : 'Posted.'));
+if (o.after && !r.data.scheduled_for) o.after(r.data);
 } catch (err) {
 var m = String((err && err.message) || '');
 if (/may_post|row-level security/i.test(m)) warn('Your account cannot post right now.');
@@ -902,6 +1291,7 @@ if (r.error || !r.data) {
 if (!quiet) U.toast('That account could not be found.', 'bad');
 return null;
 }
+await attachAssoc([r.data]);
 peopleCache[key] = r.data;
 return r.data;
 }
@@ -951,7 +1341,7 @@ link('@' + p.handle, avatarOf(p, 'hd-av--lg'), 'hd-pcard-face') +
 '" type="button" data-follow="' + p.id + '">' + (mine.following[p.id] ? 'Following' : 'Follow') + '</button>'
 : link('join', 'Follow', 'nb-btn nb-btn--primary nb-btn--sm'))) +
 '</div>' +
-'<p class="hd-pcard-name">' + link('@' + p.handle, '<b>' + esc(p.name || p.handle) + '</b>') + badges(p) + '</p>' +
+'<p class="hd-pcard-name">' + link('@' + p.handle, nameMark(p)) + '</p>' +
 '<p class="hd-pcard-at">' + H.tag(p.handle) + '</p>' +
 (p.headline ? '<p class="hd-pcard-head">' + esc(p.headline) + '</p>' : '') +
 (p.bio ? '<p class="hd-pcard-bio">' + body(p.bio) + '</p>' : '') +
@@ -1056,8 +1446,9 @@ return link('search?q=' + encodeURIComponent('#' + t.tag),
 ' · ' + t.people + ' ' + (t.people === 1 ? 'person' : 'people') + '</i>', 'hd-chip');
 }).join('')
 : '<p class="nb-muted">No topics yet. Put a # in a post and it starts one.</p>';
-el('exWho').innerHTML = (got[1].data || []).length
-? (got[1].data).map(personRow).join('')
+var who = await attachAssoc(got[1].data || []);
+el('exWho').innerHTML = who.length
+? who.map(personRow).join('')
 : '<p class="nb-muted">Nobody to suggest yet.</p>';
 var feed = el('feed');
 if (got[2].error) { feed.innerHTML = broke(); return; }
@@ -1072,7 +1463,7 @@ var on = mine.following[p.handle];
 return '<div class="nb-card nb-card--tight hd-person" data-person="' + p.id + '" data-handle="' + esc(p.handle) + '">' +
 '<a class="hd-av-btn" href="' + who(p.handle) + '" data-r data-card="' + esc(p.handle) + '" aria-hidden="true" tabindex="-1">' +
 avatarOf(p, 'hd-av--sm') + '</a>' +
-'<div class="hd-person-txt">' + link('@' + p.handle, '<b>' + esc(p.name || p.handle) + '</b>' + badges(p), '', ' data-card="' + esc(p.handle) + '"') +
+'<div class="hd-person-txt">' + link('@' + p.handle, nameMark(p), '', ' data-card="' + esc(p.handle) + '"') +
 '<i>' + link('@' + p.handle, H.tag(p.handle)) + '</i>' +
 (p.headline ? '<p>' + esc(p.headline) + '</p>' : '') + '</div>' +
 (my && p.id !== my.id
@@ -1096,7 +1487,7 @@ db.from('profiles').select('*').or('handle.ilike.%' + term + '%,name.ilike.%' + 
 db.rpc('search_posts', { p_q: term, p_limit: 25 }).select(WITH_AUTHOR)
 ]);
 if (token !== painting) return;
-var people = got[0].data || [];
+var people = await attachAssoc(got[0].data || []);
 var rows = await hydrate(got[1].data || []);
 if (token !== painting) return;
 var out = '';
@@ -1232,9 +1623,8 @@ col.innerHTML = head(esc(p.name || p.handle),
 avatarOf(p, 'hd-av--xl') + '</button>' +
 '<div class="hd-prof-acts">' + profileActs(p, isMe, following, blocked) + '</div>' +
 '</div>' +
-'<h2 class="hd-prof-name">' + esc(p.name || p.handle) + badges(p) + '</h2>' +
+'<h2 class="hd-prof-name">' + nameMark(p) + '</h2>' +
 '<p class="hd-prof-at">' + H.tag(p.handle, 'hd-at--lg') +
-(p.is_company ? '<span class="hd-kind">' + ic('building') + ' Company</span>' : '') +
 (p.is_bot ? '<span class="hd-kind hd-kind--bot">' + ic('robot') + ' Automated</span>' : '') + '</p>' +
 (p.headline ? '<p class="hd-prof-head">' + esc(p.headline) + '</p>' : '') +
 (p.bio ? '<p class="hd-prof-bio">' + body(p.bio) + '</p>' : '') +
@@ -1246,9 +1636,9 @@ esc(p.website.replace(/^https?:\/\/(www\.)?/, '')) + '</a></span>' : '') +
 (p.industry ? '<span>' + ic('building') + esc(p.industry) + '</span>' : '') +
 '</p>' +
 '<p class="hd-count-row">' +
-countBtn(p, 'following', p.following_count, 'following') +
-countBtn(p, 'followers', p.follower_count, 'follower' + (p.follower_count === 1 ? '' : 's')) +
-(assoc.length ? countBtn(p, 'affiliated', assoc.length, 'associated') : '') +
+countBtn(p, 'following', p.following_count, 'Following') +
+countBtn(p, 'followers', p.follower_count, 'Follower' + (p.follower_count === 1 ? '' : 's')) +
+(assoc.length ? countBtn(p, 'affiliated', assoc.length, 'Associated') : '') +
 '</p>' +
 standingHTML(counts[3] && counts[3].data) +
 (assoc.length ? assocHTML(assoc) : '') +
@@ -1351,11 +1741,17 @@ var box = s.q('#lsBody');
 if (!box) return;
 if (r.error) { box.innerHTML = broke('That list could not be opened.'); return; }
 var rows = r.data || [];
-box.innerHTML = rows.length ? rows.map(personRow).join('')
-: empty('Nothing here yet', kind === 'affiliated'
+if (!rows.length) {
+box.innerHTML = empty('Nothing here yet', kind === 'affiliated'
 ? 'No accounts are associated with this one.'
 : kind === 'following' ? 'This account follows nobody yet.' : 'Nobody follows this account yet.');
+return;
+}
+attachAssoc(rows).then(function () {
+if (!s.q('#lsBody')) return;
+box.innerHTML = rows.map(personRow).join('');
 twem(box);
+});
 });
 }
 function profileActs(p, isMe, following, blocked) {
@@ -1492,16 +1888,25 @@ if (pr.data) parent = (await hydrate([pr.data]))[0];
 var kids = await db.from('posts').select(WITH_AUTHOR).eq('reply_to', id)
 .order('created_at', { ascending: true }).limit(50);
 var replies = await hydrate(kids.data || []);
+var mayReply = !my;
+if (my) {
+var ok = await db.rpc('can_reply', { p_parent: id });
+mayReply = ok.error ? true : ok.data !== false;
+}
 if (token !== painting) return;
 el('feed').innerHTML =
 (parent ? card(parent) + '<div class="hd-thread-line"></div>' : '') +
 card(main, { lead: true }) +
-(my ? '<div class="nb-card hd-compose-card">' + composerHTML({
+(my && mayReply ? '<div class="nb-card hd-compose-card">' + composerHTML({
 replyTo: id, toHandle: (main.author || {}).handle, label: 'Reply', placeholder: 'Write a reply'
 }) + '</div>' : '') +
+(my && !mayReply
+? '<div class="nb-card hd-shut">' + ic(scopeOf(main.reply_scope).i) +
+'<p>' + esc(scopeOf(main.reply_scope).t) + ' can reply to this. You can still pass it on.</p></div>'
+: '') +
 (replies.length ? feedHTML(replies)
-: '<div class="hd-sep-say">' + (my ? 'No replies yet. Yours would be the first.' : 'No replies yet.') + '</div>');
-if (my) {
+: '<div class="hd-sep-say">' + (my && mayReply ? 'No replies yet. Yours would be the first.' : 'No replies yet.') + '</div>');
+if (my && mayReply) {
 wireComposer(col.querySelector('.hd-compose'), { replyTo: id, label: 'Reply', after: function () { viewThread(id); } });
 }
 twem(col);
@@ -2018,7 +2423,7 @@ var note = waiting
 return '<div class="nb-card nb-card--tight hd-person">' +
 '<a class="hd-av-btn" href="' + who(them.handle) + '" data-r aria-hidden="true" tabindex="-1">' +
 avatarOf(them, 'hd-av--sm') + '</a>' +
-'<div class="hd-person-txt"><b>' + esc(them.name || them.handle) + '</b>' + badges(them) +
+'<div class="hd-person-txt">' + nameMark(them) +
 '<i>' + H.tag(them.handle) + '</i><p>' + esc(note) + '</p></div>' +
 (waiting && theirs
 ? '<span class="hd-person-do">' +
@@ -2187,6 +2592,13 @@ return;
 }
 var cover = b.getAttribute('data-cover');
 if (cover) { U.look([cover], 0, 'Banner'); return; }
+var answer = b.getAttribute('data-answer');
+if (answer !== null) {
+var box = b.closest('[data-pollof]');
+if (!my) return U.toast('Sign in to answer.');
+if (box) answerPoll(box, box.getAttribute('data-pollof'), Number(answer));
+return;
+}
 var listKind = b.getAttribute('data-list');
 if (listKind) {
 return listCard(listKind, b.getAttribute('data-list-of'), b.getAttribute('data-list-who'));
