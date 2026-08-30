@@ -393,6 +393,84 @@
       (total === 1 ? '1 answer' : num(total) + ' answers') + ' · ' + esc(left) + '</p>';
   }
 
+  async function loadProfileSummary(handle, container, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Summarising';
+    try {
+      var got = await H.fn('supernova?job=profile_summary', { handle: handle });
+      var text = (got && got.text || '').trim();
+      if (!text) throw new Error('empty');
+      var existing = container.querySelector('.hd-pcard-summary-out');
+      if (existing) existing.remove();
+      var div = document.createElement('div');
+      div.className = 'hd-pcard-summary-out';
+      div.innerHTML = '<p class="hd-pcard-summary-label">' + novaMark('') + ' Summary</p>' +
+        '<p class="hd-pcard-summary-text">' + esc(text) + '</p>';
+      container.appendChild(div);
+      btn.remove();
+    } catch (e) {
+      btn.innerHTML = ic('sparkle') + ' Try again';
+      btn.disabled = false;
+    }
+  }
+
+  function wireNewPosts(rpcName) {
+    var capsule = col.querySelector('[data-new-posts]');
+    var avsEl = col.querySelector('[data-new-avs]');
+    var tEl = col.querySelector('[data-new-t]');
+    if (!capsule) return;
+    var firstId = null;
+    var feed = el('feed');
+    if (feed) {
+      var firstPost = feed.querySelector('[data-post]');
+      if (firstPost) firstId = firstPost.getAttribute('data-post');
+    }
+    var lastScroll = 0;
+    var scrollingUp = false;
+    col.addEventListener('scroll', function () {
+      var st = col.scrollTop;
+      scrollingUp = st < lastScroll - 30;
+      lastScroll = st;
+      if (scrollingUp && !capsule.hidden) capsule.hidden = true;
+    });
+    var poller = setInterval(async function () {
+      if (!col.querySelector('[data-new-posts]')) { clearInterval(poller); return; }
+      if (!firstId) {
+        var f = el('feed');
+        if (f) { var fp = f.querySelector('[data-post]'); if (fp) firstId = fp.getAttribute('data-post'); }
+      }
+      if (!firstId) return;
+      var r = await db.rpc(rpcName, { p_limit: 25 }).select('id,author,profiles!inner(handle,name,avatar_url)');
+      if (r.error || !r.data) return;
+      var newer = [];
+      for (var i = 0; i < r.data.length; i++) {
+        if (r.data[i].id === firstId) break;
+        newer.push(r.data[i]);
+      }
+      if (!newer.length) return;
+      capsule.hidden = false;
+      var shown = newer.slice(0, 5);
+      avsEl.innerHTML = shown.map(function (p) {
+        var u = p.profiles;
+        return '<span class="hd-new-posts-av">' +
+          (u && u.avatar_url
+            ? '<img alt="" src="' + esc(u.avatar_url) + '">'
+            : '<span class="hd-av-n">' + esc((u && (u.name || u.handle) || '?')[0]).toUpperCase() + '</span>') +
+          '</span>';
+      }).join('');
+      var count = newer.length;
+      var who = shown.length === 1 && shown[0].profiles
+        ? (shown[0].profiles.name || shown[0].profiles.handle) + ' posted'
+        : count + ' new post' + (count === 1 ? '' : 's');
+      tEl.textContent = who;
+      capsule.onclick = function () {
+        capsule.hidden = true;
+        col.scrollTop = 0;
+        viewHome();
+      };
+    }, 15000);
+  }
+
   /* Fills in every ballot on screen that has not been filled in yet. */
   async function paintPolls(root) {
     var boxes = [].slice.call((root || document).querySelectorAll('[data-pollof]:not([data-done])'));
@@ -1775,9 +1853,16 @@
       '<p class="hd-pcard-counts">' +
         '<span><b>' + num(p.following_count) + '</b> Following</span>' +
         '<span><b>' + num(p.follower_count) + '</b> Followers</span>' +
-      '</p>';
+      '</p>' +
+      (my && !isMe ? '<button class="nb-btn nb-btn--ghost nb-btn--sm hd-pcard-summary" type="button" data-summary="' + esc(p.handle) + '">' + ic('sparkle') + ' Profile Summary</button>' : '');
 
     twem(box);
+
+    var sumBtn = box.querySelector('[data-summary]');
+    if (sumBtn) sumBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      loadProfileSummary(p.handle, box, sumBtn);
+    });
     placeCard(anchor);
     requestAnimationFrame(function () { box.classList.add('is-in'); });
   }
@@ -1829,6 +1914,10 @@
           (sort === 'latest' ? ' aria-current="true"' : '') + '>Latest</button>' +
       '</nav>' +
       (my ? '<div class="nb-card hd-compose-card">' + composerHTML({}) + '</div>' : '') +
+      '<div class="hd-new-posts" data-new-posts hidden><div class="hd-new-posts-inner">' +
+        '<span class="hd-new-posts-avs" data-new-avs></span>' +
+        '<span class="hd-new-posts-t" data-new-t></span>' +
+      '</div></div>' +
       '<div class="hd-feed" id="feed">' + skeletons(4) + '</div>';
 
     if (my) {
@@ -1866,6 +1955,7 @@
           my ? '<button class="nb-btn nb-btn--primary nb-btn--sm" type="button" id="firstPost">' + ic('quill') + ' Write a post</button>' : '');
     twem(feed);
     watchViews(feed);
+    wireNewPosts(sort === 'latest' ? 'feed_latest' : 'feed');
   }
 
   async function viewExplore() {
@@ -1879,6 +1969,10 @@
       '<section class="hd-block"><h2 class="hd-block-h">' + ic('users') + ' Worth following</h2>' +
         '<div class="hd-list" id="exWho"></div></section>' +
       '<section class="hd-block"><h2 class="hd-block-h">' + ic('quill') + ' Latest</h2>' +
+        '<div class="hd-new-posts" data-new-posts hidden><div class="hd-new-posts-inner">' +
+          '<span class="hd-new-posts-avs" data-new-avs></span>' +
+          '<span class="hd-new-posts-t" data-new-t></span>' +
+        '</div></div>' +
         '<div class="hd-feed" id="feed">' + skeletons(3) + '</div></section>';
 
     var token = painting;
@@ -1910,6 +2004,7 @@
     feed.innerHTML = rows.length ? feedHTML(rows) : empty('Nothing yet', 'The first post has not been written.');
     twem(col);
     watchViews(feed);
+    wireNewPosts('feed_latest');
   }
 
   function personRow(p) {
@@ -2195,11 +2290,32 @@
           '</p>' +
           standingHTML(counts[3] && counts[3].data) +
           (assoc.length ? assocHTML(assoc) : '') +
+          (my && !isMe ? '<button class="nb-btn nb-btn--ghost nb-btn--sm hd-prof-summary-btn" type="button" data-prof-summary="' + esc(p.handle) + '">' + ic('sparkle') + ' Profile Summary</button>' : '') +
+          '<div class="hd-prof-summary" data-prof-summary-out hidden></div>' +
         '</div>' +
       '</div>' + tabsHTML +
       '<div class="hd-feed" id="feed">' + skeletons(3) + '</div>';
 
     twem(col);
+
+    var profSumBtn = col.querySelector('[data-prof-summary]');
+    if (profSumBtn) profSumBtn.addEventListener('click', function () {
+      var out = col.querySelector('[data-prof-summary-out]');
+      profSumBtn.disabled = true;
+      profSumBtn.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Summarising';
+      H.fn('supernova?job=profile_summary', { handle: p.handle }).then(function (got) {
+        var text = (got && got.text || '').trim();
+        if (!text) throw new Error('empty');
+        out.hidden = false;
+        out.innerHTML = '<p class="hd-prof-summary-label">' + novaMark('') + ' Summary</p>' +
+          '<p class="hd-prof-summary-text">' + esc(text) + '</p>';
+        profSumBtn.remove();
+        twem(out);
+      }).catch(function () {
+        profSumBtn.innerHTML = ic('sparkle') + ' Try again';
+        profSumBtn.disabled = false;
+      });
+    });
 
     if (blocked) {
       el('feed').innerHTML = empty('You blocked this account', 'Unblock them to see their posts again.');

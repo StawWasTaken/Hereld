@@ -265,6 +265,58 @@ const WAYS: Record<string, string> = {
   more:  'Draw the same point out a little further with what is already implied in it. Add nothing that is not.'
 };
 
+async function profileSummary(req: Request, c: Config, uid: string) {
+  const got = await req.json().catch(() => ({}));
+  const handle = String(got?.handle || '').trim().toLowerCase().replace(/^@/, '');
+  if (!handle) return reply({ error: 'No handle given.' }, 400);
+
+  const { data: profile } = await admin.from('profiles').select('id,handle,name,headline,bio,post_count,follower_count,created_at')
+    .eq('handle', handle).maybeSingle();
+  if (!profile) return reply({ error: 'No account with that handle.' }, 404);
+
+  const { data: posts } = await admin.from('posts').select('body,created_at,endorse_count,reply_count')
+    .eq('author', profile.id).is('deleted_at', null)
+    .order('created_at', { ascending: false }).limit(15);
+
+  const { data: topics } = await admin.rpc('post_topics', { p_poster: profile.id, p_limit: 10 });
+
+  const joined = new Date(profile.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const postLines = (posts || []).map((p: any) => {
+    const d = new Date(p.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    return '[' + d + '] ' + String(p.body || '').replace(/\s+/g, ' ').slice(0, 200) +
+      ' (' + (p.endorse_count || 0) + ' likes, ' + (p.reply_count || 0) + ' replies)';
+  }).join('\n');
+
+  const topicList = (topics || []).map((t: any) => t.topic || t.tag).filter(Boolean).join(', ');
+
+  const system =
+    'You write brief profile summaries for Hereld, a public posting platform. ' + HOUSE + ' ' +
+    'Write a 2-4 sentence summary of this person based on their recent posts, topics, and profile info. ' +
+    'Be factual and specific. Mention what they talk about and what kind of account they are. ' +
+    'Never invent traits. If there is not enough to say, say what you can in fewer sentences. ' +
+    'Return only the summary text, no preamble.';
+
+  const context =
+    'Name: ' + (profile.name || profile.handle) + ' (@' + profile.handle + ')' +
+    (profile.headline ? '\nHeadline: ' + profile.headline : '') +
+    (profile.bio ? '\nBio: ' + profile.bio : '') +
+    '\nJoined: ' + joined +
+    '\nPosts: ' + (profile.post_count || 0) + ', Followers: ' + (profile.follower_count || 0) +
+    (topicList ? '\nTopics they post about: ' + topicList : '') +
+    '\n\nRecent posts:\n' + (postLines || '(no posts yet)');
+
+  try {
+    const out = await think(c, system, [{ role: 'user', text: context }], 400);
+    const text = String(out.text || '').trim().slice(0, 800);
+    if (!text) throw new Error('empty');
+    await log(uid, 'profile_summary', c.model, out);
+    return reply({ text });
+  } catch (e) {
+    await log(uid, 'profile_summary', c.model, null, false, String(e));
+    return reply({ error: 'Could not generate a summary just now.' }, 502);
+  }
+}
+
 async function write(req: Request, c: Config, uid: string) {
   const got = await req.json().catch(() => ({}));
   const text = String(got?.text || '').trim();
@@ -901,5 +953,6 @@ Deno.serve(async (req) => {
   const uid = await whoIsAsking(req);
   if (!uid) return reply({ error: 'Sign in first.' }, 401);
   if (job === 'write') return await write(req, c, uid);
+  if (job === 'profile_summary') return await profileSummary(req, c, uid);
   return await ask(req, c, uid);
 });

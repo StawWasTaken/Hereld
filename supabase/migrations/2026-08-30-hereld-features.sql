@@ -664,7 +664,27 @@ $$;
 grant execute on function public.profile_lookup(text) to authenticated;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- 6. POST REPLIER AVATARS
+-- 6. POST TOPICS (for profile summaries)
+--
+-- Returns the most used hashtags/topics from a poster's recent posts.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create or replace function public.post_topics(p_poster uuid, p_limit int default 10)
+returns table (topic text, cnt bigint)
+language sql stable as $$
+  select lower(regexp_replace(m[1], '[^a-z0-9_]', '', 'g')) as topic, count(*) as cnt
+  from posts p, unnest(regexp_matches(p.body, '#([a-zA-Z0-9_]+)', 'g')) as m
+  where p.author = p_poster
+    and p.deleted_at is null
+  group by 1
+  order by 2 desc
+  limit p_limit;
+$$;
+
+grant execute on function public.post_topics(uuid, int) to anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 7. POST REPLIER AVATARS
 --
 -- Returns the most recent repliers' avatars for a post (up to 5).
 -- ═══════════════════════════════════════════════════════════════════════════
