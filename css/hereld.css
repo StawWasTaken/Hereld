@@ -1478,6 +1478,88 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
 /* Twemoji sits on the text baseline rather than floating above it. */
 .hd-post-body .hd-emo, .hd-pcard-bio .hd-emo, .hd-prof-bio .hd-emo { vertical-align: -.12em; }
 
+/* ── GROK-STYLE ANALYSING CARD ────────────────────────────────────────────
+   Dark card for explain & profile summary, inspired by Grok. */
+.hd-grok-card {
+  background: #0d0d0d; border-radius: 16px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,.08);
+}
+.hd-grok-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.hd-grok-title {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--nb-font-head); font-weight: 700; font-size: 15px;
+  color: var(--nb-surface-fg);
+}
+.hd-grok-title svg { width: 18px; height: 18px; fill: currentColor; }
+.hd-grok-actions { display: flex; gap: 4px; }
+.hd-grok-actions .nb-icon-btn { color: var(--nb-fg-muted); }
+.hd-grok-post {
+  padding: 16px 18px; margin: 0;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.hd-grok-post-inner { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.hd-grok-post-av { text-decoration: none; color: inherit; }
+.hd-grok-post-av .hd-av { border-color: rgba(255,255,255,.1); }
+.hd-grok-post-who { flex: 1; min-width: 0; }
+.hd-grok-post-name {
+  display: flex; align-items: center; gap: 4px;
+  font-family: var(--nb-font-head); font-weight: 700; font-size: 14px;
+  text-decoration: none; color: var(--nb-fg);
+}
+.hd-grok-post-name:hover { text-decoration: underline; }
+.hd-grok-post-handle { display: block; font-size: 13px; color: var(--nb-fg-muted); }
+.hd-grok-post-head { margin: 0 0 6px; font-size: 13.5px; color: var(--nb-fg-muted); }
+.hd-grok-post-body { margin: 0 0 10px; font-size: 15px; line-height: 1.6; }
+.hd-grok-post-body a { color: var(--nb-blue); }
+.hd-grok-post-media { display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; }
+.hd-grok-post-media img { height: 120px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,255,255,.08); }
+.hd-grok-post-meta {
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  font-size: 12.5px; color: var(--nb-fg-muted);
+}
+.hd-grok-loading {
+  padding: 16px 18px; display: flex; align-items: center; gap: 10px;
+  font-size: 14px; color: var(--nb-fg-muted);
+}
+.hd-grok-loading[hidden] { display: none; }
+.hd-grok-answer {
+  padding: 0 18px 16px;
+}
+.hd-grok-answer[hidden] { display: none; }
+.hd-grok-answer-text {
+  margin: 0; font-size: 15px; line-height: 1.65; color: var(--nb-fg);
+}
+.hd-grok-answer-text a { color: var(--nb-blue); }
+.hd-grok-chat { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.hd-grok-chat-turn { display: flex; align-items: flex-start; gap: 10px; }
+.hd-grok-chat-turn--me { flex-direction: row-reverse; }
+.hd-grok-chat-turn .hd-av { flex: none; }
+.hd-grok-chat-said {
+  max-width: 80%; padding: 10px 14px; font-size: 14px; line-height: 1.6;
+  border-radius: 14px; border: 1px solid transparent;
+}
+.hd-grok-chat-turn:not(.hd-grok-chat-turn--me) .hd-grok-chat-said {
+  background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.04);
+}
+.hd-grok-chat-turn--me .hd-grok-chat-said {
+  background: linear-gradient(135deg, #1a6dd4, #2284f5);
+  color: #fff; border-color: transparent;
+}
+.hd-grok-chat-turn--me .hd-grok-chat-said a { color: #fff; }
+.hd-grok-chat-said a { color: var(--nb-blue); }
+.hd-grok-follow {
+  display: flex; align-items: flex-end; gap: 10px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+.hd-grok-follow[hidden] { display: none; }
+.hd-grok-follow textarea { flex: 1; resize: none; min-height: 40px; max-height: 120px; }
+.hd-grok-follow .nb-btn { flex: none; }
+
 /* ── THE CARD THAT APPEARS ON A NAME ──────────────────────────────────────
    Rested on, not clicked. It is positioned against the name it belongs to,
    and it goes when the pointer does. */
@@ -1527,29 +1609,6 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
 }
 .hd-pcard-summary-label svg { width: 14px; height: 14px; }
 .hd-pcard-summary-text { margin: 0; font-size: 14px; line-height: 1.55; }
-
-.hd-prof-summary-btn {
-  display: flex; align-items: center; gap: 6px; width: 100%;
-  margin-top: 14px; justify-content: center;
-}
-.hd-prof-summary-btn svg { width: 14px; height: 14px; }
-.hd-prof-summary {
-  margin-top: 14px; padding: 14px 16px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(255,0,51,.04), rgba(62,207,110,.03), rgba(44,175,252,.05));
-  border: 1px solid rgba(44,175,252,.12);
-}
-.hd-prof-summary[hidden] { display: none; }
-.hd-prof-summary-label {
-  display: flex; align-items: center; gap: 6px; margin: 0 0 8px;
-  font-family: var(--nb-font-head); font-weight: 700; font-size: 13px;
-  text-transform: uppercase; letter-spacing: .05em;
-  background: linear-gradient(135deg, #ff0033, #3ecf6e, #2caffc);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.hd-prof-summary-label svg { width: 14px; height: 14px; }
-.hd-prof-summary-text { margin: 0; font-size: 15px; line-height: 1.6; }
 
 @media (hover: none) { .hd-pcard { display: none !important; } }
 

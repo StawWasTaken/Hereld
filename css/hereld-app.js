@@ -414,6 +414,56 @@
     }
   }
 
+  function openProfileSummary(p) {
+    var handle = p.handle || '';
+    var who = p.name || handle;
+    var avatar = H.avatar(p, 'hd-av--md');
+
+    U.sheet({
+      wide: true,
+      title: '',
+      html:
+        '<div class="hd-grok-card">' +
+          '<div class="hd-grok-head">' +
+            '<span class="hd-grok-title">' + ic('sparkle') + ' Analysing profile...</span>' +
+            '<div class="hd-grok-actions">' +
+              '<button class="nb-icon-btn" type="button" data-grok-close title="Close">' + ic('x') + '</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="hd-grok-post">' +
+            '<div class="hd-grok-post-inner">' +
+              '<a href="' + url('profile/' + handle) + '" data-r class="hd-grok-post-av">' + avatar + '</a>' +
+              '<div class="hd-grok-post-who">' +
+                '<a href="' + url('profile/' + handle) + '" data-r class="hd-grok-post-name">' + esc(who) + badges(p) + '</a>' +
+                '<span class="hd-grok-post-handle">' + H.tag(handle) + '</span>' +
+              '</div>' +
+            '</div>' +
+            (p.headline ? '<p class="hd-grok-post-head">' + esc(p.headline) + '</p>' : '') +
+            (p.bio ? '<p class="hd-grok-post-body">' + body(p.bio) + '</p>' : '') +
+          '</div>' +
+          '<div class="hd-grok-loading" id="grokLoad">' +
+            '<span class="hd-nova-dots"><i></i><i></i><i></i></span> Thinking about your request' +
+          '</div>' +
+          '<div class="hd-grok-answer" id="grokAns" hidden></div>' +
+        '</div>',
+      wire: function (api) {
+        api.q('[data-grok-close]').addEventListener('click', api.close);
+        twem(api.body);
+        H.fn('supernova?job=profile_summary', { handle: handle }).then(function (got) {
+          var text = (got && got.text || '').trim();
+          var load = api.q('#grokLoad');
+          var ans = api.q('#grokAns');
+          if (!text) { if (load) load.innerHTML = 'Nothing came back.'; return; }
+          if (load) load.hidden = true;
+          if (ans) { ans.hidden = false; ans.innerHTML = '<p>' + esc(text) + '</p>'; twem(ans); }
+        }).catch(function (e) {
+          var load = api.q('#grokLoad');
+          if (load) load.innerHTML = '<span class="hd-nova-bad">' + esc(e.message || 'Could not generate summary.') + '</span>';
+        });
+      }
+    });
+  }
+
   function wireNewPosts(rpcName) {
     var capsule = col.querySelector('[data-new-posts]');
     var avsEl = col.querySelector('[data-new-avs]');
@@ -2290,32 +2340,11 @@
           '</p>' +
           standingHTML(counts[3] && counts[3].data) +
           (assoc.length ? assocHTML(assoc) : '') +
-          (my && !isMe ? '<button class="nb-btn nb-btn--ghost nb-btn--sm hd-prof-summary-btn" type="button" data-prof-summary="' + esc(p.handle) + '">' + ic('sparkle') + ' Profile Summary</button>' : '') +
-          '<div class="hd-prof-summary" data-prof-summary-out hidden></div>' +
         '</div>' +
       '</div>' + tabsHTML +
       '<div class="hd-feed" id="feed">' + skeletons(3) + '</div>';
 
     twem(col);
-
-    var profSumBtn = col.querySelector('[data-prof-summary]');
-    if (profSumBtn) profSumBtn.addEventListener('click', function () {
-      var out = col.querySelector('[data-prof-summary-out]');
-      profSumBtn.disabled = true;
-      profSumBtn.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Summarising';
-      H.fn('supernova?job=profile_summary', { handle: p.handle }).then(function (got) {
-        var text = (got && got.text || '').trim();
-        if (!text) throw new Error('empty');
-        out.hidden = false;
-        out.innerHTML = '<p class="hd-prof-summary-label">' + novaMark('') + ' Summary</p>' +
-          '<p class="hd-prof-summary-text">' + esc(text) + '</p>';
-        profSumBtn.remove();
-        twem(out);
-      }).catch(function () {
-        profSumBtn.innerHTML = ic('sparkle') + ' Try again';
-        profSumBtn.disabled = false;
-      });
-    });
 
     if (blocked) {
       el('feed').innerHTML = empty('You blocked this account', 'Unblock them to see their posts again.');
@@ -2668,38 +2697,49 @@
       wide: true,
       title: '',
       html:
-        '<div class="hd-nova-post-card">' +
-          '<div class="hd-nova-post-head">' +
-            '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-av">' + avatar + '</a>' +
-            '<div class="hd-nova-post-who">' +
-              '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-name">' + esc(who) + verified + company + '</a>' +
-              '<span class="hd-nova-post-handle">' + H.tag(a.handle || '') + '</span>' +
+        '<div class="hd-grok-card">' +
+          '<div class="hd-grok-head">' +
+            '<span class="hd-grok-title">' + ic('sparkle') + ' Analysing Post...</span>' +
+            '<div class="hd-grok-actions">' +
+              '<button class="nb-icon-btn" type="button" data-grok-close title="Close">' + ic('x') + '</button>' +
             '</div>' +
           '</div>' +
-          '<div class="hd-nova-post-body">' + body(p.body) + '</div>' +
-          '<div class="hd-nova-post-meta">' +
-            '<span>' + esc(H.when(p.created_at)) + '</span>' +
-            '<span class="hd-dot">&middot;</span>' +
-            '<span>' + num(p.endorse_count || 0) + ' likes</span>' +
-            '<span class="hd-dot">&middot;</span>' +
-            '<span>' + num(p.reply_count || 0) + ' replies</span>' +
-            (a.follower_count ? '<span class="hd-dot">&middot;</span><span>' + num(a.follower_count) + ' followers</span>' : '') +
-          '</div>' +
-        '</div>' +
-        '<div class="hd-nova" style="margin-top:14px">' +
-          '<div class="hd-nova-talk" id="novaExplainTalk" aria-live="polite">' +
-            '<div class="hd-nova-turn">' +
-              novaAv('hd-nova-av-grad', 30) +
-              '<div class="hd-nova-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div>' +
+          '<div class="hd-grok-post">' +
+            '<div class="hd-grok-post-inner">' +
+              '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-grok-post-av">' + avatar + '</a>' +
+              '<div class="hd-grok-post-who">' +
+                '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-grok-post-name">' + esc(who) + verified + company + '</a>' +
+                '<span class="hd-grok-post-handle">' + H.tag(a.handle || '') + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<p class="hd-grok-post-body">' + body(p.body) + '</p>' +
+            (mediaList.length ? '<div class="hd-grok-post-media">' + mediaList.map(function (m) {
+              return '<img src="' + esc(m.url) + '" alt="' + esc(m.alt_text || '') + '" loading="lazy">';
+            }).join('') + '</div>' : '') +
+            '<div class="hd-grok-post-meta">' +
+              '<span>' + esc(H.when(p.created_at)) + '</span>' +
+              '<span class="hd-dot">&middot;</span>' +
+              '<span>' + num(p.endorse_count || 0) + ' likes</span>' +
+              '<span class="hd-dot">&middot;</span>' +
+              '<span>' + num(p.reply_count || 0) + ' replies</span>' +
             '</div>' +
           '</div>' +
-          '<div class="hd-nova-ask">' +
+          '<div class="hd-grok-loading" id="grokLoad">' +
+            '<span class="hd-nova-dots"><i></i><i></i><i></i></span> Thinking about your request' +
+          '</div>' +
+          '<div class="hd-grok-answer" id="grokAns" hidden></div>' +
+          '<div class="hd-grok-follow" id="grokFollow" hidden>' +
             '<textarea class="nb-input" rows="1" placeholder="Ask follow-up..." id="novaExplainInput"></textarea>' +
             '<button class="nb-btn nb-btn--primary" type="button" id="novaExplainSend" disabled>' + ic('send') + '</button>' +
           '</div>' +
         '</div>',
       wire: function (api) {
-        var talk = api.q('#novaExplainTalk');
+        api.q('[data-grok-close]').addEventListener('click', api.close);
+        twem(api.body);
+
+        var load = api.q('#grokLoad');
+        var ans = api.q('#grokAns');
+        var follow = api.q('#grokFollow');
         var input = api.q('#novaExplainInput');
         var sendBtn = api.q('#novaExplainSend');
         var busy = false;
@@ -2709,66 +2749,47 @@
           input.style.height = 'auto';
           input.style.height = Math.min(input.scrollHeight, 120) + 'px';
         });
-
         input.addEventListener('keydown', function (e) {
           if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
         });
 
-        function addTurn(role, text) {
+        function addChatTurn(role, text) {
+          var chat = ans.querySelector('.hd-grok-chat');
+          if (!chat) { chat = document.createElement('div'); chat.className = 'hd-grok-chat'; ans.appendChild(chat); }
           var div = document.createElement('div');
-          div.className = 'hd-nova-turn hd-nova-turn--' + (role === 'you' ? 'me' : 'nova');
-          div.innerHTML = (role === 'you' ? H.avatar(my, 'hd-av--sm') : novaAv('hd-nova-av-grad', 30)) +
-            '<div class="hd-nova-said">' + body(text) + '</div>';
-          talk.appendChild(div);
+          div.className = 'hd-grok-chat-turn hd-grok-chat-turn--' + (role === 'you' ? 'me' : 'nova');
+          div.innerHTML = (role === 'you' ? H.avatar(my, 'hd-av--sm') : novaAv('hd-nova-av-grad', 26)) +
+            '<div class="hd-grok-chat-said">' + body(text) + '</div>';
+          chat.appendChild(div);
           twem(div);
-          talk.scrollTop = talk.scrollHeight;
-        }
-
-        function addDots() {
-          var div = document.createElement('div');
-          div.className = 'hd-nova-turn';
-          div.id = 'novaExplainDots';
-          div.innerHTML = novaAv('hd-nova-av-grad', 30) +
-            '<div class="hd-nova-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div>';
-          talk.appendChild(div);
-          talk.scrollTop = talk.scrollHeight;
-        }
-
-        function removeDots() {
-          var d = talk.querySelector('#novaExplainDots');
-          if (d) d.remove();
+          ans.scrollTop = ans.scrollHeight;
         }
 
         sendBtn.addEventListener('click', async function () {
           var txt = input.value.trim();
           if (!txt || busy) return;
-          busy = true;
-          sendBtn.disabled = true;
-          input.value = '';
-          input.style.height = 'auto';
-          addTurn('you', txt);
+          busy = true; sendBtn.disabled = true; input.value = ''; input.style.height = 'auto';
+          addChatTurn('you', txt);
           turns.push({ role: 'them', text: txt });
-          addDots();
           try {
             var out = await H.fn('supernova?job=ask', { post: id, turns: turns });
-            removeDots();
-            addTurn('me', out.text || 'Nothing came back.');
+            addChatTurn('me', out.text || 'Nothing came back.');
             turns.push({ role: 'you', text: out.text || '' });
           } catch (e) {
-            removeDots();
-            addTurn('me', 'Supernova could not answer that.');
+            addChatTurn('me', 'Supernova could not answer that.');
           }
-          busy = false;
-          sendBtn.disabled = !input.value.trim();
+          busy = false; sendBtn.disabled = !input.value.trim();
         });
 
         H.fn('supernova?job=ask', { post: id, turns: turns }).then(function (out) {
-          removeDots();
-          addTurn('me', out.text || 'Nothing came back.');
-          turns.push({ role: 'you', text: out.text || '' });
-        }).catch(function () {
-          removeDots();
-          addTurn('me', 'Supernova could not answer that.');
+          var text = out.text || 'Nothing came back.';
+          if (load) load.hidden = true;
+          if (ans) { ans.hidden = false; ans.innerHTML = '<p class="hd-grok-answer-text">' + esc(text) + '</p>'; }
+          if (follow) follow.hidden = false;
+          turns.push({ role: 'you', text: text });
+          twem(ans);
+        }).catch(function (e) {
+          if (load) load.innerHTML = '<span class="hd-nova-bad">' + esc(e.message || 'Could not answer.') + '</span>';
         });
       }
     });
@@ -3593,6 +3614,7 @@
       { label: 'Copy link to profile', ic: 'link', run: function () { U.copy(location.origin + who(p.handle), 'Link copied.'); } }
     ];
     if (!isMe) {
+      items.push({ label: 'Summarise profile', ic: 'sparkle', run: function () { openProfileSummary(p); } });
       items.push({ label: 'Mute @' + p.handle, ic: 'mute', run: function () { mutePerson(p); } });
       items.push({ label: 'Block @' + p.handle, ic: 'ban', kind: 'bad', run: function () { blockPerson(p); } });
       items.push('rule');
