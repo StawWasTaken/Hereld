@@ -2627,10 +2627,10 @@
   var novaTalk = [];
 
   function novaTurn(t) {
-    return '<div class="hd-nova-turn hd-nova-turn--' + (t.role === 'you' ? 'nova' : 'me') + '">' +
+    return '<div class="hd-nova-turn hd-nova-turn--' + (t.role === 'you' ? 'me' : 'nova') + '">' +
       (t.role === 'you'
-        ? novaAv('hd-nova-av-grad', 30)
-        : H.avatar(my, 'hd-av--sm')) +
+        ? H.avatar(my, 'hd-av--sm')
+        : novaAv('hd-nova-av-grad', 30)) +
       '<div class="hd-nova-said">' + body(t.text) + '</div></div>';
   }
 
@@ -2652,11 +2652,17 @@
     var verified = a.verified ? ' <span class="hd-badge hd-badge--ver">' + ic('verified') + '</span>' : '';
     var company = a.is_company ? ' <span class="hd-badge hd-badge--co">' + ic('verified') + '</span>' : '';
 
+    var mediaR = await db.from('post_media').select('url, alt_text, spoiler').eq('post_id', id).order('position');
+    var mediaList = mediaR.data || [];
+    var mediaText = mediaList.length
+      ? '\n\nImages attached: ' + mediaList.map(function (m) { return m.url + (m.alt_text ? ' [alt: ' + m.alt_text + ']' : '') + (m.spoiler ? ' [spoiler]' : ''); }).join('; ')
+      : '';
+
     var turns = [{ role: 'them', text:
       'Explain this post from Hereld in plain language, in under 120 words. ' +
       'Say what it is about and anything a reader would need to know to follow it. ' +
       'If it is too short or too vague to explain, say that instead of guessing.\n\n' +
-      who + ' posted:\n' + String(p.body || '') }];
+      who + ' posted:\n' + String(p.body || '') + mediaText }];
 
     U.sheet({
       wide: true,
@@ -2710,8 +2716,8 @@
 
         function addTurn(role, text) {
           var div = document.createElement('div');
-          div.className = 'hd-nova-turn hd-nova-turn--' + (role === 'you' ? 'nova' : 'me');
-          div.innerHTML = (role === 'you' ? novaAv('hd-nova-av-grad', 30) : H.avatar(my, 'hd-av--sm')) +
+          div.className = 'hd-nova-turn hd-nova-turn--' + (role === 'you' ? 'me' : 'nova');
+          div.innerHTML = (role === 'you' ? H.avatar(my, 'hd-av--sm') : novaAv('hd-nova-av-grad', 30)) +
             '<div class="hd-nova-said">' + body(text) + '</div>';
           talk.appendChild(div);
           twem(div);

@@ -815,7 +815,7 @@ body.hd-wide .hd-aside { display: none; }
 .hd-nova-dots { display: inline-flex; gap: 6px; padding: 4px 0; }
 .hd-nova-dots i {
   width: 7px; height: 7px; border-radius: 50%;
-  background: linear-gradient(135deg, #ff0033, #2caffc);
+  background: #fff;
   animation: hdNovaDot 1.2s ease infinite;
 }
 .hd-nova-dots i:nth-child(2) { animation-delay: .18s; }

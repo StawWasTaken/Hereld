@@ -208,6 +208,16 @@ async function gather(uid: string, question: string, postId?: string) {
         const DISCLOSE_MAP: Record<string, string> = { paid: 'Paid partnership', ai: 'Made with AI' };
         bits.push('Disclosures: ' + ctx.post.disclosure.map((d: string) => DISCLOSE_MAP[d] || d).join(', '));
       }
+
+      const { data: media } = await admin.from('post_media')
+        .select('url, alt_text, spoiler')
+        .eq('post_id', postId).order('position');
+      if (media?.length) {
+        bits.push('Media on this post (' + media.length + '):\n' + media.map((m: any) =>
+          '- Image: ' + m.url + (m.alt_text ? ' [alt: ' + m.alt_text + ']' : '') +
+          (m.spoiler ? ' [spoiler]' : '')
+        ).join('\n'));
+      }
     } else {
       /* Fallback to old approach. */
       const { data: p } = await admin.from('posts').select(WITH_WHO).eq('id', postId).maybeSingle();
