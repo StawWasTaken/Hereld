@@ -485,6 +485,15 @@ returns jsonb language sql security definer set search_path = public stable as $
      where r.reply_to = p_post
      order by r.created_at
      limit 20
+  ),
+  reposts as (
+    select r.id, r.body, r.author, r.created_at, r.endorse_count,
+           ra.handle as author_handle, ra.name as author_name
+      from posts r
+      join profiles ra on ra.id = r.author
+     where r.relay_of = p_post
+     order by r.created_at
+     limit 20
   )
   select jsonb_build_object(
     'post', jsonb_build_object(
@@ -527,6 +536,14 @@ returns jsonb language sql security definer set search_path = public stable as $
       join profiles pa2 on pa2.id = pp.author
       where pp.id = (select reply_to from root)
     ) else null end,
+    'reposts', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', rp.id, 'body', rp.body, 'author_handle', rp.author_handle,
+        'author_name', rp.author_name, 'created_at', rp.created_at,
+        'endorse_count', rp.endorse_count
+      )), '[]'::jsonb)
+      from reposts rp
+    ),
     'notes', (
       select coalesce(jsonb_agg(jsonb_build_object(
         'id', cn.id, 'body', cn.body, 'source', cn.source,

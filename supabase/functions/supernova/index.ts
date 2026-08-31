@@ -197,6 +197,13 @@ async function gather(uid: string, question: string, postId?: string) {
         ).join('\n'));
       }
 
+      if (ctx.reposts?.length) {
+        bits.push('Reposts of this post (' + ctx.reposts.length + '):\n' + ctx.reposts.map((r: any) =>
+          '- @' + r.author_handle + ' (' + (r.author_name || r.author_handle) + ')' +
+          (r.body ? ' commented: ' + String(r.body).replace(/\s+/g, ' ').slice(0, 200) : ' (plain repost)')
+        ).join('\n'));
+      }
+
       if (ctx.notes?.length) {
         bits.push('Community notes on this post (' + ctx.notes.length + '):\n' + ctx.notes.map((n: any) =>
           '- [' + (n.author_handle || 'anonymous') + '] ' + String(n.body || '').slice(0, 300) +
@@ -482,6 +489,12 @@ async function mentions(c: Config) {
       if (ctx.post.disclosure?.length) {
         const DISCLOSE_MAP: Record<string, string> = { paid: 'Paid partnership', ai: 'Made with AI' };
         context += '\nDisclosures: ' + ctx.post.disclosure.map((d: string) => DISCLOSE_MAP[d] || d).join(', ');
+      }
+
+      if (ctx.reposts?.length) {
+        context += '\n\nReposts of this post:\n' + ctx.reposts.map((r: any) =>
+          '- @' + r.author_handle + (r.body ? ': ' + String(r.body).replace(/\s+/g, ' ').slice(0, 200) : ' (plain repost)')
+        ).join('\n');
       }
 
       if (ctx.notes?.length) {

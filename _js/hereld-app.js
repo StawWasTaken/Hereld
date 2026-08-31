@@ -404,7 +404,7 @@
       if (existing) existing.remove();
       var div = document.createElement('div');
       div.className = 'hd-pcard-summary-out';
-      div.innerHTML = '<p class="hd-pcard-summary-label">' + novaMark('') + ' Summary</p>' +
+      div.innerHTML = '<p class="hd-pcard-summary-label">' + novaAv('hd-nva--grad', 20) + ' Summary</p>' +
         '<p class="hd-pcard-summary-text">' + esc(text) + '</p>';
       container.appendChild(div);
       btn.remove();
@@ -425,7 +425,7 @@
       html:
         '<div class="hd-grok-card">' +
           '<div class="hd-grok-head">' +
-            '<span class="hd-grok-title">' + ic('sparkle') + ' Analysing profile...</span>' +
+            '<span class="hd-grok-title">' + novaAv('hd-nva--grad', 20) + ' Analysing profile...</span>' +
             '<div class="hd-grok-actions">' +
               '<button class="nb-icon-btn" type="button" data-grok-close title="Close">' + ic('x') + '</button>' +
             '</div>' +
@@ -494,7 +494,7 @@
       var who = shown.length === 1 && shown[0].profiles
         ? (shown[0].profiles.name || shown[0].profiles.handle) + ' posted'
         : count + ' new post' + (count === 1 ? '' : 's');
-      tEl.textContent = who;
+      tEl.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg> ' + esc(who);
     }
     var lastScroll = 0;
     col.addEventListener('scroll', function () {
@@ -1807,15 +1807,18 @@
     if (!cur && existing) cur = existing.textContent.replace(/\s*·\s*edited\s*$/, '').trim();
     U.sheet({
       title: 'Edit post',
-      html: '<textarea class="nb-input" id="editBody" rows="4" maxlength="600" style="width:100%;resize:vertical;min-height:120px">' + esc(cur) + '</textarea>' +
-        '<p class="hd-nova-fine" style="text-align:left;margin-top:8px">600 characters max. Edited posts show as edited.</p>',
       wide: true,
-      acts: '<button class="nb-btn nb-btn--ghost" type="button" data-close>Cancel</button><button class="nb-btn nb-btn--primary" type="button" id="editSave">Save</button>',
+      html: '<div class="nb-card hd-compose-card">' + composerHTML({ placeholder: 'Edit your post...', label: 'Save' }) + '</div>',
       wire: function (api) {
-        var ta = api.q('#editBody');
-        var btn = api.q('#editSave');
+        var form = api.q('.hd-compose');
+        var ta = api.q('.hd-compose-in');
+        var btn = api.q('[data-go]');
+        ta.value = cur;
+        btn.disabled = false;
+        btn.textContent = 'Save';
         ta.focus(); try { ta.selectionStart = ta.value.length; ta.selectionEnd = ta.value.length; } catch (e) {}
-        btn.addEventListener('click', async function () {
+        form.addEventListener('submit', async function (e) {
+          e.preventDefault();
           var txt = ta.value.trim();
           if (!txt) return U.toast('Post cannot be empty.', 'bad');
           if (txt.length > 600) return U.toast('Too long — 600 max.', 'bad');
@@ -2762,11 +2765,35 @@
       ? '\n\nImages attached: ' + mediaList.map(function (m) { return m.url + (m.alt_text ? ' [alt: ' + m.alt_text + ']' : '') + (m.spoiler ? ' [spoiler]' : ''); }).join('; ')
       : '';
 
+    var [repliesR, repostsR] = await Promise.all([
+      db.from('posts').select('id,body,author,created_at,endorse_count,author:profiles!posts_author_fkey(handle,name)')
+        .eq('reply_to', id).order('created_at').limit(5),
+      db.from('posts').select('id,body,author,created_at,author:profiles!posts_author_fkey(handle,name)')
+        .eq('relay_of', id).order('created_at').limit(5)
+    ]);
+    var replies = repliesR.data || [];
+    var reposts = repostsR.data || [];
+    var repliesText = replies.length
+      ? '\n\nReplies (' + (p.reply_count || 0) + ' total, showing ' + replies.length + '):\n' +
+        replies.map(function (r) {
+          var ra = r.author || {};
+          return '- @' + (ra.handle || '?') + ': ' + String(r.body || '').replace(/\s+/g, ' ').slice(0, 200);
+        }).join('\n')
+      : '';
+    var repostsText = reposts.length
+      ? '\n\nReposts (' + (p.relay_count || 0) + ' total, showing ' + reposts.length + '):\n' +
+        reposts.map(function (r) {
+          var ra = r.author || {};
+          return '- @' + (ra.handle || '?') + (r.body ? ': ' + String(r.body).replace(/\s+/g, ' ').slice(0, 200) : ' (plain repost)');
+        }).join('\n')
+      : '';
+
     var turns = [{ role: 'them', text:
       'Explain this post from Hereld in plain language, in under 120 words. ' +
       'Say what it is about and anything a reader would need to know to follow it. ' +
+      'Include context from replies and reposts if they help explain the discussion. ' +
       'If it is too short or too vague to explain, say that instead of guessing.\n\n' +
-      who + ' posted:\n' + String(p.body || '') + mediaText }];
+      who + ' posted:\n' + String(p.body || '') + mediaText + repliesText + repostsText }];
 
     U.sheet({
       wide: true,
@@ -2774,7 +2801,7 @@
       html:
         '<div class="hd-grok-card">' +
           '<div class="hd-grok-head">' +
-            '<span class="hd-grok-title">' + ic('sparkle') + ' Analysing Post...</span>' +
+            '<span class="hd-grok-title">' + novaAv('hd-nva--grad', 20) + ' Analysing Post...</span>' +
             '<div class="hd-grok-actions">' +
               '<button class="nb-icon-btn" type="button" data-grok-close title="Close">' + ic('x') + '</button>' +
             '</div>' +
@@ -2797,7 +2824,29 @@
               '<span>' + num(p.endorse_count || 0) + ' likes</span>' +
               '<span class="hd-dot">&middot;</span>' +
               '<span>' + num(p.reply_count || 0) + ' replies</span>' +
+              '<span class="hd-dot">&middot;</span>' +
+              '<span>' + num(p.relay_count || 0) + ' reposts</span>' +
             '</div>' +
+            (replies.length ? '<div class="hd-grok-replies">' +
+              '<p class="hd-grok-replies-title">Recent replies</p>' +
+              replies.map(function (r) {
+                var ra = r.author || {};
+                return '<div class="hd-grok-reply">' +
+                  '<span class="hd-grok-reply-handle">@' + esc(ra.handle || '?') + '</span> ' +
+                  '<span class="hd-grok-reply-body">' + esc(String(r.body || '').replace(/\s+/g, ' ').slice(0, 160)) + '</span>' +
+                '</div>';
+              }).join('') +
+            '</div>' : '') +
+            (reposts.length ? '<div class="hd-grok-reposts">' +
+              '<p class="hd-grok-replies-title">Reposts</p>' +
+              reposts.map(function (r) {
+                var ra = r.author || {};
+                return '<div class="hd-grok-reply">' +
+                  '<span class="hd-grok-reply-handle">@' + esc(ra.handle || '?') + '</span> ' +
+                  (r.body ? '<span class="hd-grok-reply-body">' + esc(String(r.body).replace(/\s+/g, ' ').slice(0, 160)) + '</span>' : '<span class="hd-grok-reply-body hd-muted">reposted</span>') +
+                '</div>';
+              }).join('') +
+            '</div>' : '') +
           '</div>' +
           '<div class="hd-grok-loading" id="grokLoad">' +
             '<span class="hd-nova-dots"><i></i><i></i><i></i></span> Thinking about your request' +
@@ -2891,7 +2940,7 @@
       '<div class="hd-nova">' +
         '<div class="hd-grok-card hd-nova-card">' +
           '<div class="hd-grok-head">' +
-            '<span class="hd-grok-title">' + ic('sparkle') + ' Ask Supernova</span>' +
+            '<span class="hd-grok-title">' + novaAv('hd-nva--grad', 20) + ' Ask Supernova</span>' +
           '</div>' +
           '<div class="hd-grok-chat hd-nova-talk" id="novaTalk" aria-live="polite">' +
             (novaTalk.length ? novaTalk.map(novaTurn).join('') :
