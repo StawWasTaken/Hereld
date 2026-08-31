@@ -135,8 +135,7 @@ declare
   made   integer := 0;
   r      real;
 begin
-  if not coalesce((select on_off from platform_flags where key = 'bots_enabled'), false)
-     or coalesce((select on_off from platform_flags where key = 'bots_emergency'), false) then
+  if coalesce((select number from platform_flags where key = 'bots_active'), 0) < 1 then
     return 0;
   end if;
 
@@ -260,8 +259,7 @@ language sql security definer set search_path = public stable as $$
    where q.done_at is null
      and q.due_at <= now()
      and (b.last_act_at is null or b.last_act_at < now() - (b.cooldown_min || ' minutes')::interval)
-     and coalesce((select on_off from platform_flags where key = 'bots_enabled'), false)
-     and not coalesce((select on_off from platform_flags where key = 'bots_emergency'), false)
+     and coalesce((select number from platform_flags where key = 'bots_active'), 0) >= 1
    order by q.due_at
    limit least(greatest(p_limit, 1), 10);
 $$;

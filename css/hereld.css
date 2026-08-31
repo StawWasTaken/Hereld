@@ -52,10 +52,10 @@
 .hd-splash {
   position: fixed; inset: 0; z-index: 200;
   display: grid; place-items: center;
-  background: var(--nb-bg);
+  background: var(--nb-blue);
 }
 .hd-splash[hidden] { display: none; }
-.hd-splash img { width: min(272px, 62vw); height: auto; display: block; mix-blend-mode: multiply; filter: brightness(0) saturate(100%) invert(56%) sepia(43%) saturate(2443%) hue-rotate(167deg) brightness(100%) contrast(103%); }
+.hd-splash img { width: min(272px, 62vw); height: auto; display: block; filter: brightness(0) invert(1); opacity: 1; }
 .hd-splash.is-done { opacity: 0; pointer-events: none; transition: opacity .34s var(--nb-ease); }
 
 /* ── LANDING ───────────────────────────────────────────────────────────── */
@@ -419,6 +419,7 @@ body.hd-wide .hd-aside { display: none; }
 
 .hd-post-body { margin: 12px 0 0; font-size: 15.5px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; }
 .hd-post-body a { color: var(--nb-blue); }
+.hd-edited { font-size: 12.5px; color: var(--nb-fg-muted); font-weight: 400; }
 .hd-mention, .hd-tag-link { font-family: var(--nb-font-head); font-weight: 700; text-decoration: none; }
 .hd-mention:hover, .hd-tag-link:hover { text-decoration: underline; }
 
@@ -778,13 +779,16 @@ body.hd-wide .hd-aside { display: none; }
 
 /* The chat. */
 .hd-nova { padding: 0 4px 24px; }
-.hd-nova-talk { display: flex; flex-direction: column; gap: 20px; padding: 24px 0 20px; }
+.hd-nova-card { margin: 0; }
+.hd-nova-card .hd-grok-chat { padding: 16px 18px; min-height: 200px; max-height: 60vh; overflow-y: auto; }
+.hd-nova-card .hd-grok-follow { border-top: 1px solid rgba(255,255,255,.06); }
+.hd-nova-talk { display: flex; flex-direction: column; gap: 20px; }
 
 .hd-nova-hello {
   display: flex; align-items: flex-start; gap: 16px; text-align: left;
-  padding: 20px; border-radius: 16px;
-  background: linear-gradient(135deg, rgba(255,0,51,.04), rgba(62,207,110,.03), rgba(44,175,252,.05));
-  border: 1px solid rgba(44,175,252,.12);
+  padding: 20px; border-radius: 12px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.06);
 }
 .hd-nova-hello .hd-nova-mark { margin: 0; flex: none; }
 .hd-nova-hello p { margin: 0; font-size: 14.5px; line-height: 1.65; color: var(--nb-surface-fg-muted); }
@@ -798,14 +802,12 @@ body.hd-wide .hd-aside { display: none; }
   border-radius: 18px; border: 1px solid transparent;
 }
 .hd-nova-turn:not(.hd-nova-turn--me) .hd-nova-said {
-  background: var(--nb-surface); border-color: rgba(255,255,255,.06);
-  box-shadow: 0 2px 12px rgba(0,0,0,.15);
+  background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.04);
   border-top-left-radius: 4px;
 }
 .hd-nova-turn--me .hd-nova-said {
   background: linear-gradient(135deg, #1a6dd4, #2284f5);
   color: #fff; border-color: transparent;
-  box-shadow: 0 2px 16px rgba(34,132,245,.25);
   border-top-right-radius: 4px;
 }
 .hd-nova-turn--me .hd-nova-said a { color: #fff; }
@@ -824,17 +826,15 @@ body.hd-wide .hd-aside { display: none; }
 @media (prefers-reduced-motion: reduce) { .hd-nova-dots i { animation: none; opacity: .55; } }
 
 .hd-nova-ask {
-  position: sticky; bottom: 14px; z-index: 3;
-  display: flex; align-items: flex-end; gap: 10px; padding: 14px;
-  border-radius: 16px;
-  background: var(--nb-surface); border: 1px solid rgba(255,255,255,.08);
-  box-shadow: 0 4px 24px rgba(0,0,0,.3);
+  display: flex; align-items: flex-end; gap: 10px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid rgba(255,255,255,.06);
 }
 .hd-nova-ask textarea { flex: 1; resize: none; min-height: 44px; max-height: 200px; }
 .hd-nova-ask .nb-btn { flex: none; }
 .hd-nova-ask .nb-btn svg { width: 15px; height: 15px; fill: currentColor; }
 .hd-nova-fine {
-  margin: 14px 0 0; text-align: center; font-size: 12.5px; color: var(--nb-fg-muted);
+  margin: 10px 18px 0; text-align: center; font-size: 12.5px; color: var(--nb-fg-muted);
 }
 
 /* ── Supernova gradient avatar ──────────────────────────────────────────── */

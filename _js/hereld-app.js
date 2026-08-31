@@ -330,7 +330,7 @@
             { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) +
           '. Only you can see it until then.</p>'
         : '') +
-      (said ? '<p class="hd-post-body">' + said + '</p>' : '') +
+      (said ? '<p class="hd-post-body">' + said + (p.edited_at ? ' <span class="hd-edited">· edited</span>' : '') + '</p>' : '') +
       shots + pollHTML(p) + quoted + note +
       scopeNote(p) + '<div class="hd-repliers" data-repliers="' + p.id + '"></div>' +
       acts(p) +
@@ -475,31 +475,13 @@
       var firstPost = feed.querySelector('[data-post]');
       if (firstPost) firstId = firstPost.getAttribute('data-post');
     }
-    var lastScroll = 0;
-    var scrollingUp = false;
-    col.addEventListener('scroll', function () {
-      var st = col.scrollTop;
-      scrollingUp = st < lastScroll - 30;
-      lastScroll = st;
-      if (scrollingUp && !capsule.hidden) capsule.hidden = true;
-    });
-    var poller = setInterval(async function () {
-      if (!col.querySelector('[data-new-posts]')) { clearInterval(poller); return; }
-      if (!firstId) {
-        var f = el('feed');
-        if (f) { var fp = f.querySelector('[data-post]'); if (fp) firstId = fp.getAttribute('data-post'); }
-      }
-      if (!firstId) return;
-      var r = await db.rpc(rpcName, { p_limit: 25 }).select('id,author,profiles!inner(handle,name,avatar_url)');
-      if (r.error || !r.data) return;
-      var newer = [];
-      for (var i = 0; i < r.data.length; i++) {
-        if (r.data[i].id === firstId) break;
-        newer.push(r.data[i]);
-      }
-      if (!newer.length) return;
+    var queue = [];
+    var isExplore = !!col.querySelector('#feed') && col.innerHTML.indexOf('Latest') !== -1 && rpcName === 'feed_latest';
+    function renderQueue() {
+      if (!queue.length) return;
+      if (!col.querySelector('[data-new-posts]')) return;
       capsule.hidden = false;
-      var shown = newer.slice(0, 5);
+      var shown = queue.slice(0, 5);
       avsEl.innerHTML = shown.map(function (p) {
         var u = p.profiles;
         return '<span class="hd-new-posts-av">' +
@@ -508,16 +490,77 @@
             : '<span class="hd-av-n">' + esc((u && (u.name || u.handle) || '?')[0]).toUpperCase() + '</span>') +
           '</span>';
       }).join('');
-      var count = newer.length;
+      var count = queue.length;
       var who = shown.length === 1 && shown[0].profiles
         ? (shown[0].profiles.name || shown[0].profiles.handle) + ' posted'
         : count + ' new post' + (count === 1 ? '' : 's');
       tEl.textContent = who;
-      capsule.onclick = function () {
-        capsule.hidden = true;
-        col.scrollTop = 0;
-        viewHome();
-      };
+    }
+    var lastScroll = 0;
+    col.addEventListener('scroll', function () {
+      var st = col.scrollTop;
+      var scrollingUp = st < lastScroll - 30;
+      lastScroll = st;
+      if (scrollingUp && !capsule.hidden) capsule.hidden = true;
+    });
+    capsule.onclick = function () {
+      capsule.hidden = true;
+      queue = [];
+      col.scrollTop = 0;
+      if (chan) try { db.removeChannel(chan); } catch (e) {}
+      if (isExplore) viewExplore(); else viewHome();
+    };
+    var chan = null;
+    try {
+      chan = db.channel('hd-new-posts-' + Date.now())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async function (payload) {
+          if (!col.querySelector('[data-new-posts]')) { try { db.removeChannel(chan); } catch (e) {} return; }
+          var nid = payload.new && payload.new.id;
+          var authorId = payload.new && payload.new.author;
+          if (!nid) return;
+          if (nid === firstId) return;
+          if (queue.some(function (x) { return x.id === nid; })) return;
+          if (authorId && my && authorId === my.id) return;
+          if (!firstId) {
+            var f2 = el('feed');
+            if (f2) { var fp2 = f2.querySelector('[data-post]'); if (fp2) firstId = fp2.getAttribute('data-post'); }
+          }
+          var prof = null;
+          if (authorId) {
+            try { var pr = await db.from('profiles').select('handle,name,avatar_url').eq('id', authorId).maybeSingle(); prof = pr.data; } catch (e) {}
+          }
+          queue.unshift({ id: nid, profiles: prof });
+          if (queue.length > 25) queue.length = 25;
+          renderQueue();
+        }).subscribe();
+    } catch (e) {}
+    var poller = setInterval(async function () {
+      if (!col.querySelector('[data-new-posts]')) { clearInterval(poller); if (chan) try { db.removeChannel(chan); } catch (e2) {} return; }
+      if (!firstId) {
+        var f = el('feed');
+        if (f) { var fp = f.querySelector('[data-post]'); if (fp) firstId = fp.getAttribute('data-post'); }
+      }
+      if (!firstId) return;
+      var r = await db.rpc(rpcName, { p_limit: 25 });
+      if (r.error || !r.data || !r.data.length) return;
+      var newer = [];
+      for (var i = 0; i < r.data.length; i++) {
+        if (r.data[i].id === firstId) break;
+        if (queue.some(function (x) { return x.id === r.data[i].id; })) continue;
+        newer.push(r.data[i]);
+      }
+      if (!newer.length) return;
+      for (var j = newer.length - 1; j >= 0; j--) {
+        var row = newer[j];
+        var u2 = null;
+        try {
+          var rr = await db.from('profiles').select('handle,name,avatar_url').eq('id', row.author).maybeSingle();
+          u2 = rr.data;
+        } catch (e3) {}
+        queue.unshift({ id: row.id, profiles: u2 || row.profiles || null });
+      }
+      if (queue.length > 25) queue.length = 25;
+      renderQueue();
     }, 15000);
   }
 
@@ -1753,6 +1796,40 @@
     return true;
   }
 
+  async function editPost(id, node) {
+    var cur = null;
+    try {
+      var r = await db.from('posts').select('body').eq('id', id).maybeSingle();
+      cur = r.data ? r.data.body : '';
+    } catch (e) { cur = ''; }
+    if (cur == null) cur = '';
+    var existing = node.querySelector('.hd-post-body');
+    if (!cur && existing) cur = existing.textContent.replace(/\s*·\s*edited\s*$/, '').trim();
+    U.sheet({
+      title: 'Edit post',
+      html: '<textarea class="nb-input" id="editBody" rows="4" maxlength="600" style="width:100%;resize:vertical;min-height:120px">' + esc(cur) + '</textarea>' +
+        '<p class="hd-nova-fine" style="text-align:left;margin-top:8px">600 characters max. Edited posts show as edited.</p>',
+      wide: true,
+      acts: '<button class="nb-btn nb-btn--ghost" type="button" data-close>Cancel</button><button class="nb-btn nb-btn--primary" type="button" id="editSave">Save</button>',
+      wire: function (api) {
+        var ta = api.q('#editBody');
+        var btn = api.q('#editSave');
+        ta.focus(); try { ta.selectionStart = ta.value.length; ta.selectionEnd = ta.value.length; } catch (e) {}
+        btn.addEventListener('click', async function () {
+          var txt = ta.value.trim();
+          if (!txt) return U.toast('Post cannot be empty.', 'bad');
+          if (txt.length > 600) return U.toast('Too long — 600 max.', 'bad');
+          btn.disabled = true; btn.textContent = 'Saving…';
+          var res = await db.from('posts').update({ body: txt, edited_at: new Date().toISOString() }).eq('id', id);
+          if (res.error) { U.toast(H.trouble(res.error, 'Could not save.'), 'bad'); btn.disabled = false; btn.textContent = 'Save'; return; }
+          var bodyEl = node.querySelector('.hd-post-body');
+          if (bodyEl) { bodyEl.innerHTML = body(txt) + ' <span class="hd-edited">· edited</span>'; twem(bodyEl); }
+          api.close(); U.toast('Post updated.');
+        });
+      }
+    });
+  }
+
   async function binPost(id, node) {
     var yes = await U.ask({
       title: 'Delete this post?',
@@ -1776,6 +1853,7 @@
     var items = [];
 
     if (owned) {
+      items.push({ label: 'Edit post', ic: 'edit', run: function () { editPost(id, node); } });
       items.push({ label: 'Copy link', ic: 'link', run: function () { U.copy(postLink(id), 'Link copied.'); } });
       items.push({ label: 'Embed post', ic: 'code', run: function () { embed(id); } });
       items.push({ label: mine.saved[id] ? 'Remove bookmark' : 'Bookmark', ic: 'bookmark',
@@ -2320,10 +2398,7 @@
             '<div class="hd-prof-acts">' + profileActs(p, isMe, following, blocked) + '</div>' +
           '</div>' +
           '<h2 class="hd-prof-name">' + nameMark(p) + '</h2>' +
-          '<p class="hd-prof-at">' + H.tag(p.handle, 'hd-at--lg') +
-            /* An automated account says so. Nothing else needs a capsule: the
-               mark carries a company, and its trade sits in the line below. */
-            (p.is_bot ? '<span class="hd-kind hd-kind--bot">' + ic('robot') + ' Automated</span>' : '') + '</p>' +
+          '<p class="hd-prof-at">' + H.tag(p.handle, 'hd-at--lg') + '</p>' +
           (p.headline ? '<p class="hd-prof-head">' + esc(p.headline) + '</p>' : '') +
           (p.bio ? '<p class="hd-prof-bio">' + body(p.bio) + '</p>' : '') +
           '<p class="hd-prof-meta">' +
@@ -2656,11 +2731,11 @@
   var novaTalk = [];
 
   function novaTurn(t) {
-    return '<div class="hd-nova-turn hd-nova-turn--' + (t.role === 'you' ? 'me' : 'nova') + '">' +
+    return '<div class="hd-grok-chat-turn hd-grok-chat-turn--' + (t.role === 'you' ? 'me' : 'nova') + '">' +
       (t.role === 'you'
         ? H.avatar(my, 'hd-av--sm')
-        : novaAv('hd-nova-av-grad', 30)) +
-      '<div class="hd-nova-said">' + body(t.text) + '</div></div>';
+        : novaAv('hd-nova-av-grad', 26)) +
+      '<div class="hd-grok-chat-said">' + body(t.text) + '</div></div>';
   }
 
   /* The mark on a post. It opens a card with the post above the answer, so
@@ -2814,21 +2889,26 @@
 
     col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
       '<div class="hd-nova">' +
-        '<div class="hd-nova-talk" id="novaTalk" aria-live="polite">' +
-          (novaTalk.length ? novaTalk.map(novaTurn).join('') :
-            '<div class="nb-card hd-nova-hello">' +
-              novaAv('hd-nova-hello-av', 48) +
-              '<p>Ask about a post, a word you have not met, or anything else. ' +
-              'Supernova cannot post, follow or moderate for you, and it will say so rather than pretend.</p>' +
-            '</div>') +
+        '<div class="hd-grok-card hd-nova-card">' +
+          '<div class="hd-grok-head">' +
+            '<span class="hd-grok-title">' + ic('sparkle') + ' Ask Supernova</span>' +
+          '</div>' +
+          '<div class="hd-grok-chat hd-nova-talk" id="novaTalk" aria-live="polite">' +
+            (novaTalk.length ? novaTalk.map(novaTurn).join('') :
+              '<div class="nb-card hd-nova-hello">' +
+                novaAv('hd-nova-hello-av', 48) +
+                '<p>Ask about a post, a word you have not met, or anything else. ' +
+                'Supernova cannot post, follow or moderate for you, and it will say so rather than pretend.</p>' +
+              '</div>') +
+          '</div>' +
+          '<div class="hd-grok-follow hd-nova-ask" id="novaForm">' +
+            '<label class="nb-sr" for="novaIn">Ask Supernova</label>' +
+            '<textarea class="nb-input" id="novaIn" rows="1" maxlength="1200" ' +
+              'placeholder="Ask Supernova..."></textarea>' +
+            '<button class="nb-btn nb-btn--primary" type="submit" id="novaGo">' + ic('send') + '</button>' +
+          '</div>' +
+          '<p class="hd-nova-fine">Answers are generated and can be wrong. Check anything that matters.</p>' +
         '</div>' +
-        '<form class="nb-card hd-nova-ask" id="novaForm">' +
-          '<label class="nb-sr" for="novaIn">Ask Supernova</label>' +
-          '<textarea class="nb-input" id="novaIn" rows="1" maxlength="1200" ' +
-            'placeholder="Ask Supernova"></textarea>' +
-          '<button class="nb-btn nb-btn--primary nb-btn--sm" type="submit" id="novaGo">' + ic('send') + ' Ask</button>' +
-        '</form>' +
-        '<p class="hd-nova-fine">Answers are generated and can be wrong. Check anything that matters.</p>' +
       '</div>';
 
     twem(col);
@@ -2842,19 +2922,19 @@
     function grow() { box.style.height = 'auto'; box.style.height = Math.min(box.scrollHeight, 200) + 'px'; }
     box.addEventListener('input', grow);
     box.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go.click(); }
     });
 
     function paint() {
       talk.innerHTML = novaTalk.map(novaTurn).join('') +
-        (busy ? '<div class="hd-nova-turn hd-nova-turn--nova hd-nova-wait">' +
-          novaAv('hd-nova-av-grad', 30) +
-          '<div class="hd-nova-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div></div>' : '');
+        (busy ? '<div class="hd-grok-chat-turn hd-grok-chat-turn--nova">' +
+          novaAv('hd-nova-av-grad', 26) +
+          '<div class="hd-grok-chat-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div></div>' : '');
       twem(talk);
       talk.scrollTop = talk.scrollHeight;
     }
 
-    form.addEventListener('submit', async function (e) {
+    go.addEventListener('click', async function (e) {
       e.preventDefault();
       if (busy) return;
       if (needAccount()) return;

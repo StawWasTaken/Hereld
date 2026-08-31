@@ -416,14 +416,16 @@ async function ask(req: Request, c: Config, uid: string) {
     'policies; if you are not sure a feature exists, say you are not sure. ' +
     'You have access to Hereld\'s data - profiles, posts, engagement numbers. ' +
     'Use it to answer questions about the platform and its users accurately. ' +
+    'Answer every question directly and helpfully. Only ask for clarification ' +
+    'if the question is genuinely unreadable or empty. Never say "I could not ' +
+    'find anything" when you can still give a useful answer from your knowledge. ' +
     (c.system_note || '');
 
   const seen = await gather(uid, talk[talk.length - 1]?.text || '', typeof post === 'string' ? post : undefined);
   const system2 = seen
-    ? system + '\n\nHere is what was found on Hereld for this question. It is ' +
-      'public material only, and it is all you have: do not claim to know ' +
-      'anything else about Hereld, and do not invent posts, accounts or ' +
-      'numbers. If it does not answer the question, say so.\n\n' + seen
+    ? system + '\n\nHere is some context from Hereld that may help. Use it alongside ' +
+      'your own knowledge. Do not invent posts, accounts or numbers that are not ' +
+      'listed here, but do answer the question using whatever you know.\n\n' + seen
     : system;
 
   try {
@@ -522,8 +524,8 @@ async function mentions(c: Config) {
       'be posted publicly under their post. You can see the full context: the ' +
       'post, the author\'s profile, the thread, and engagement numbers. Use ' +
       'this to give a thoughtful, contextual reply. Do not greet them, do not ' +
-      'sign off, and do not repeat their question back. If they have not actually ' +
-      'asked anything, say in one line that you are not sure what they want. ' +
+      'sign off, and do not repeat their question back. Even if the mention is ' +
+      'vague, give a useful response based on the context around it. ' +
       'Never invent posts, accounts, numbers or Hereld features. ' +
       (c.system_note || '');
 
@@ -961,11 +963,17 @@ Deno.serve(async (req) => {
   const c = await config();
   if (!c) return reply({ error: 'Supernova has no key set yet.' }, 503);
 
-  /* The timer jobs are not something a visitor may start. */
+  /* The timer jobs need either the cron secret or a staff member. */
   if (job === 'notes' || job === 'seed' || job === 'mentions') {
     const secret = Deno.env.get('HERELD_CRON_SECRET') || '';
-    if (!secret || req.headers.get('x-cron-secret') !== secret) {
-      return reply({ error: 'Not for you.' }, 403);
+    const cronOk = secret && req.headers.get('x-cron-secret') === secret;
+    if (!cronOk) {
+      const uid = await whoIsAsking(req);
+      if (!uid) return reply({ error: 'Not for you.' }, 403);
+      const { data: role } = await admin.from('user_roles').select('role').eq('user_id', uid).maybeSingle();
+      if (!role || !['admin', 'moderator', 'superadmin'].includes(role.role)) {
+        return reply({ error: 'Not for you.' }, 403);
+      }
     }
     if (job === 'notes') return await notes(c);
     if (job === 'mentions') return await mentions(c);

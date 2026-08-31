@@ -1,3 +1,8 @@
+/* Hereld staff console.
+   Loaded on demand by hereld-app.js when the signed-in account holds a staff
+   role. Every action in here goes through an RPC that checks the caller's rank
+   in the database, so removing a button from this file removes a button and
+   nothing else. The rank checks below only decide what is worth drawing. */
 (function () {
 'use strict';
 var H = window.Hereld, U = window.HU;
@@ -497,23 +502,39 @@ node.innerHTML =
 '<div class="nb-card hd-stf-tile"><span class="hd-stf-tile-n">' + live + '</span>' +
 '<span class="hd-stf-tile-l">Active now</span><span class="hd-stf-tile-s">Allowed to take part</span></div>' +
 '</div>' +
-switchRow('bots_enabled', 'Seed system', 'While this is off nothing automated runs at all.', flag.bots_enabled) +
-switchRow('bots_emergency', 'Emergency stop', 'Setting this on deactivates every seed account and turns the system off.', flag.bots_emergency, true) +
 '<form class="hd-stf-search" id="stfBotN">' +
-'<label class="nb-label" for="stfBotNi">Accounts allowed to take part</label>' +
+'<label class="nb-label" for="stfBotNi">Seed accounts (set to 0 to stop everything)</label>' +
 '<input class="nb-input" id="stfBotNi" type="number" min="0" step="1" inputmode="numeric" value="' +
 ((flag.bots_active && flag.bots_active.number) || 0) + '">' +
 '<button class="nb-btn nb-btn--primary" type="submit">Set</button>' +
 '</form>' +
-'<div class="nb-alert nb-alert--info hd-stf-note">Nothing here writes anything on its own. ' +
-'A seed account acts only when the server runs, the system above is on, the account is active, ' +
-'its cooldown has passed and Supernova has a key set. Any one of those missing and the account stays quiet.</div>' +
+'<div class="hd-stf-row">' +
+'<button class="nb-btn nb-btn--ghost" type="button" id="stfSeedNow">Run bots now</button>' +
+'<button class="nb-btn nb-btn--ghost" type="button" id="stfMentionsNow">Run mentions now</button>' +
+'</div>' +
+'<div class="nb-alert nb-alert--info hd-stf-note">Set a number above 0 to enable the bot system. ' +
+'Set to 0 to stop everything immediately. Supernova API key must also be set in the Supernova tab. ' +
+'Use the buttons above to trigger bots manually (no cron needed).</div>' +
 '<h3 class="hd-stf-sub">Accounts</h3><div class="hd-stf-rows">' + rows + '</div>';
 var form = node.querySelector('#stfBotN');
 form.addEventListener('submit', async function (e) {
 e.preventDefault();
 var n = Math.max(0, parseInt(node.querySelector('#stfBotNi').value, 10) || 0);
 if (await call('staff_set_flag', { p_key: 'bots_active', p_number: n }, 'Set. Nothing was deleted.')) render();
+});
+var seedBtn = node.querySelector('#stfSeedNow');
+if (seedBtn) seedBtn.addEventListener('click', async function () {
+seedBtn.disabled = true; seedBtn.textContent = 'Running...';
+try { var r = await H.fn('supernova?job=seed'); U.toast('Bots ran. ' + (r.made || 0) + ' actions taken.'); }
+catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
+seedBtn.disabled = false; seedBtn.textContent = 'Run bots now';
+});
+var mentBtn = node.querySelector('#stfMentionsNow');
+if (mentBtn) mentBtn.addEventListener('click', async function () {
+mentBtn.disabled = true; mentBtn.textContent = 'Running...';
+try { var r = await H.fn('supernova?job=mentions'); U.toast('Mentions answered: ' + (r.answered || 0)); }
+catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
+mentBtn.disabled = false; mentBtn.textContent = 'Run mentions now';
 });
 }
 var PROVIDERS = [
@@ -800,13 +821,7 @@ var fl = t.closest('[data-flag]');
 if (fl) {
 var on = fl.dataset.next === '1';
 var key = fl.dataset.flag;
-(key === 'bots_emergency' && on
-? U.ask({ title: 'Stop everything automated', line: 'Every seed account is deactivated and the system is switched off. Nothing is deleted.', yes: 'Stop it all', bad: true })
-: Promise.resolve(true)
-).then(function (ok) {
-if (!ok) return;
 call('staff_set_flag', { p_key: key, p_on: on }, 'Saved.').then(function (done) { if (done) render(); });
-});
 return;
 }
 var b = t.closest('[data-bot]');
