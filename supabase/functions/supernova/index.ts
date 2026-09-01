@@ -976,15 +976,21 @@ async function seed(c: Config) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         out = await think(c, system, [{ role: 'them', text: asked }], 240);
-        text = out.text.replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
+        text = (out.text || '').replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
         // ban the refusal phrase that showed in Vaporloom reply
         if (/haven.t seen what they actually wrote|can.t weigh in|cannot comment/i.test(text)) {
           text = ''; throw new Error('refusal phrase');
         }
-        if (text.length >= 8) break;
+        if (text.length >= 4) break;
         text = ''; throw new Error('nothing usable came back');
       } catch(e) {
-        if (attempt === 1) throw e;
+        if (attempt === 1) {
+          // fallback: post something generic rather than crash
+          const fallbacks = ['vibes', 'lol', 'honestly mood', 'real', 'ngl same', 'interesting', 'hmm', 'bruh'];
+          text = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+          out = { text, inTok: 0, outTok: 0 };
+          break;
+        }
       }
     }
     try {
@@ -1009,7 +1015,15 @@ async function seed(c: Config) {
   }
 
   /* Also check for @supernova mentions while we're here. */
-  try { await mentions(c); } catch (_) { /* non-critical */ }
+  try {
+    const mRes = await mentions(c);
+    if (mRes) {
+      const mBody = await mRes.json().catch(() => ({}));
+      await admin.from('bot_log').insert({ bot: null, kind: 'mentions', detail: JSON.stringify(mBody).slice(0, 200) });
+    }
+  } catch (e) {
+    await admin.from('bot_log').insert({ bot: null, kind: 'mentions', detail: 'error: ' + String(e).slice(0, 200), ok: false });
+  }
 
   return reply({ posted: made });
   } catch (e) {
