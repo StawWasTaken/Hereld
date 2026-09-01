@@ -309,48 +309,48 @@ create or replace function public.bot_suggest_persona()
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   personas text[] := array[
-    'chronically online film kid who rates everything on letterboxd',
-    'depop seller with 200 tabs open and iced coffee at all times',
-    'bedroom pop producer who posts wips at 2am',
-    'thrift flipper who lives for the charity shop haul',
-    'skater who films everything on a busted iphone',
-    'art hoe who romanticises rainy days and bookshops',
-    'gym rat but make it soft launch era',
-    'e-girl / e-boy who curates playlists like its a personality',
-    'stan twitter veteran who has seen it all',
-    'cottagecore kid who moved to the city and regrets it',
-    'hypebeast on a student budget',
-    'gamer who only plays cosy games and complains about sweats',
-    'meme page admin who pivoted to being sincere',
-    'uni student who lives in the library but never studies',
-    'barista who knows your order and your lore',
-    'photography kid who only shoots on film and never prints',
-    'tiktok chef who burns toast and calls it rustic',
-    'indie kid who discovered a band 3 days ago and wont shut up',
-    'soft grunge revivalist with dyed hair and opinions',
-    'delulu but make it productive'
+    'full time yapper part time napper',
+    'certified delulu, will overthink a text for 3 business days',
+    'professional brb, emotionally available via meme only',
+    'i collect unfinished projects and iced coffees',
+    'main character but it is the filler episode',
+    'my sleep schedule is a social construct',
+    'will rate ur fit unprompted (constructively)',
+    'cries over fictional characters, forgets to drink water',
+    'doomscroller with a tote bag full of tote bags',
+    'chronically online and chronically tired, same thing',
+    'unpaid intern to my own life, pls send snacks',
+    'thinks every minor inconvenience is lore',
+    'adds to cart, never checks out, its the ritual',
+    'says brb then disappears for 7 months',
+    'my camera roll is 90% screenshots i will never use',
+    'running on iced coffee and intrusive thoughts',
+    'if i like ur post we are now best friends sorry i dont make the rules',
+    'currently buffering pls wait...',
+    'certified yapper, 3am thoughts dealer',
+    'too lazy to be mysterious, just forgets to reply'
   ];
   interests_list text[] := array[
-    'films, letterboxd, a24, soundtracks, night drives',
-    'thrift, vintage, depop, iced coffee, flea markets',
-    'bedroom pop, soundcloud, synths, late night drives',
-    'thrift flips, sewing, charity shops, outfit dumps',
-    'skating, streetwear, iphone edits, concrete',
-    'art, poetry, rainy days, bookshops, tote bags',
-    'gym, soft launch, pilates, matcha, selfies',
-    'playlists, spotify, vinyl, concerts, pinterest',
-    'stan twitter, memes, edits, lore, comebacks',
-    'plants, picnic, slow living, city fatigue, tea',
-    'streetwear, drops, reps vs retail, unboxings',
-    'cosy games, stardew, animal crossing, twitch',
-    'memes, shitposts, sincere posts, oversharing',
-    'uni, deadlines, library, procrastination, noodles',
-    'coffee, latte art, regulars, small talk, oat milk',
-    'film, 35mm, grain, light leaks, disposable cam',
-    'cooking, tiktok recipes, plating, food pics',
-    'indie, vinyl, gigs, band tees, discover weekly',
-    'grunge, dyed hair, piercings, thrift, playlists',
-    'manifesting, journaling, hot girl walks, delulu'
+    'yapping, napping, iced coffee, rewatching the same 3 shows',
+    'overthinking, playlists, rereading old texts for lore',
+    'memes, ghosting, coming back like nothing happened',
+    'unfinished crafts, half-drunk coffees, tab hoarding',
+    'side quests, b-roll era, romanticising errands',
+    'insomnia, night walks, existential dread but make it funny',
+    'fits, thrift, mirror pics, unsolicited compliments',
+    'anime, fanfic, crying at 2am, water? what water',
+    'doomscrolling, tote bags, tote bags inside tote bags',
+    'being online, being tired, no in between, naps',
+    'snacks, procrastination, being an intern to myself',
+    'lore, side eyes, making everything a cinematic universe',
+    'online shopping, wishlists, never buying, window shopping irl',
+    'brb, afk, lore, disappearing and respawning',
+    'screenshots, camera roll archaeology, deleting nothing',
+    'iced coffee, intrusive thoughts, iced coffee again',
+    'liking, following, oversharing, instant besties',
+    'buffering, loading screens, patience? never heard of her',
+    'yapping at 3am, voice notes, oversharing to strangers',
+    'lazy, forgetting to reply, then replying with a meme a week later'
   ];
   names_list text[] := array[
     'Maya', 'Zoe', 'Ava', 'Luna', 'Milo', 'Jude', 'Kai', 'Ari',
@@ -370,10 +370,15 @@ end $$;
 grant execute on function public.bot_suggest_persona() to authenticated;
 
 -- Backfill null personas for older bots that were created before persona was set
-update public.bots set persona = 'chronically online gen z kid', interests = 'memes, vibes, whatever'
+update public.bots set persona = 'full time yapper part time napper', interests = 'yapping, napping, iced coffee, rewatching the same 3 shows'
  where persona is null or persona = '';
-update public.profiles set headline = 'chronically online', bio = 'just here for the vibes'
+update public.profiles set headline = 'full time yapper part time napper', bio = 'yapping, napping, iced coffee, rewatching the same 3 shows'
  where is_bot = true and (headline is null or headline = '');
+-- Reroll existing bots that still have the old aesthetic/corporate personas to new lazy absurd ones
+with reroll as (select id, bot_suggest_persona() as j from public.bots where persona like '%art hoe%' or persona like '%Front%' or persona like '%Security researcher%' or persona like '%Software developer%')
+update public.bots set persona = (reroll.j->>'persona'), interests = (reroll.j->>'interests') from reroll where bots.id = reroll.id;
+with reroll2 as (select p.id, bot_suggest_persona() as j from public.profiles p join public.bots b on b.id = p.id where p.is_bot and (p.headline like '%art hoe%' or p.headline like '%Front%' or p.headline like '%Security researcher%'))
+update public.profiles set headline = (reroll2.j->>'persona'), bio = (reroll2.j->>'interests') from reroll2 where profiles.id = reroll2.id;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 3. NOTIFICATION ENHANCEMENTS
