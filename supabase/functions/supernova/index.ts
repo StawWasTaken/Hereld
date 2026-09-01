@@ -956,7 +956,7 @@ async function seed(c: Config) {
         out = await think(c, system, [{ role: 'them', text: asked }], 240);
         text = out.text.replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
         // ban the refusal phrase that showed in Vaporloom reply
-        if (/haven.t seen what they actually wrote|can.t weigh in/i.test(text)) {
+        if (/haven.t seen what they actually wrote|can.t weigh in|cannot comment/i.test(text)) {
           text = ''; throw new Error('refusal phrase');
         }
         if (text.length >= 8) break;
@@ -1083,7 +1083,7 @@ Deno.serve(async (req) => {
   if (!c) return reply({ error: 'Supernova has no key set yet.' }, 503);
 
   /* The timer jobs need either the cron secret or a staff member. */
-  if (job === 'notes' || job === 'seed' || job === 'mentions') {
+  if (job === 'seed' || job === 'seed_all' || job === 'notes' || job === 'mentions') {
     const secret = Deno.env.get('HERELD_CRON_SECRET') || '';
     const cronOk = secret && req.headers.get('x-cron-secret') === secret;
     if (!cronOk) {
@@ -1094,11 +1094,18 @@ Deno.serve(async (req) => {
         return reply({ error: 'Not for you.' }, 403);
       }
     }
+
+    if (job === 'seed_all') {
+      const { error: fillErr } = await admin.rpc('bot_fill', { p_limit: 50 });
+      if (fillErr) return reply({ error: 'bot_fill failed: ' + fillErr.message }, 500);
+      return await seed(c);
+    }
     if (job === 'notes') return await notes(c);
     if (job === 'mentions') return await mentions(c);
     return await seed(c);
   }
 
+  /* Everything else needs a signed-in user. */
   const uid = await whoIsAsking(req);
   if (!uid) return reply({ error: 'Sign in first.' }, 401);
   if (job === 'write') return await write(req, c, uid);

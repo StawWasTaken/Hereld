@@ -519,6 +519,7 @@ node.innerHTML =
 '</form>' +
 '<div class="hd-stf-row">' +
 '<button class="nb-btn nb-btn--ghost" type="button" id="stfSeedNow">Run bots now</button>' +
+'<button class="nb-btn nb-btn--ghost" type="button" id="stfSeedAll">Run ALL bots</button>' +
 '<button class="nb-btn nb-btn--ghost" type="button" id="stfMentionsNow">Run mentions now</button>' +
 '</div>' +
 '<div class="nb-alert nb-alert--info hd-stf-note">Set a number above 0 to enable the bot system. ' +
@@ -537,6 +538,13 @@ seedBtn.disabled = true; seedBtn.textContent = 'Running...';
 try { var r = await H.fn('supernova?job=seed'); U.toast('Bots ran. ' + (r.made || 0) + ' actions taken.'); }
 catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
 seedBtn.disabled = false; seedBtn.textContent = 'Run bots now';
+});
+var seedAllBtn = node.querySelector('#stfSeedAll');
+if (seedAllBtn) seedAllBtn.addEventListener('click', async function () {
+seedAllBtn.disabled = true; seedAllBtn.textContent = 'Running ALL...';
+try { var r = await H.fn('supernova?job=seed_all'); U.toast('All bots ran. ' + (r.posted || 0) + ' actions taken.'); }
+catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
+seedAllBtn.disabled = false; seedAllBtn.textContent = 'Run ALL bots';
 });
 var mentBtn = node.querySelector('#stfMentionsNow');
 if (mentBtn) mentBtn.addEventListener('click', async function () {
