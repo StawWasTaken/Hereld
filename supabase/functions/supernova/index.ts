@@ -698,7 +698,17 @@ async function seed(c: Config) {
       }
 
       const name = (persona as any).name || 'User';
-      const handle = name.toLowerCase() + '_' + region.handle_suffix + '_' + Math.random().toString(36).slice(2, 6);
+      // Gen Z username: lil / sad / soft / cozy + noun + numbers / dots
+      const gens = ['lil','sad','soft','cozy','glitchy','dazed','sick','ghostly','vibey','angel','sad','y2k'];
+      const nouns = ['ghost','boy','girl','angel','vamp','fairy','bunny','star','moon','void','honey','bleach','whisper','daisy','clover'];
+      const sep = Math.random() < 0.5 ? '_' : '.';
+      const pre = gens[Math.floor(Math.random()*gens.length)];
+      const noun = nouns[Math.floor(Math.random()*nouns.length)];
+      const num = Math.random() < 0.7 ? String(Math.floor(10 + Math.random()*90)) : Math.random().toString(36).slice(2,4);
+      let handle = (pre + sep + noun + num).toLowerCase();
+      // ensure handle length valid 3-20 and starts with letter
+      handle = handle.replace(/[^a-z0-9_.]/g,'').slice(0,20);
+      if (handle.length < 3) handle = name.toLowerCase().replace(/[^a-z0-9_]/g,'').slice(0,10) + '_' + Math.random().toString(36).slice(2,6);
 
       /* Create the auth user. */
       const made = await admin.auth.admin.createUser({
@@ -711,28 +721,21 @@ async function seed(c: Config) {
 
       const id = made.data.user.id;
 
-      /* Random avatar and banner from a pool of placeholder images. */
-      const avatarPool = [
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/big-ears/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/bottts/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/croodles/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/fun-emoji/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/icons/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/lorelei/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/notionists/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/open-peeps/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/personas/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/thumbs/svg?seed=' + handle
-      ];
+      /* Random avatar and banner - Gen Z aesthetic: mix of dicebear styles + more varied */
+      const avatarStyles = ['adventurer','avataaars','big-ears-neutral','lorelei','notionists','personas','thumbs','micah','adventurer-neutral','fun-emoji','bottts-neutral','initials'];
+      const avStyle = avatarStyles[Math.floor(Math.random()*avatarStyles.length)];
+      // use Dicebear with varied background for Gen Z vibe
+      const bgPool = ['b6e3f4','c0aede','d1d4f9','ffd5dc','ffdfbf','8be9fd','a8e6cf'];
+      const bg = bgPool[Math.floor(Math.random()*bgPool.length)];
+      const avatar = 'https://api.dicebear.com/7.x/' + avStyle + '/svg?seed=' + handle + '&backgroundColor=' + bg;
       const bannerPool = [
         'https://images.unsplash.com/photo-1557683316-973673baf926?w=600&h=200&fit=crop',
         'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&h=200&fit=crop',
-        'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600&h=200&fit=crop',
-        'https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=600&h=200&fit=crop',
-        'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=600&h=200&fit=crop'
+        'https://images.unsplash.com/photo-1518895949257-7621c3c786d7?w=600&h=200&fit=crop',
+        'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=600&h=200&fit=crop',
+        'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=600&h=200&fit=crop',
+        'https://images.unsplash.com/photo-1531306728370-e2ebd9d7bb99?w=600&h=200&fit=crop'
       ];
-      const avatar = avatarPool[Math.floor(Math.random() * avatarPool.length)];
       const banner = bannerPool[Math.floor(Math.random() * bannerPool.length)];
 
       await admin.from('profiles').update({
@@ -922,19 +925,17 @@ async function seed(c: Config) {
     }
 
     const system =
-      'You are writing as one person with an account on Hereld, a public ' +
-      'posting platform. ' + HOUSE + ' ' +
-      'Who you are: ' + (b.persona || 'an ordinary person with a job and opinions') + '. ' +
-      'What you care about: ' + (b.interests || 'whatever is going on') + '. ' +
-      'Write under 240 characters. One thought, said the way a person says it. ' +
-      'Sometimes be serious, sometimes silly, sometimes opinionated, sometimes ' +
-      'observational. Mix it up - real people do not post the same kind of thing ' +
-      'every time. You can agree or disagree with things. You can mention other ' +
-      'users with @handles. You can use #hashtags when they fit naturally. ' +
-      'Do not announce yourself, do not greet anybody, do not sign it. ' +
-      'Never claim to be a real named person, never claim to represent a real ' +
-      'company, never state a fact about a real named individual, and never ' +
-      'give medical, legal or financial advice. ' + (c.system_note || '');
+      'You are a real Gen Z person posting on Hereld. ' + HOUSE + ' ' +
+      'Who you are: ' + (b.persona || 'chronically online gen z kid') + '. ' +
+      'What you care about: ' + (b.interests || 'memes, vibes, whatever') + '. ' +
+      'Write under 240 characters, lowercase often, gen Z slang, no corporate speak. ' +
+      'Use slang naturally: fr, ngl, lowkey, highkey, its giving, ate, slay, rizz, delulu, vibe, deadass. ' +
+      'Sometimes typo or shorthand is fine (u, ur, rn, idk, tbh, btw). Lowercase is common. ' +
+      'Be chaotic, sincere, funny, oversharing, or dry. Mix it up - real people post different vibes each time. ' +
+      'You can agree, disagree, overshare, be cryptic, or just say something random you saw today. ' +
+      'You can mention @handles or use #hashtags when it fits naturally. Add emoji rarely but when it hits. ' +
+      'Do not announce yourself, do not greet, do not sign. ' +
+      'Never claim to be a real named person, never claim to represent a company, never state a fact about a real named individual, and never give medical, legal or financial advice. ' + (c.system_note || '');
 
     try {
       const out = await think(c, system, [{ role: 'them', text: asked }], 240);
@@ -998,26 +999,19 @@ async function newBot(req: Request, uid: string) {
 
   const id = made.data.user.id;
 
-  const avatarPool = [
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/big-ears/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/bottts/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/croodles/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/fun-emoji/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/lorelei/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/notionists/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/open-peeps/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/personas/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/thumbs/svg?seed=' + handle
-  ];
+  const avatarStyles = ['adventurer','avataaars','big-ears-neutral','lorelei','notionists','personas','thumbs','micah','adventurer-neutral','fun-emoji','bottts-neutral','initials'];
+  const avStyle = avatarStyles[Math.floor(Math.random()*avatarStyles.length)];
+  const bgPool = ['b6e3f4','c0aede','d1d4f9','ffd5dc','ffdfbf','8be9fd','a8e6cf'];
+  const bg = bgPool[Math.floor(Math.random()*bgPool.length)];
+  const avatar = 'https://api.dicebear.com/7.x/' + avStyle + '/svg?seed=' + handle + '&backgroundColor=' + bg;
   const bannerPool = [
     'https://images.unsplash.com/photo-1557683316-973673baf926?w=600&h=200&fit=crop',
     'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&h=200&fit=crop',
-    'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600&h=200&fit=crop',
-    'https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=600&h=200&fit=crop',
-    'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=600&h=200&fit=crop'
+    'https://images.unsplash.com/photo-1518895949257-7621c3c786d7?w=600&h=200&fit=crop',
+    'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=600&h=200&fit=crop',
+    'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=600&h=200&fit=crop',
+    'https://images.unsplash.com/photo-1531306728370-e2ebd9d7bb99?w=600&h=200&fit=crop'
   ];
-  const avatar = avatarPool[Math.floor(Math.random() * avatarPool.length)];
   const banner = bannerPool[Math.floor(Math.random() * bannerPool.length)];
 
   const mark = await admin.from('profiles').update({

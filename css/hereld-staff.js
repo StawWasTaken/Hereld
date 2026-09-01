@@ -484,14 +484,23 @@ var b = await db.from('bots')
 .order('created_at', { ascending: true }).limit(60);
 var total = b.error ? 0 : b.data.length;
 var live = b.error ? 0 : b.data.filter(function (x) { return x.active; }).length;
+// fetch last action per bot from bot_log
+var lastMap = {};
+try {
+  var lg = await db.from('bot_log').select('bot,kind,detail,created_at,ok').order('created_at', { ascending: false }).limit(120);
+  if (!lg.error && lg.data) lg.data.forEach(function (r) { if (!lastMap[r.bot]) lastMap[r.bot] = r; });
+} catch(e) {}
 var rows = b.error ? broke(why(b.error))
 : total ? b.data.map(function (x) {
+var last = lastMap[x.id];
+var lastLine = last ? esc(last.kind) + (last.detail ? ': ' + esc(String(last.detail).slice(0,60)) : '') + ' <span class="hd-stf-row-n">' + esc(H.when(last.created_at)) + '</span>' + (last.ok === false ? ' ' + tag('failed','bad') : '') : '<span class="hd-stf-row-n">no actions yet</span>';
 return '<div class="hd-stf-row">' + who(x.who, x.persona || 'No persona set') +
 '<span class="hd-stf-row-tags">' + (x.active ? tag('Active', 'ok') : tag('Inactive')) +
 tag(x.act_count + ' actions') + '</span>' +
 '<span class="hd-stf-row-n">' + (x.last_act_at ? 'last ' + H.when(x.last_act_at) : 'never run') + '</span>' +
 '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-bot="' + esc(x.id) + '" data-on="' +
 (x.active ? '' : '1') + '">' + (x.active ? 'Deactivate' : 'Activate') + '</button>' +
+'<div class="hd-stf-row-last">' + lastLine + '</div>' +
 '</div>';
 }).join('')
 : empty('No seed accounts exist. None can run.');

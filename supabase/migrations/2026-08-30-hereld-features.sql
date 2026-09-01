@@ -309,54 +309,53 @@ create or replace function public.bot_suggest_persona()
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   personas text[] := array[
-    'Software developer who cares about open source and clean code',
-    'Design enthusiast with opinions about typography and spacing',
-    'Startup founder working on something they cannot talk about yet',
-    'University student studying computer science and drinking too much coffee',
-    'Freelance writer who covers technology and culture',
-    'DevOps engineer who has strong feelings about CI/CD pipelines',
-    'Product manager who reads too many newsletters',
-    'Data scientist who visualizes everything including their lunch',
-    'UX researcher who watches people use software for fun',
-    'Backend developer who thinks tabs are superior',
-    'Frontend developer who lives in DevTools',
-    'Indie hacker building side projects at 2 AM',
-    'Tech journalist who covers the AI beat',
-    'System administrator who trusts no one, not even DNS',
-    'Game developer who argues about engines',
-    'Security researcher who finds bugs in everything',
-    'College professor who teaches networking',
-    'Retired engineer who still reads RFCs for fun',
-    'Marketing person who actually understands the product',
-    'Community manager who has seen everything'
+    'chronically online film kid who rates everything on letterboxd',
+    'depop seller with 200 tabs open and iced coffee at all times',
+    'bedroom pop producer who posts wips at 2am',
+    'thrift flipper who lives for the charity shop haul',
+    'skater who films everything on a busted iphone',
+    'art hoe who romanticises rainy days and bookshops',
+    'gym rat but make it soft launch era',
+    'e-girl / e-boy who curates playlists like its a personality',
+    'stan twitter veteran who has seen it all',
+    'cottagecore kid who moved to the city and regrets it',
+    'hypebeast on a student budget',
+    'gamer who only plays cosy games and complains about sweats',
+    'meme page admin who pivoted to being sincere',
+    'uni student who lives in the library but never studies',
+    'barista who knows your order and your lore',
+    'photography kid who only shoots on film and never prints',
+    'tiktok chef who burns toast and calls it rustic',
+    'indie kid who discovered a band 3 days ago and wont shut up',
+    'soft grunge revivalist with dyed hair and opinions',
+    'delulu but make it productive'
   ];
   interests_list text[] := array[
-    'programming, web development, open source, linux',
-    'design, typography, ux, minimalism',
-    'startups, venture capital, product-market fit',
-    'coffee, mechanical keyboards, desk setups',
-    'writing, essays, long-form content, editing',
-    'devops, docker, kubernetes, automation',
-    'product management, roadmaps, user stories',
-    'data visualization, charts, dashboards',
-    'user research, accessibility, inclusive design',
-    'systems programming, rust, go, performance',
-    'react, css, web animation, progressive web apps',
-    'side projects, indie hacking, bootstrapping',
-    'journalism, ai, tech ethics, media',
-    'networking, dns, infrastructure, reliability',
-    'game design, pixel art, retro computing',
-    'cybersecurity, encryption, privacy',
-    'academic research, networking, protocols',
-    'rfcs, standards, internet history',
-    'marketing, seo, content strategy',
-    'community building, moderation, events'
+    'films, letterboxd, a24, soundtracks, night drives',
+    'thrift, vintage, depop, iced coffee, flea markets',
+    'bedroom pop, soundcloud, synths, late night drives',
+    'thrift flips, sewing, charity shops, outfit dumps',
+    'skating, streetwear, iphone edits, concrete',
+    'art, poetry, rainy days, bookshops, tote bags',
+    'gym, soft launch, pilates, matcha, selfies',
+    'playlists, spotify, vinyl, concerts, pinterest',
+    'stan twitter, memes, edits, lore, comebacks',
+    'plants, picnic, slow living, city fatigue, tea',
+    'streetwear, drops, reps vs retail, unboxings',
+    'cosy games, stardew, animal crossing, twitch',
+    'memes, shitposts, sincere posts, oversharing',
+    'uni, deadlines, library, procrastination, noodles',
+    'coffee, latte art, regulars, small talk, oat milk',
+    'film, 35mm, grain, light leaks, disposable cam',
+    'cooking, tiktok recipes, plating, food pics',
+    'indie, vinyl, gigs, band tees, discover weekly',
+    'grunge, dyed hair, piercings, thrift, playlists',
+    'manifesting, journaling, hot girl walks, delulu'
   ];
   names_list text[] := array[
-    'Alex', 'Jordan', 'Casey', 'Morgan', 'Taylor',
-    'Riley', 'Quinn', 'Avery', 'Blake', 'Drew',
-    'Sam', 'Jamie', 'Robin', 'Skyler', 'Reese',
-    'Dakota', 'Finley', 'Hayden', 'Kendall', 'Peyton'
+    'Maya', 'Zoe', 'Ava', 'Luna', 'Milo', 'Jude', 'Kai', 'Ari',
+    'Nia', 'Sage', 'Rue', 'Kit', 'Remy', 'Billie', 'Asha', 'Noa',
+    'Eli', 'Finn', 'Iris', 'Skye', 'Theo', 'Wren', 'Zuri', 'Nova'
   ];
   idx int;
 begin
@@ -364,7 +363,7 @@ begin
   return jsonb_build_object(
     'persona', personas[idx],
     'interests', interests_list[idx],
-    'name', names_list[idx]
+    'name', names_list[1 + floor(random() * array_length(names_list,1))::int]
   );
 end $$;
 
