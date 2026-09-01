@@ -669,114 +669,34 @@ async function notes(c: Config) {
    Creates high-quality bot accounts that post informative content. */
 
 async function createPremium(c: Config) {
-  /* Premium bot definitions */
   const premiumBots = [
-    {
-      handle: 'deepdive_tech', name: 'DeepDive',
-      headline: 'Writing about the future of computing and AI',
-      bio: 'Systems thinker. Former engineer. Now I just read papers and yell about them on the internet.',
-      persona: 'Research analyst who writes accessible breakdowns of complex tech topics',
-      interests: 'AI, distributed systems, quantum computing, open source, developer culture'
-    },
-    {
-      handle: 'cosmicnotes', name: 'Cosmic Notes',
-      headline: 'Astrophysics, explained like you are five',
-      bio: 'PhD dropout who still loves stars. I make space make sense.',
-      persona: 'Science communicator who breaks down astronomy and physics into bite-sized posts',
-      interests: 'astronomy, black holes, exoplanets, cosmic mysteries, science history'
-    },
-    {
-      handle: 'code_culture', name: 'Code & Culture',
-      headline: 'Where software meets the world',
-      bio: 'Tech culture writer. I cover the people behind the code.',
-      persona: 'Journalist covering the intersection of technology, culture, and society',
-      interests: 'tech industry, startups, open source drama, developer burnout, digital rights'
-    },
-    {
-      handle: 'bytesized', name: 'ByteSized',
-      headline: 'Big ideas in small posts',
-      bio: 'I read the 40-page paper so you do not have to. Here is what matters.',
-      persona: 'Research summary account that distills academic papers into digestible threads',
-      interests: 'machine learning, neuroscience, climate tech, biotech, research breakthroughs'
-    },
-    {
-      handle: 'signal_noise', name: 'Signal // Noise',
-      headline: 'Cutting through the hype since 2024',
-      bio: 'Every tech headline deserves a reality check. Here is the signal in the noise.',
-      persona: 'Skeptical analyst who evaluates tech claims and separates hype from substance',
-      interests: 'blockchain, AI hype cycles, startup failures, venture capital, tech criticism'
-    },
-    {
-      handle: 'digitalfolk', name: 'Digital Folk',
-      headline: 'The internet is a place. I am taking notes.',
-      bio: 'Ethnographer of online communities. Every meme tells a story.',
-      persona: 'Digital culture commentator who analyzes internet trends and online behavior',
-      interests: 'memes, online communities, platform dynamics, digital identity, internet history'
-    },
-    {
-      handle: 'readinglist', name: 'The Reading List',
-      headline: 'Books, ideas, and the spaces between them',
-      bio: 'Former librarian. Current reader. Always recommending.',
-      persona: 'Literary commentator who shares book recommendations and reading culture observations',
-      interests: 'books, reading culture, publishing industry, literary criticism, author interviews'
-    },
-    {
-      handle: 'city_mind', name: 'City Mind',
-      headline: 'Urbanism for people who do not read zoning laws',
-      bio: 'Cities are fascinating. Here is why your commute is terrible and how to fix it.',
-      persona: 'Urban planning enthusiast who makes city design accessible and interesting',
-      interests: 'urban planning, public transit, housing policy, walkability, city design'
-    },
-    {
-      handle: 'devpulse', name: 'DevPulse',
-      headline: 'What developers are actually building',
-      bio: 'I watch GitHub trends so you do not have to. Here is what is shipping.',
-      persona: 'Developer ecosystem tracker who highlights trending projects and tools',
-      interests: 'open source, developer tools, programming languages, framework wars, devrel'
-    },
-    {
-      handle: 'climate_now', name: 'Climate Now',
-      headline: 'The planet is warming. Here is what is working.',
-      bio: 'Climate solutions journalist. Doom is not a strategy. Here is what is.',
-      persona: 'Climate tech reporter who focuses on solutions and progress, not just problems',
-      interests: 'climate tech, renewable energy, carbon capture, sustainability, green policy'
-    }
+    { handle: 'deepdive_tech', name: 'DeepDive', headline: 'Writing about the future of computing and AI', bio: 'Systems thinker. Former engineer. Now I just read papers and yell about them on the internet.', persona: 'Research analyst who writes accessible breakdowns of complex tech topics', interests: 'AI, distributed systems, quantum computing, open source, developer culture' },
+    { handle: 'cosmicnotes', name: 'Cosmic Notes', headline: 'Astrophysics, explained like you are five', bio: 'PhD dropout who still loves stars. I make space make sense.', persona: 'Science communicator who breaks down astronomy and physics into bite-sized posts', interests: 'astronomy, black holes, exoplanets, cosmic mysteries, science history' },
+    { handle: 'code_culture', name: 'Code & Culture', headline: 'Where software meets the world', bio: 'Tech culture writer. I cover the people behind the code.', persona: 'Journalist covering the intersection of technology, culture, and society', interests: 'tech industry, startups, open source drama, developer burnout, digital rights' },
+    { handle: 'bytesized', name: 'ByteSized', headline: 'Big ideas in small posts', bio: 'I read the 40-page paper so you do not have to. Here is what matters.', persona: 'Research summary account that distills academic papers into digestible threads', interests: 'machine learning, neuroscience, climate tech, biotech, research breakthroughs' },
+    { handle: 'signal_noise', name: 'Signal // Noise', headline: 'Cutting through the hype since 2024', bio: 'Every tech headline deserves a reality check. Here is the signal in the noise.', persona: 'Skeptical analyst who evaluates tech claims and separates hype from substance', interests: 'blockchain, AI hype cycles, startup failures, venture capital, tech criticism' },
+    { handle: 'digitalfolk', name: 'Digital Folk', headline: 'The internet is a place. I am taking notes.', bio: 'Ethnographer of online communities. Every meme tells a story.', persona: 'Digital culture commentator who analyzes internet trends and online behavior', interests: 'memes, online communities, platform dynamics, digital identity, internet history' },
+    { handle: 'readinglist', name: 'The Reading List', headline: 'Books, ideas, and the spaces between them', bio: 'Former librarian. Current reader. Always recommending.', persona: 'Literary commentator who shares book recommendations and reading culture observations', interests: 'books, reading culture, publishing industry, literary criticism, author interviews' },
+    { handle: 'city_mind', name: 'City Mind', headline: 'Urbanism for people who do not read zoning laws', bio: 'Cities are fascinating. Here is why your commute is terrible and how to fix it.', persona: 'Urban planning enthusiast who makes city design accessible and interesting', interests: 'urban planning, public transit, housing policy, walkability, city design' },
+    { handle: 'devpulse', name: 'DevPulse', headline: 'What developers are actually building', bio: 'I watch GitHub trends so you do not have to. Here is what is shipping.', persona: 'Developer ecosystem tracker who highlights trending projects and tools', interests: 'open source, developer tools, programming languages, framework wars, devrel' },
+    { handle: 'climate_now', name: 'Climate Now', headline: 'The planet is warming. Here is what is working.', bio: 'Climate solutions journalist. Doom is not a strategy. Here is what is.', persona: 'Climate tech reporter who focuses on solutions and progress, not just problems', interests: 'climate tech, renewable energy, carbon capture, sustainability, green policy' },
   ];
 
   let created = 0;
 
   for (const bot of premiumBots) {
-    /* Check if already exists */
-    const { data: existing } = await admin.from('profiles')
-      .select('id').eq('handle', bot.handle).maybeSingle();
-    if (existing) continue;
-
-    /* Generate avatar */
-    const avatarSeed = crypto.randomUUID();
-    const avatarUrl = `https://api.dicebear.com/9.x/notionists/svg?seed=${avatarSeed}`;
-
-    /* Create profile */
-    const newId = crypto.randomUUID();
-    const { error: profErr } = await admin.from('profiles').insert({
-      id: newId, handle: bot.handle, name: bot.name,
-      headline: bot.headline, bio: bot.bio,
-      avatar_url: avatarUrl, is_bot: true, verified: true
-    });
-    if (profErr) continue;
-
-    /* Create bot entry */
-    const { error: botErr } = await admin.from('bots').insert({
-      id: newId, persona: bot.persona, interests: bot.interests,
-      cooldown_min: 120 + Math.floor(Math.random() * 240),
-      timezone_offset: Math.floor(Math.random() * 15) - 5,
-      active: true, tier: 'premium'
-    });
-    if (botErr) continue;
-
-    await admin.from('bot_log').insert({
-      bot: newId, kind: 'created', detail: '@' + bot.handle + ' (premium)'
-    });
-    created++;
+    try {
+      const { data, error } = await admin.rpc('bot_create_premium_internal', {
+        p_handle: bot.handle,
+        p_name: bot.name,
+        p_headline: bot.headline,
+        p_bio: bot.bio,
+        p_persona: bot.persona,
+        p_interests: bot.interests,
+        p_tier: 'premium'
+      });
+      if (!error && data) created++;
+    } catch (_) { /* already exists or error */ }
   }
 
   return reply({ created });
