@@ -467,15 +467,45 @@ async function mentions(c: Config) {
 
   const done: string[] = [];
   for (const p of called || []) {
-    const { count } = await admin.from('posts').select('id', { count: 'exact', head: true })
-      .eq('reply_to', p.id).eq('author', nova.id);
-    if (count) continue;
+    /* If this post is a reply to another post, Supernova should reply to the
+       ORIGINAL post (the one being discussed), not the reply that mentions it.
+       Find the root of the thread. */
+    let replyTarget = p.id;
+    if (p.reply_to) {
+      /* Walk up to the root post. */
+      let rootId = p.reply_to;
+      let depth = 0;
+      while (depth < 10) {
+        const { data: parent } = await admin.from('posts').select('reply_to')
+          .eq('id', rootId).maybeSingle();
+        if (!parent || !parent.reply_to) break;
+        rootId = parent.reply_to;
+        depth++;
+      }
+      /* Check if Nova has already replied to the root post. */
+      const { count: rootCount } = await admin.from('posts').select('id', { count: 'exact', head: true })
+        .eq('reply_to', rootId).eq('author', nova.id);
+      if (!rootCount) {
+        replyTarget = rootId;
+      } else {
+        /* Nova already replied to the root. Check if Nova replied to this
+           specific mention post too. */
+        const { count: directCount } = await admin.from('posts').select('id', { count: 'exact', head: true })
+          .eq('reply_to', p.id).eq('author', nova.id);
+        if (directCount) continue;
+      }
+    } else {
+      /* Top-level post mentioning @supernova. Check if Nova already replied. */
+      const { count } = await admin.from('posts').select('id', { count: 'exact', head: true })
+        .eq('reply_to', p.id).eq('author', nova.id);
+      if (count) continue;
+    }
 
-    /* Build rich context for the reply. */
+    /* Build rich context for the reply, using the reply target post. */
     let context = '';
 
-    /* Try the rich context RPC. */
-    const { data: ctx } = await admin.rpc('post_context', { p_post: p.id });
+    /* Try the rich context RPC on the reply target. */
+    const { data: ctx } = await admin.rpc('post_context', { p_post: replyTarget });
     if (ctx) {
       const a = ctx.author;
       context = 'Post by @' + a.handle + ' (' + (a.name || a.handle) + ')' +
@@ -504,8 +534,8 @@ async function mentions(c: Config) {
       }
 
       if (ctx.chain?.length) {
-        context += '\n\nFull conversation chain:\n' + ctx.chain.map((c: any) =>
-          '- @' + c.author_handle + ': ' + String(c.body || '').replace(/\s+/g, ' ').slice(0, 240)
+        context += '\n\nFull conversation chain:\n' + ctx.chain.map((ch: any) =>
+          '- @' + ch.author_handle + ': ' + String(ch.body || '').replace(/\s+/g, ' ').slice(0, 240)
         ).join('\n');
       }
 
@@ -521,12 +551,11 @@ async function mentions(c: Config) {
       }
     } else {
       /* Fallback. */
-      let thread = '';
-      if (p.reply_to) {
-        const { data: parent } = await admin.from('posts').select(WITH_WHO).eq('id', p.reply_to).maybeSingle();
-        if (parent) thread = '\n\nIt is a reply to:\n' + said(parent);
+      const { data: targetPost } = await admin.from('posts').select(WITH_WHO).eq('id', replyTarget).maybeSingle();
+      if (targetPost) context = said(targetPost);
+      if (replyTarget !== p.id) {
+        context += '\n\nThe person who mentioned @supernova said:\n' + said(p);
       }
-      context = said(p) + thread;
     }
 
     const asked = String(p.body || '').replace(/@supernova/gi, '').trim();
@@ -534,7 +563,7 @@ async function mentions(c: Config) {
       'You are Supernova, the assistant built into Hereld. ' + HOUSE + ' ' +
       'Somebody has called you into a public thread by writing @supernova. ' +
       'Answer them in under 80 words, in one paragraph, as a reply that will ' +
-      'be posted publicly under their post. You can see the full context: the ' +
+      'be posted publicly under the original post. You can see the full context: the ' +
       'post, the author\'s profile, the thread, and engagement numbers. Use ' +
       'this to give a thoughtful, contextual reply. Do not greet them, do not ' +
       'sign off, and do not repeat their question back. Even if the mention is ' +
@@ -549,7 +578,7 @@ async function mentions(c: Config) {
       const text = (out.text || '').trim().slice(0, 500);
       if (!text) continue;
 
-      const made = await admin.from('posts').insert({ author: nova.id, body: text, reply_to: p.id });
+      const made = await admin.from('posts').insert({ author: nova.id, body: text, reply_to: replyTarget });
       if (made.error) continue;
       await log(p.author?.id || null, 'mention', c.model, out);
       done.push(p.id);
@@ -639,8 +668,8 @@ async function notes(c: Config) {
    Also auto-creates new accounts when the active count exceeds existing. */
 
 async function seed(c: Config) {
-  /* Auto-create bots if needed. */
-  const { data: needCreate } = await admin.rpc('bot_auto_create', { p_count: 2 });
+  /* Auto-create bots if needed. Create up to 5 at a time for faster ramp-up. */
+  const { data: needCreate } = await admin.rpc('bot_auto_create', { p_count: 5 });
   if (needCreate && needCreate > 0) {
     for (let i = 0; i < needCreate; i++) {
       const { data: persona } = await admin.rpc('bot_suggest_persona');
@@ -731,10 +760,10 @@ async function seed(c: Config) {
     }
   }
 
-  /* Decide what is owed before working out what is due. */
-  await admin.rpc('bot_fill', { p_limit: 5 });
+  /* Decide what is owed before working out what is due. Queue up to 10 actions. */
+  await admin.rpc('bot_fill', { p_limit: 10 });
 
-  const { data: due } = await admin.rpc('bot_due', { p_limit: 3 });
+  const { data: due } = await admin.rpc('bot_due', { p_limit: 8 });
   let made = 0;
 
   for (const b of due || []) {
@@ -775,6 +804,64 @@ async function seed(c: Config) {
         made++;
       } else {
         await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+      }
+      continue;
+    } else if (b.kind === 'follow' && b.about) {
+      /* Follow: follow a user. */
+      const { error: followErr } = await admin.from('follows').insert({
+        follower: b.bot, following: b.about
+      });
+      if (!followErr) {
+        await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
+        await admin.from('bot_log').insert({ bot: b.bot, kind: 'follow', detail: 'followed ' + b.about });
+        made++;
+      } else {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+      }
+      continue;
+    } else if (b.kind === 'bookmark' && b.about) {
+      /* Bookmark: save a post. */
+      const { error: bmErr } = await admin.from('bookmarks').insert({
+        user_id: b.bot, post_id: b.about
+      });
+      if (!bmErr) {
+        await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
+        await admin.from('bot_log').insert({ bot: b.bot, kind: 'bookmark', detail: 'bookmarked ' + b.about });
+        made++;
+      } else {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+      }
+      continue;
+    } else if (b.kind === 'community_note' && b.about) {
+      /* Community note: add context to a popular post using AI. */
+      const { data: notePost } = await admin.from('posts').select('body').eq('id', b.about).maybeSingle();
+      if (!notePost) {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+        continue;
+      }
+      const noteSystem =
+        'You are adding a community note to a post on Hereld. ' + HOUSE + ' ' +
+        'Write a brief, factual note that adds context, corrects misinformation, or provides ' +
+        'relevant background. Be neutral and cite facts. Under 100 words. ' +
+        'Return only the note text, no preamble.';
+      try {
+        const out = await think(c, noteSystem,
+          [{ role: 'them', text: 'Post to note:\n' + String(notePost.body || '').slice(0, 600) }], 200);
+        const text = (out.text || '').trim().slice(0, 500);
+        if (!text) throw new Error('empty note');
+        const { error: noteErr } = await admin.from('community_notes').insert({
+          post_id: b.about, author: b.bot, body: text, status: 'proposed'
+        });
+        if (!noteErr) {
+          await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
+          await admin.from('bot_log').insert({ bot: b.bot, kind: 'community_note', detail: 'noted ' + b.about });
+          made++;
+        } else {
+          await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+        }
+      } catch (e) {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+        await admin.from('bot_log').insert({ bot: b.bot, kind: 'community_note', detail: String(e).slice(0, 200), ok: false });
       }
       continue;
     } else if (b.kind === 'profile_edit') {

@@ -86,7 +86,7 @@ where p.is_bot = true
 
 alter table public.bot_queue drop constraint if exists bot_queue_kind_check;
 alter table public.bot_queue add constraint bot_queue_kind_check
-  check (kind in ('post', 'reply', 'like', 'repost', 'profile_edit'));
+  check (kind in ('post', 'reply', 'like', 'repost', 'profile_edit', 'follow', 'bookmark', 'community_note'));
 
 create or replace function public.bot_fill(p_limit int default 5)
 returns integer language plpgsql security definer set search_path = public as $$
@@ -116,13 +116,15 @@ begin
     target := null;
     r := random();
 
-    if r < 0.55 then
+    if r < 0.40 then
+      -- Post: write a new post
       insert into bot_queue (bot, kind, about, due_at)
       values (b.id, 'post', null,
               coalesce(b.last_act_at, now()) + (gap || ' minutes')::interval);
       made := made + 1;
 
-    elsif r < 0.80 then
+    elsif r < 0.60 then
+      -- Reply: respond to a human's post
       select p.id into target
         from posts p
         join profiles a on a.id = p.author
@@ -145,7 +147,8 @@ begin
         made := made + 1;
       end if;
 
-    elsif r < 0.90 then
+    elsif r < 0.72 then
+      -- Like: endorse a post
       select p.id into target
         from posts p
         join profiles a on a.id = p.author
@@ -164,7 +167,8 @@ begin
         made := made + 1;
       end if;
 
-    elsif r < 0.97 then
+    elsif r < 0.80 then
+      -- Repost: relay a human's post
       select p.id into target
         from posts p
         join profiles a on a.id = p.author
@@ -186,7 +190,70 @@ begin
         made := made + 1;
       end if;
 
+    elsif r < 0.88 then
+      -- Follow: follow a human account
+      select p.id into target
+        from profiles p
+       where not p.banned
+         and not p.is_bot
+         and p.id <> b.id
+         and p.follower_count > 0
+         and not exists (select 1 from follows f where f.follower = b.id and f.following = p.id)
+         and not exists (select 1 from blocks bl where (bl.blocker = p.id and bl.blocked = b.id)
+                                                  or (bl.blocker = b.id and bl.blocked = p.id))
+        order by random()
+        limit 1;
+
+      if target is not null then
+        insert into bot_queue (bot, kind, about, due_at)
+        values (b.id, 'follow', target,
+                coalesce(b.last_act_at, now()) + (gap || ' minutes')::interval);
+        made := made + 1;
+      end if;
+
+    elsif r < 0.94 then
+      -- Bookmark: save a post
+      select p.id into target
+        from posts p
+        join profiles a on a.id = p.author
+       where not p.hidden
+         and not a.banned
+         and p.author <> b.id
+         and p.created_at > now() - interval '5 days'
+         and not exists (select 1 from bookmarks bk where bk.user_id = b.id and bk.post_id = p.id)
+        order by random()
+        limit 1;
+
+      if target is not null then
+        insert into bot_queue (bot, kind, about, due_at)
+        values (b.id, 'bookmark', target,
+                coalesce(b.last_act_at, now()) + (gap || ' minutes')::interval);
+        made := made + 1;
+      end if;
+
+    elsif r < 0.97 then
+      -- Community note: add context to a post
+      select p.id into target
+        from posts p
+        join profiles a on a.id = p.author
+       where not p.hidden
+         and not a.banned
+         and p.author <> b.id
+         and p.created_at > now() - interval '7 days'
+         and p.endorse_count > 5
+         and not exists (select 1 from community_notes cn where cn.post_id = p.id and cn.author = b.id)
+        order by random()
+        limit 1;
+
+      if target is not null then
+        insert into bot_queue (bot, kind, about, due_at)
+        values (b.id, 'community_note', target,
+                coalesce(b.last_act_at, now()) + (gap || ' minutes')::interval);
+        made := made + 1;
+      end if;
+
     else
+      -- Profile edit: fill in missing fields
       if b.headline = '' or b.bio = '' or b.avatar_url is null or b.location = '' then
         insert into bot_queue (bot, kind, about, due_at)
         values (b.id, 'profile_edit', null,
