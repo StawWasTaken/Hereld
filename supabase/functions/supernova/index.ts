@@ -110,10 +110,12 @@ function log(who: string | null, kind: string, model: string, u: any, ok = true,
 /* House style. Hereld is dark, plain-spoken and British, and it does not use
    the long dash. Saying so once here is cheaper than editing every answer. */
 const HOUSE =
-  'Write in British English. Plain, direct sentences. Never use an em dash; ' +
-  'use a hyphen. No headings, no bullet lists unless asked, no emoji unless ' +
-  'the person used one first. Do not open with a compliment or a summary of ' +
-  'the question. If you do not know something, say so in one line.';
+  'Write in British English. Match the energy of the person you are replying to - ' +
+  'if they are casual and slangy, be casual and slangy back. If they are formal, ' +
+  'be formal. Never use an em dash; use a hyphen. No headings, no bullet lists ' +
+  'unless asked, no emoji unless the person used one first. Do not open with a ' +
+  'compliment or a summary of the question. If you do not know something, say so ' +
+  'in one line. Be real, not corporate. Sound like a person, not a chatbot.';
 
 async function whoIsAsking(req: Request) {
   const auth = req.headers.get('authorization') || '';
@@ -414,8 +416,7 @@ async function ask(req: Request, c: Config, uid: string) {
   const { data: me } = await admin.from('profiles').select('handle,name').eq('id', uid).maybeSingle();
 
   const system =
-    'You are Supernova, the assistant built into Hereld, which is a public ' +
-    'posting platform made by Swiftaw. ' + HOUSE + ' ' +
+    'You are Supernova, a feature in Hereld - a public posting platform made by Swiftaw. ' + HOUSE + ' ' +
     'You are talking to ' + (me?.name || me?.handle || 'someone') + '. ' +
     'You can answer general questions and questions about Hereld. You cannot ' +
     'post, follow, block, delete or moderate on anyone\'s behalf, and you must ' +
@@ -423,9 +424,9 @@ async function ask(req: Request, c: Config, uid: string) {
     'policies; if you are not sure a feature exists, say you are not sure. ' +
     'You have access to Hereld\'s data - profiles, posts, engagement numbers. ' +
     'Use it to answer questions about the platform and its users accurately. ' +
-    'Answer every question directly and helpfully. Only ask for clarification ' +
-    'if the question is genuinely unreadable or empty. Never say "I could not ' +
-    'find anything" when you can still give a useful answer from your knowledge. ' +
+    'Answer every question directly. Only ask for clarification if the question ' +
+    'is genuinely unreadable or empty. Never say "I could not find anything" ' +
+    'when you can still give a useful answer. ' +
     (c.system_note || '');
 
   const seen = await gather(uid, talk[talk.length - 1]?.text || '', typeof post === 'string' ? post : undefined);
@@ -560,15 +561,16 @@ async function mentions(c: Config) {
 
     const asked = String(p.body || '').replace(/@supernova/gi, '').trim();
     const system =
-      'You are Supernova, the assistant built into Hereld. ' + HOUSE + ' ' +
+      'You are Supernova, a feature in Hereld. ' + HOUSE + ' ' +
       'Somebody has called you into a public thread by writing @supernova. ' +
-      'Answer them in under 80 words, in one paragraph, as a reply that will ' +
-      'be posted publicly under the original post. You can see the full context: the ' +
-      'post, the author\'s profile, the thread, and engagement numbers. Use ' +
-      'this to give a thoughtful, contextual reply. Do not greet them, do not ' +
-      'sign off, and do not repeat their question back. Even if the mention is ' +
-      'vague, give a useful response based on the context around it. ' +
-      'Never invent posts, accounts, numbers or Hereld features. ' +
+      'Match their energy - if they are casual, be casual. If they are wound up, ' +
+      'be real about it. Answer in under 80 words, one paragraph, as a reply ' +
+      'posted publicly under the original post. You can see the full context: ' +
+      'the post, the author\'s profile, the thread, and engagement numbers. ' +
+      'Use this to give a contextual reply. Do not greet them, do not sign off, ' +
+      'and do not repeat their question back. Even if the mention is vague, give ' +
+      'a useful response based on the context. Never invent posts, accounts, ' +
+      'numbers or Hereld features. ' +
       (c.system_note || '');
 
     try {
@@ -999,6 +1001,10 @@ async function seed(c: Config) {
       await log(null, b.kind === 'reply' ? 'bot_reply' : 'bot_post', c.model, null, false, String(e));
     }
   }
+
+  /* Also check for @supernova mentions while we're here. */
+  try { await mentions(c); } catch (_) { /* non-critical */ }
+
   return reply({ posted: made });
   } catch (e) {
     return reply({ error: 'seed failed: ' + String(e).slice(0, 300), posted: 0 }, 500);
