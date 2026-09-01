@@ -882,7 +882,7 @@ async function seed(c: Config) {
       /* View: record a view on a post. */
       const { error: viewErr } = await admin.from('post_views').insert({
         post_id: b.about, viewer: b.bot
-      }).select().maybeSingle();
+      });
       if (!viewErr) {
         await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
         await admin.from('bot_log').insert({ bot: b.bot, kind: 'view', detail: 'viewed ' + b.about });
