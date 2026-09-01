@@ -321,7 +321,7 @@ declare
     'unpaid intern to my own life, pls send snacks',
     'thinks every minor inconvenience is lore',
     'adds to cart, never checks out, its the ritual',
-    'says brb then disappears for 7 months',
+    'has 12 alarms and ignores all of them',
     'my camera roll is 90% screenshots i will never use',
     'running on iced coffee and intrusive thoughts',
     'if i like ur post we are now best friends sorry i dont make the rules',
@@ -343,7 +343,7 @@ declare
     'snacks, procrastination, being an intern to myself',
     'lore, side eyes, making everything a cinematic universe',
     'online shopping, wishlists, never buying, window shopping irl',
-    'brb, afk, lore, disappearing and respawning',
+    'alarms, snooze, oversleeping, running late again',
     'screenshots, camera roll archaeology, deleting nothing',
     'iced coffee, intrusive thoughts, iced coffee again',
     'liking, following, oversharing, instant besties',
@@ -373,10 +373,10 @@ update public.bots set persona = 'full time yapper part time napper', interests 
  where persona is null or persona = '';
 update public.profiles set headline = 'full time yapper part time napper', bio = 'yapping, napping, iced coffee, rewatching the same 3 shows'
  where is_bot = true and (headline is null or headline = '');
--- Reroll existing bots that still have the old aesthetic/corporate personas to new lazy absurd ones
-with reroll as (select id, bot_suggest_persona() as j from public.bots where persona like '%art hoe%' or persona like '%Front%' or persona like '%Security researcher%' or persona like '%Software developer%')
+-- Reroll existing bots that still have the old aesthetic/corporate personas to new lazy absurd ones + the rejected 'brb' style
+with reroll as (select id, bot_suggest_persona() as j from public.bots where persona like '%art hoe%' or persona like '%Front%' or persona like '%Security researcher%' or persona like '%Software developer%' or persona = 'says brb then disappears for 7 months')
 update public.bots set persona = (reroll.j->>'persona'), interests = (reroll.j->>'interests') from reroll where bots.id = reroll.id;
-with reroll2 as (select p.id, bot_suggest_persona() as j from public.profiles p join public.bots b on b.id = p.id where p.is_bot and (p.headline like '%art hoe%' or p.headline like '%Front%' or p.headline like '%Security researcher%'))
+with reroll2 as (select p.id, bot_suggest_persona() as j from public.profiles p join public.bots b on b.id = p.id where p.is_bot and (p.headline like '%art hoe%' or p.headline like '%Front%' or p.headline like '%Security researcher%' or p.headline = 'says brb then disappears for 7 months'))
 update public.profiles set headline = (reroll2.j->>'persona'), bio = (reroll2.j->>'interests') from reroll2 where profiles.id = reroll2.id;
 -- Fix duplicated lazy persona from previous backfill (3 bots all identical)
 with dup as (select id, bot_suggest_persona() as j from public.bots where persona = 'full time yapper part time napper' offset 1)
