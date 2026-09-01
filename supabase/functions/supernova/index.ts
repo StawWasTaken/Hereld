@@ -878,6 +878,19 @@ async function seed(c: Config) {
         await admin.from('bot_log').insert({ bot: b.bot, kind: 'community_note', detail: String(e).slice(0, 200), ok: false });
       }
       continue;
+    } else if (b.kind === 'view' && b.about) {
+      /* View: record a view on a post. */
+      const { error: viewErr } = await admin.from('post_views').insert({
+        post_id: b.about, viewer: b.bot
+      }).select().maybeSingle();
+      if (!viewErr) {
+        await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
+        await admin.from('bot_log').insert({ bot: b.bot, kind: 'view', detail: 'viewed ' + b.about });
+        made++;
+      } else {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+      }
+      continue;
     } else if (b.kind === 'profile_edit') {
       /* Profile edit: fill in missing fields using AI. */
       const { data: profile } = await admin.from('profiles')
