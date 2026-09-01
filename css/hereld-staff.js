@@ -521,10 +521,12 @@ node.innerHTML =
 '<button class="nb-btn nb-btn--ghost" type="button" id="stfSeedNow">Run bots now</button>' +
 '<button class="nb-btn nb-btn--ghost" type="button" id="stfSeedAll">Run ALL bots</button>' +
 '<button class="nb-btn nb-btn--ghost" type="button" id="stfMentionsNow">Run mentions now</button>' +
+'<button class="nb-btn nb-btn--primary" type="button" id="stfCreatePremium">Create premium accounts</button>' +
 '</div>' +
 '<div class="nb-alert nb-alert--info hd-stf-note">Set a number above 0 to enable the bot system. ' +
 'Set to 0 to stop everything immediately. Supernova API key must also be set in the Supernova tab. ' +
-'Use the buttons above to trigger bots manually (no cron needed).</div>' +
+'Use the buttons above to trigger bots manually (no cron needed). ' +
+'Premium accounts post high-quality, informative content (not Gen Z spam).</div>' +
 '<h3 class="hd-stf-sub">Accounts</h3><div class="hd-stf-rows">' + rows + '</div>';
 var form = node.querySelector('#stfBotN');
 form.addEventListener('submit', async function (e) {
@@ -552,6 +554,16 @@ mentBtn.disabled = true; mentBtn.textContent = 'Running...';
 try { var r = await H.fn('supernova?job=mentions'); U.toast('Mentions answered: ' + (r.answered || 0)); }
 catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
 mentBtn.disabled = false; mentBtn.textContent = 'Run mentions now';
+});
+var premBtn = node.querySelector('#stfCreatePremium');
+if (premBtn) premBtn.addEventListener('click', async function () {
+premBtn.disabled = true; premBtn.textContent = 'Creating premium accounts...';
+try {
+var r = await H.fn('supernova?job=create_premium');
+U.toast('Premium accounts created: ' + (r.created || 0));
+render();
+} catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
+premBtn.disabled = false; premBtn.textContent = 'Create premium accounts';
 });
 }
 var PROVIDERS = [

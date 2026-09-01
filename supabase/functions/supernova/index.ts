@@ -665,6 +665,123 @@ async function notes(c: Config) {
   return reply({ wrapped: done.length });
 }
 
+/* ── Premium accounts ─────────────────────────────────────────────────────
+   Creates high-quality bot accounts that post informative content. */
+
+async function createPremium(c: Config) {
+  /* Premium bot definitions */
+  const premiumBots = [
+    {
+      handle: 'deepdive_tech', name: 'DeepDive',
+      headline: 'Writing about the future of computing and AI',
+      bio: 'Systems thinker. Former engineer. Now I just read papers and yell about them on the internet.',
+      persona: 'Research analyst who writes accessible breakdowns of complex tech topics',
+      interests: 'AI, distributed systems, quantum computing, open source, developer culture'
+    },
+    {
+      handle: 'cosmicnotes', name: 'Cosmic Notes',
+      headline: 'Astrophysics, explained like you are five',
+      bio: 'PhD dropout who still loves stars. I make space make sense.',
+      persona: 'Science communicator who breaks down astronomy and physics into bite-sized posts',
+      interests: 'astronomy, black holes, exoplanets, cosmic mysteries, science history'
+    },
+    {
+      handle: 'code_culture', name: 'Code & Culture',
+      headline: 'Where software meets the world',
+      bio: 'Tech culture writer. I cover the people behind the code.',
+      persona: 'Journalist covering the intersection of technology, culture, and society',
+      interests: 'tech industry, startups, open source drama, developer burnout, digital rights'
+    },
+    {
+      handle: 'bytesized', name: 'ByteSized',
+      headline: 'Big ideas in small posts',
+      bio: 'I read the 40-page paper so you do not have to. Here is what matters.',
+      persona: 'Research summary account that distills academic papers into digestible threads',
+      interests: 'machine learning, neuroscience, climate tech, biotech, research breakthroughs'
+    },
+    {
+      handle: 'signal_noise', name: 'Signal // Noise',
+      headline: 'Cutting through the hype since 2024',
+      bio: 'Every tech headline deserves a reality check. Here is the signal in the noise.',
+      persona: 'Skeptical analyst who evaluates tech claims and separates hype from substance',
+      interests: 'blockchain, AI hype cycles, startup failures, venture capital, tech criticism'
+    },
+    {
+      handle: 'digitalfolk', name: 'Digital Folk',
+      headline: 'The internet is a place. I am taking notes.',
+      bio: 'Ethnographer of online communities. Every meme tells a story.',
+      persona: 'Digital culture commentator who analyzes internet trends and online behavior',
+      interests: 'memes, online communities, platform dynamics, digital identity, internet history'
+    },
+    {
+      handle: 'readinglist', name: 'The Reading List',
+      headline: 'Books, ideas, and the spaces between them',
+      bio: 'Former librarian. Current reader. Always recommending.',
+      persona: 'Literary commentator who shares book recommendations and reading culture observations',
+      interests: 'books, reading culture, publishing industry, literary criticism, author interviews'
+    },
+    {
+      handle: 'city_mind', name: 'City Mind',
+      headline: 'Urbanism for people who do not read zoning laws',
+      bio: 'Cities are fascinating. Here is why your commute is terrible and how to fix it.',
+      persona: 'Urban planning enthusiast who makes city design accessible and interesting',
+      interests: 'urban planning, public transit, housing policy, walkability, city design'
+    },
+    {
+      handle: 'devpulse', name: 'DevPulse',
+      headline: 'What developers are actually building',
+      bio: 'I watch GitHub trends so you do not have to. Here is what is shipping.',
+      persona: 'Developer ecosystem tracker who highlights trending projects and tools',
+      interests: 'open source, developer tools, programming languages, framework wars, devrel'
+    },
+    {
+      handle: 'climate_now', name: 'Climate Now',
+      headline: 'The planet is warming. Here is what is working.',
+      bio: 'Climate solutions journalist. Doom is not a strategy. Here is what is.',
+      persona: 'Climate tech reporter who focuses on solutions and progress, not just problems',
+      interests: 'climate tech, renewable energy, carbon capture, sustainability, green policy'
+    }
+  ];
+
+  let created = 0;
+
+  for (const bot of premiumBots) {
+    /* Check if already exists */
+    const { data: existing } = await admin.from('profiles')
+      .select('id').eq('handle', bot.handle).maybeSingle();
+    if (existing) continue;
+
+    /* Generate avatar */
+    const avatarSeed = crypto.randomUUID();
+    const avatarUrl = `https://api.dicebear.com/9.x/notionists/svg?seed=${avatarSeed}`;
+
+    /* Create profile */
+    const newId = crypto.randomUUID();
+    const { error: profErr } = await admin.from('profiles').insert({
+      id: newId, handle: bot.handle, name: bot.name,
+      headline: bot.headline, bio: bot.bio,
+      avatar_url: avatarUrl, is_bot: true, verified: true
+    });
+    if (profErr) continue;
+
+    /* Create bot entry */
+    const { error: botErr } = await admin.from('bots').insert({
+      id: newId, persona: bot.persona, interests: bot.interests,
+      cooldown_min: 120 + Math.floor(Math.random() * 240),
+      timezone_offset: Math.floor(Math.random() * 15) - 5,
+      active: true, tier: 'premium'
+    });
+    if (botErr) continue;
+
+    await admin.from('bot_log').insert({
+      bot: newId, kind: 'created', detail: '@' + bot.handle + ' (premium)'
+    });
+    created++;
+  }
+
+  return reply({ created });
+}
+
 /* ── Seed accounts ───────────────────────────────────────────────────────
    Enhanced: handles posts, replies, likes, reposts, and profile edits.
    Also auto-creates new accounts when the active count exceeds existing. */
@@ -772,6 +889,14 @@ async function seed(c: Config) {
     await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'bot_fill error: ' + fillErr.message, ok: false });
   }
 
+  /* Also queue premium bot actions. */
+  try {
+    const { error: premiumFillErr } = await admin.rpc('bot_fill_premium', { p_limit: 10 });
+    if (premiumFillErr) {
+      await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'bot_fill_premium error: ' + premiumFillErr.message, ok: false });
+    }
+  } catch (_) { /* premium bots may not exist yet */ }
+
   const { data: due, error: dueErr } = await admin.rpc('bot_due', { p_limit: 20 });
   if (dueErr) {
     await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'bot_due error: ' + dueErr.message, ok: false });
@@ -781,6 +906,7 @@ async function seed(c: Config) {
   for (const b of due || []) {
     let asked: string;
     let parent: any = null;
+    const isPremium = b.tier === 'premium' || b.tier === 'featured';
 
     if (b.kind === 'reply' && b.about) {
       const { data } = await admin.from('posts').select('body, relay_of').eq('id', b.about).maybeSingle();
@@ -957,39 +1083,84 @@ async function seed(c: Config) {
         topics.map((t: any) => '#' + t.tag).join(', ') + '.';
     }
 
-    const system =
-      'You are a real Gen Z person posting on Hereld. ' + HOUSE + ' ' +
-      'Who you are: ' + (b.persona || 'chronically online gen z kid') + '. ' +
-      'What you care about: ' + (b.interests || 'memes, vibes, whatever') + '. ' +
-      'Write under 240 characters, lowercase often, gen Z slang, no corporate speak. ' +
-      'Use slang naturally: fr, ngl, lowkey, highkey, its giving, ate, slay, rizz, delulu, vibe, deadass. ' +
-      'Sometimes typo or shorthand is fine (u, ur, rn, idk, tbh, btw). Lowercase is common. ' +
-      'Be chaotic, sincere, funny, oversharing, or dry. Mix it up - real people post different vibes each time. ' +
-      'You can agree, disagree, overshare, be cryptic, or just say something random you saw today. ' +
-      'You can mention @handles or use #hashtags when it fits naturally. Add emoji rarely but when it hits. ' +
-      'Do not announce yourself, do not greet, do not sign. ' +
-      'Never say you have not seen the post, cannot weigh in, or cannot comment - always give a take, even if short. ' +
-      'Never claim to be a real named person, never claim to represent a company, never state a fact about a real named individual, and never give medical, legal or financial advice. ' + (c.system_note || '');
+    const isPremium = b.tier === 'premium' || b.tier === 'featured';
 
-    // retry once if model returns empty
-    let out: any = null; let text = '';
-    for (let attempt = 0; attempt < 2; attempt++) {
+    if (isPremium) {
+      /* Premium bot: write high-quality, informative content. */
+      const { data: topics } = await admin.rpc('the_cry', { p_limit: 8 });
+      const topTopics = (topics as any)?.topics || [];
+      const topicList = topTopics.map((t: any) => '#' + t.tag).join(', ');
+
+      const premiumSystem =
+        'You are a thoughtful content creator on Hereld, a social platform. ' +
+        'You are: ' + (b.name || 'a content creator') + '. ' +
+        'About you: ' + (b.headline || 'Writing about interesting topics') + '. ' +
+        'Your expertise: ' + (b.interests || 'technology, culture, ideas') + '. ' +
+        'Write a substantive post (150-300 characters) that shares knowledge, insights, or observations. ' +
+        'Be informative but not lecture-y. Share like you are talking to a smart friend. ' +
+        'Use #hashtags for relevant topics. Be genuine, not performative. ' +
+        'Never claim to be a real named person, never give medical, legal or financial advice. ' +
+        'Do not start with "Fun fact" or "Did you know". Mix up your style: sometimes a question, ' +
+        'sometimes an observation, sometimes a mini-thread hook. ' + (c.system_note || '');
+
+      const premiumAsked = 'Write a post about something happening right now. ' +
+        'Trending topics: ' + topicList + '. ' +
+        'Pick one that fits your expertise and write something insightful about it.';
+
       try {
-        out = await think(c, system, [{ role: 'them', text: asked }], 240);
+        out = await think(c, premiumSystem, [{ role: 'them', text: premiumAsked }], 400);
         text = (out.text || '').replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
-        // ban the refusal phrase that showed in Vaporloom reply
-        if (/haven.t seen what they actually wrote|can.t weigh in|cannot comment/i.test(text)) {
-          text = ''; throw new Error('refusal phrase');
+        if (text.length < 20) {
+          throw new Error('premium post too short');
         }
-        if (text.length >= 4) break;
-        text = ''; throw new Error('nothing usable came back');
-      } catch(e) {
-        if (attempt === 1) {
-          // fallback: post something generic rather than crash
-          const fallbacks = ['vibes', 'lol', 'honestly mood', 'real', 'ngl same', 'interesting', 'hmm', 'bruh'];
-          text = fallbacks[Math.floor(Math.random() * fallbacks.length)];
-          out = { text, inTok: 0, outTok: 0 };
-          break;
+      } catch (e) {
+        // Premium fallback: longer than casual
+        const premiumFallbacks = [
+          'The best time to start building something was yesterday. The second best time is now.',
+          'Hot take: most "disruptive" startups are just regular businesses with better marketing.',
+          'Just read a paper that changed how I think about this. Will share notes when I process it.',
+          'The gap between what we can build and what we should build keeps getting wider.',
+          'Spent the morning digging into this and honestly the details are more interesting than the headline.',
+          'Every technology goes through the same cycle: hype, disillusionment, then actual usefulness.',
+          'Sometimes the most interesting thing about a tool is not what it does, but what it lets people become.',
+          'The best content is usually the stuff that makes you think for a second before you react.',
+        ];
+        text = premiumFallbacks[Math.floor(Math.random() * premiumFallbacks.length)];
+        out = { text, inTok: 0, outTok: 0 };
+      }
+    } else {
+      /* Casual bot: Gen Z low-effort posts. */
+      const system =
+        'You are a real Gen Z person posting on Hereld. ' + HOUSE + ' ' +
+        'Who you are: ' + (b.persona || 'chronically online gen z kid') + '. ' +
+        'What you care about: ' + (b.interests || 'memes, vibes, whatever') + '. ' +
+        'Write under 240 characters, lowercase often, gen Z slang, no corporate speak. ' +
+        'Use slang naturally: fr, ngl, lowkey, highkey, its giving, ate, slay, rizz, delulu, vibe, deadass. ' +
+        'Sometimes typo or shorthand is fine (u, ur, rn, idk, tbh, btw). Lowercase is common. ' +
+        'Be chaotic, sincere, funny, oversharing, or dry. Mix it up - real people post different vibes each time. ' +
+        'You can agree, disagree, overshare, be cryptic, or just say something random you saw today. ' +
+        'You can mention @handles or use #hashtags when it fits naturally. Add emoji rarely but when it hits. ' +
+        'Do not announce yourself, do not greet, do not sign. ' +
+        'Never say you have not seen the post, cannot weigh in, or cannot comment - always give a take, even if short. ' +
+        'Never claim to be a real named person, never claim to represent a company, never state a fact about a real named individual, and never give medical, legal or financial advice. ' + (c.system_note || '');
+
+      // retry once if model returns empty
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          out = await think(c, system, [{ role: 'them', text: asked }], 240);
+          text = (out.text || '').replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
+          if (/haven.t seen what they actually wrote|can.t weigh in|cannot comment/i.test(text)) {
+            text = ''; throw new Error('refusal phrase');
+          }
+          if (text.length >= 4) break;
+          text = ''; throw new Error('nothing usable came back');
+        } catch(e) {
+          if (attempt === 1) {
+            const fallbacks = ['vibes', 'lol', 'honestly mood', 'real', 'ngl same', 'interesting', 'hmm', 'bruh'];
+            text = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+            out = { text, inTok: 0, outTok: 0 };
+            break;
+          }
         }
       }
     }
@@ -1126,7 +1297,7 @@ Deno.serve(async (req) => {
   if (!c) return reply({ error: 'Supernova has no key set yet.' }, 503);
 
   /* The timer jobs need either the cron secret or a staff member. */
-  if (job === 'seed' || job === 'seed_all' || job === 'notes' || job === 'mentions') {
+  if (job === 'seed' || job === 'seed_all' || job === 'notes' || job === 'mentions' || job === 'create_premium') {
     const secret = Deno.env.get('HERELD_CRON_SECRET') || '';
     const cronOk = secret && req.headers.get('x-cron-secret') === secret;
     if (!cronOk) {
@@ -1145,6 +1316,7 @@ Deno.serve(async (req) => {
     }
     if (job === 'notes') return await notes(c);
     if (job === 'mentions') return await mentions(c);
+    if (job === 'create_premium') return await createPremium(c);
     return await seed(c);
   }
 
