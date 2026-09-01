@@ -37,7 +37,9 @@ create or replace function public.bot_create_premium_internal(
   p_bio text,
   p_persona text,
   p_interests text,
-  p_tier text default 'premium'
+  p_tier text default 'premium',
+  p_avatar_url text default null,
+  p_banner_url text default null
 )
 returns uuid
 language plpgsql
@@ -47,10 +49,16 @@ as $$
 declare
   new_id uuid;
   bot_email text;
+  avatar text;
+  banner text;
 begin
   if p_tier not in ('casual', 'premium', 'featured') then
     raise exception 'invalid tier: %', p_tier;
   end if;
+
+  -- Generate avatar if not provided
+  avatar := coalesce(p_avatar_url, 'https://api.dicebear.com/9.x/notionists/svg?seed=' || p_handle || '&backgroundColor=transparent');
+  banner := p_banner_url;
 
   -- Existing profile by handle? reuse it.
   select pr.id
@@ -74,6 +82,8 @@ begin
        set name = p_name,
            headline = p_headline,
            bio = p_bio,
+           avatar_url = coalesce(avatar_url, avatar),
+           banner_url = coalesce(banner_url, banner),
            is_bot = true,
            verified = true
      where id = new_id;
@@ -108,53 +118,36 @@ begin
 
   -- Parent row required for profiles.id FK -> auth.users.id
   insert into auth.users (
-    id,
-    aud,
-    role,
-    email,
-    encrypted_password,
-    email_confirmed_at,
-    raw_app_meta_data,
-    raw_user_meta_data,
-    created_at,
-    updated_at,
-    is_anonymous
+    id, aud, role, email, encrypted_password, email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data, created_at, updated_at, is_anonymous
   )
   values (
-    new_id,
-    'authenticated',
-    'authenticated',
-    bot_email,
-    null,
-    now(),
+    new_id, 'authenticated', 'authenticated', bot_email, null, now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
     jsonb_build_object('is_bot', true, 'handle', p_handle),
-    now(),
-    now(),
-    false
+    now(), now(), false
   )
   on conflict (id) do nothing;
 
   -- Upsert profile by handle for idempotency in partial states
-  insert into public.profiles (id, handle, name, headline, bio, is_bot, verified, created_at)
-  values (new_id, p_handle, p_name, p_headline, p_bio, true, true, now())
+  insert into public.profiles (id, handle, name, headline, bio, avatar_url, banner_url, is_bot, verified, created_at)
+  values (new_id, p_handle, p_name, p_headline, p_bio, avatar, banner, true, true, now())
   on conflict (handle) do update
     set name = excluded.name,
         headline = excluded.headline,
         bio = excluded.bio,
+        avatar_url = coalesce(excluded.avatar_url, avatar),
+        banner_url = coalesce(excluded.banner_url, banner),
         is_bot = true,
         verified = true
   returning id into new_id;
 
   insert into public.bots (id, persona, interests, cooldown_min, timezone_offset, active, tier)
   values (
-    new_id,
-    p_persona,
-    p_interests,
+    new_id, p_persona, p_interests,
     120 + floor(random() * 240)::int,
     (-5 + floor(random() * 15)::int),
-    true,
-    p_tier
+    true, p_tier
   )
   on conflict (id) do update
     set persona = excluded.persona,
@@ -176,7 +169,9 @@ create or replace function public.bot_create_premium(
   p_bio text,
   p_persona text,
   p_interests text,
-  p_tier text default 'premium'
+  p_tier text default 'premium',
+  p_avatar_url text default null,
+  p_banner_url text default null
 )
 returns uuid
 language plpgsql
@@ -189,19 +184,24 @@ begin
   end if;
 
   return public.bot_create_premium_internal(
-    p_handle, p_name, p_headline, p_bio, p_persona, p_interests, p_tier
+    p_handle, p_name, p_headline, p_bio, p_persona, p_interests, p_tier, p_avatar_url, p_banner_url
   );
 end $$;
 
-grant execute on function public.bot_create_premium(text,text,text,text,text,text,text) to authenticated;
+grant execute on function public.bot_create_premium(text,text,text,text,text,text,text,text,text) to authenticated;
 
 -- 4) SEED PREMIUM BOTS (uses internal function; safe to rerun)
+-- Avatars use Dicebear notionists for a clean, professional look
+-- Banners use Unsplash source for relevant imagery
+
 select public.bot_create_premium_internal(
   'deepdive_tech', 'DeepDive', 'Writing about the future of computing and AI',
   'Systems thinker. Former engineer. Now I just read papers and yell about them on the internet.',
   'Research analyst who writes accessible breakdowns of complex tech topics',
   'AI, distributed systems, quantum computing, open source, developer culture',
-  'premium'
+  'premium',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=deepdive&backgroundColor=b6e3f4',
+  'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1500&h=500&fit=crop'
 );
 
 select public.bot_create_premium_internal(
@@ -209,7 +209,9 @@ select public.bot_create_premium_internal(
   'PhD dropout who still loves stars. I make space make sense.',
   'Science communicator who breaks down astronomy and physics into bite-sized posts',
   'astronomy, black holes, exoplanets, cosmic mysteries, science history',
-  'premium'
+  'premium',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=cosmic&backgroundColor=c0aede',
+  'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1500&h=500&fit=crop'
 );
 
 select public.bot_create_premium_internal(
@@ -217,7 +219,9 @@ select public.bot_create_premium_internal(
   'Tech culture writer. I cover the people behind the code.',
   'Journalist covering the intersection of technology, culture, and society',
   'tech industry, startups, open source drama, developer burnout, digital rights',
-  'premium'
+  'premium',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=codeculture&backgroundColor=ffd5dc',
+  'https://images.unsplash.com/photo-1504639725590-34d0984388bd?w=1500&h=500&fit=crop'
 );
 
 select public.bot_create_premium_internal(
@@ -225,7 +229,9 @@ select public.bot_create_premium_internal(
   'I read the 40-page paper so you do not have to. Here is what matters.',
   'Research summary account that distills academic papers into digestible threads',
   'machine learning, neuroscience, climate tech, biotech, research breakthroughs',
-  'premium'
+  'premium',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=bytesized&backgroundColor=d1f4d1',
+  'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1500&h=500&fit=crop'
 );
 
 select public.bot_create_premium_internal(
@@ -233,7 +239,9 @@ select public.bot_create_premium_internal(
   'Every tech headline deserves a reality check. Here is the signal in the noise.',
   'Skeptical analyst who evaluates tech claims and separates hype from substance',
   'blockchain, AI hype cycles, startup failures, venture capital, tech criticism',
-  'premium'
+  'premium',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=signalnoise&backgroundColor=f0e6d3',
+  'https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=1500&h=500&fit=crop'
 );
 
 select public.bot_create_premium_internal(
@@ -241,7 +249,9 @@ select public.bot_create_premium_internal(
   'Ethnographer of online communities. Every meme tells a story.',
   'Digital culture commentator who analyzes internet trends and online behavior',
   'memes, online communities, platform dynamics, digital identity, internet history',
-  'premium'
+  'premium',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=digitalfolk&backgroundColor=e8d5f5',
+  'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=1500&h=500&fit=crop'
 );
 
 select public.bot_create_premium_internal(
@@ -249,7 +259,9 @@ select public.bot_create_premium_internal(
   'Former librarian. Current reader. Always recommending.',
   'Literary commentator who shares book recommendations and reading culture observations',
   'books, reading culture, publishing industry, literary criticism, author interviews',
-  'premium'
+  'premium',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=readinglist&backgroundColor=f5e6d3',
+  'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=1500&h=500&fit=crop'
 );
 
 select public.bot_create_premium_internal(
@@ -257,7 +269,9 @@ select public.bot_create_premium_internal(
   'Cities are fascinating. Here is why your commute is terrible and how to fix it.',
   'Urban planning enthusiast who makes city design accessible and interesting',
   'urban planning, public transit, housing policy, walkability, city design',
-  'premium'
+  'premium',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=citymind&backgroundColor=d3e8f5',
+  'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=1500&h=500&fit=crop'
 );
 
 select public.bot_create_premium_internal(
@@ -265,7 +279,9 @@ select public.bot_create_premium_internal(
   'I watch GitHub trends so you do not have to. Here is what is shipping.',
   'Developer ecosystem tracker who highlights trending projects and tools',
   'open source, developer tools, programming languages, framework wars, devrel',
-  'premium'
+  'premium',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=devpulse&backgroundColor=d3f5d3',
+  'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=1500&h=500&fit=crop'
 );
 
 select public.bot_create_premium_internal(
@@ -273,7 +289,9 @@ select public.bot_create_premium_internal(
   'Climate solutions journalist. Doom is not a strategy. Here is what is.',
   'Climate tech reporter who focuses on solutions and progress, not just problems',
   'climate tech, renewable energy, carbon capture, sustainability, green policy',
-  'premium'
+  'premium',
+  'https://api.dicebear.com/9.x/notionists/svg?seed=climate&backgroundColor=d3f5e8',
+  'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1500&h=500&fit=crop'
 );
 
 -- 5) PREMIUM BOT FILL RULES

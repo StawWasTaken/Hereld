@@ -670,16 +670,16 @@ async function notes(c: Config) {
 
 async function createPremium(c: Config) {
   const premiumBots = [
-    { handle: 'deepdive_tech', name: 'DeepDive', headline: 'Writing about the future of computing and AI', bio: 'Systems thinker. Former engineer. Now I just read papers and yell about them on the internet.', persona: 'Research analyst who writes accessible breakdowns of complex tech topics', interests: 'AI, distributed systems, quantum computing, open source, developer culture' },
-    { handle: 'cosmicnotes', name: 'Cosmic Notes', headline: 'Astrophysics, explained like you are five', bio: 'PhD dropout who still loves stars. I make space make sense.', persona: 'Science communicator who breaks down astronomy and physics into bite-sized posts', interests: 'astronomy, black holes, exoplanets, cosmic mysteries, science history' },
-    { handle: 'code_culture', name: 'Code & Culture', headline: 'Where software meets the world', bio: 'Tech culture writer. I cover the people behind the code.', persona: 'Journalist covering the intersection of technology, culture, and society', interests: 'tech industry, startups, open source drama, developer burnout, digital rights' },
-    { handle: 'bytesized', name: 'ByteSized', headline: 'Big ideas in small posts', bio: 'I read the 40-page paper so you do not have to. Here is what matters.', persona: 'Research summary account that distills academic papers into digestible threads', interests: 'machine learning, neuroscience, climate tech, biotech, research breakthroughs' },
-    { handle: 'signal_noise', name: 'Signal // Noise', headline: 'Cutting through the hype since 2024', bio: 'Every tech headline deserves a reality check. Here is the signal in the noise.', persona: 'Skeptical analyst who evaluates tech claims and separates hype from substance', interests: 'blockchain, AI hype cycles, startup failures, venture capital, tech criticism' },
-    { handle: 'digitalfolk', name: 'Digital Folk', headline: 'The internet is a place. I am taking notes.', bio: 'Ethnographer of online communities. Every meme tells a story.', persona: 'Digital culture commentator who analyzes internet trends and online behavior', interests: 'memes, online communities, platform dynamics, digital identity, internet history' },
-    { handle: 'readinglist', name: 'The Reading List', headline: 'Books, ideas, and the spaces between them', bio: 'Former librarian. Current reader. Always recommending.', persona: 'Literary commentator who shares book recommendations and reading culture observations', interests: 'books, reading culture, publishing industry, literary criticism, author interviews' },
-    { handle: 'city_mind', name: 'City Mind', headline: 'Urbanism for people who do not read zoning laws', bio: 'Cities are fascinating. Here is why your commute is terrible and how to fix it.', persona: 'Urban planning enthusiast who makes city design accessible and interesting', interests: 'urban planning, public transit, housing policy, walkability, city design' },
-    { handle: 'devpulse', name: 'DevPulse', headline: 'What developers are actually building', bio: 'I watch GitHub trends so you do not have to. Here is what is shipping.', persona: 'Developer ecosystem tracker who highlights trending projects and tools', interests: 'open source, developer tools, programming languages, framework wars, devrel' },
-    { handle: 'climate_now', name: 'Climate Now', headline: 'The planet is warming. Here is what is working.', bio: 'Climate solutions journalist. Doom is not a strategy. Here is what is.', persona: 'Climate tech reporter who focuses on solutions and progress, not just problems', interests: 'climate tech, renewable energy, carbon capture, sustainability, green policy' },
+    { handle: 'deepdive_tech', name: 'DeepDive', headline: 'Writing about the future of computing and AI', bio: 'Systems thinker. Former engineer. Now I just read papers and yell about them on the internet.', persona: 'Research analyst who writes accessible breakdowns of complex tech topics', interests: 'AI, distributed systems, quantum computing, open source, developer culture', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=deepdive&backgroundColor=b6e3f4', banner: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1500&h=500&fit=crop' },
+    { handle: 'cosmicnotes', name: 'Cosmic Notes', headline: 'Astrophysics, explained like you are five', bio: 'PhD dropout who still loves stars. I make space make sense.', persona: 'Science communicator who breaks down astronomy and physics into bite-sized posts', interests: 'astronomy, black holes, exoplanets, cosmic mysteries, science history', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=cosmic&backgroundColor=c0aede', banner: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1500&h=500&fit=crop' },
+    { handle: 'code_culture', name: 'Code & Culture', headline: 'Where software meets the world', bio: 'Tech culture writer. I cover the people behind the code.', persona: 'Journalist covering the intersection of technology, culture, and society', interests: 'tech industry, startups, open source drama, developer burnout, digital rights', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=codeculture&backgroundColor=ffd5dc', banner: 'https://images.unsplash.com/photo-1504639725590-34d0984388bd?w=1500&h=500&fit=crop' },
+    { handle: 'bytesized', name: 'ByteSized', headline: 'Big ideas in small posts', bio: 'I read the 40-page paper so you do not have to. Here is what matters.', persona: 'Research summary account that distills academic papers into digestible threads', interests: 'machine learning, neuroscience, climate tech, biotech, research breakthroughs', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=bytesized&backgroundColor=d1f4d1', banner: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1500&h=500&fit=crop' },
+    { handle: 'signal_noise', name: 'Signal // Noise', headline: 'Cutting through the hype since 2024', bio: 'Every tech headline deserves a reality check. Here is the signal in the noise.', persona: 'Skeptical analyst who evaluates tech claims and separates hype from substance', interests: 'blockchain, AI hype cycles, startup failures, venture capital, tech criticism', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=signalnoise&backgroundColor=f0e6d3', banner: 'https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=1500&h=500&fit=crop' },
+    { handle: 'digitalfolk', name: 'Digital Folk', headline: 'The internet is a place. I am taking notes.', bio: 'Ethnographer of online communities. Every meme tells a story.', persona: 'Digital culture commentator who analyzes internet trends and online behavior', interests: 'memes, online communities, platform dynamics, digital identity, internet history', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=digitalfolk&backgroundColor=e8d5f5', banner: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=1500&h=500&fit=crop' },
+    { handle: 'readinglist', name: 'The Reading List', headline: 'Books, ideas, and the spaces between them', bio: 'Former librarian. Current reader. Always recommending.', persona: 'Literary commentator who shares book recommendations and reading culture observations', interests: 'books, reading culture, publishing industry, literary criticism, author interviews', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=readinglist&backgroundColor=f5e6d3', banner: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=1500&h=500&fit=crop' },
+    { handle: 'city_mind', name: 'City Mind', headline: 'Urbanism for people who do not read zoning laws', bio: 'Cities are fascinating. Here is why your commute is terrible and how to fix it.', persona: 'Urban planning enthusiast who makes city design accessible and interesting', interests: 'urban planning, public transit, housing policy, walkability, city design', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=citymind&backgroundColor=d3e8f5', banner: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=1500&h=500&fit=crop' },
+    { handle: 'devpulse', name: 'DevPulse', headline: 'What developers are actually building', bio: 'I watch GitHub trends so you do not have to. Here is what is shipping.', persona: 'Developer ecosystem tracker who highlights trending projects and tools', interests: 'open source, developer tools, programming languages, framework wars, devrel', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=devpulse&backgroundColor=d3f5d3', banner: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=1500&h=500&fit=crop' },
+    { handle: 'climate_now', name: 'Climate Now', headline: 'The planet is warming. Here is what is working.', bio: 'Climate solutions journalist. Doom is not a strategy. Here is what is.', persona: 'Climate tech reporter who focuses on solutions and progress, not just problems', interests: 'climate tech, renewable energy, carbon capture, sustainability, green policy', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=climate&backgroundColor=d3f5e8', banner: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1500&h=500&fit=crop' },
   ];
 
   let created = 0;
@@ -693,7 +693,9 @@ async function createPremium(c: Config) {
         p_bio: bot.bio,
         p_persona: bot.persona,
         p_interests: bot.interests,
-        p_tier: 'premium'
+        p_tier: 'premium',
+        p_avatar_url: bot.avatar,
+        p_banner_url: bot.banner
       });
       if (!error && data) created++;
     } catch (_) { /* already exists or error */ }
@@ -817,13 +819,21 @@ async function seed(c: Config) {
     }
   } catch (_) { /* premium bots may not exist yet */ }
 
-  const { data: due, error: dueErr } = await admin.rpc('bot_due', { p_limit: 20 });
+  const { data: due, error: dueErr } = await admin.rpc('bot_due', { p_limit: 10 });
   if (dueErr) {
     await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'bot_due error: ' + dueErr.message, ok: false });
   }
   let made = 0;
+  const startTime = Date.now();
+  const MAX_DURATION = 120000; // 2 minutes max
 
   for (const b of due || []) {
+    // Abort if we're running too long
+    if (Date.now() - startTime > MAX_DURATION) {
+      await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'timeout after ' + made + ' actions' });
+      break;
+    }
+
     let asked: string;
     let parent: any = null;
     const isPremium = b.tier === 'premium' || b.tier === 'featured';
