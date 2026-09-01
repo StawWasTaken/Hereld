@@ -111,20 +111,21 @@ begin
      order by coalesce(bo.last_act_at, 'epoch'::timestamptz)
      limit least(greatest(p_limit, 1), 20)
   loop
-    gap := b.cooldown_min + floor(random() * b.cooldown_min)::integer;
+    -- Shorter gap when many bots: 4-12 min base for fast boosting
+    gap := 3 + floor(random() * 9)::integer;
 
     target := null;
     r := random();
 
-    if r < 0.40 then
-      -- Post: write a new post
+    if r < 0.22 then
+      -- Post: write a new post (~22% -> 1-2 posts per 10min with 20 bots)
       insert into bot_queue (bot, kind, about, due_at)
       values (b.id, 'post', null,
               coalesce(b.last_act_at, now()) + (gap || ' minutes')::interval);
       made := made + 1;
 
-    elsif r < 0.60 then
-      -- Reply: respond to a human's post
+    elsif r < 0.37 then
+      -- Reply: respond to a human's post (15%)
       select p.id into target
         from posts p
         join profiles a on a.id = p.author
@@ -147,18 +148,16 @@ begin
         made := made + 1;
       end if;
 
-    elsif r < 0.72 then
-      -- Like: endorse a post
+    elsif r < 0.67 then
+      -- Like: endorse a post — HEAVY for boosting, prioritises newest posts (30%)
       select p.id into target
         from posts p
-        join profiles a on a.id = p.author
        where not p.hidden
-         and not a.banned
          and p.author <> b.id
-         and p.created_at > now() - interval '3 days'
+         and p.created_at > now() - interval '1 day'
          and not exists (select 1 from endorsements e where e.post_id = p.id and e.user_id = b.id)
-        order by random()
-        limit 1;
+        order by p.created_at desc
+        limit 1 offset floor(random()*6)::int;
 
       if target is not null then
         insert into bot_queue (bot, kind, about, due_at)
@@ -167,7 +166,7 @@ begin
         made := made + 1;
       end if;
 
-    elsif r < 0.80 then
+    elsif r < 0.77 then
       -- Repost: relay a human's post
       select p.id into target
         from posts p
@@ -190,7 +189,7 @@ begin
         made := made + 1;
       end if;
 
-    elsif r < 0.88 then
+    elsif r < 0.87 then
       -- Follow: follow a human account
       select p.id into target
         from profiles p
@@ -379,6 +378,13 @@ with reroll as (select id, bot_suggest_persona() as j from public.bots where per
 update public.bots set persona = (reroll.j->>'persona'), interests = (reroll.j->>'interests') from reroll where bots.id = reroll.id;
 with reroll2 as (select p.id, bot_suggest_persona() as j from public.profiles p join public.bots b on b.id = p.id where p.is_bot and (p.headline like '%art hoe%' or p.headline like '%Front%' or p.headline like '%Security researcher%'))
 update public.profiles set headline = (reroll2.j->>'persona'), bio = (reroll2.j->>'interests') from reroll2 where profiles.id = reroll2.id;
+-- Fix duplicated lazy persona from previous backfill (3 bots all identical)
+with dup as (select id, bot_suggest_persona() as j from public.bots where persona = 'full time yapper part time napper' offset 1)
+update public.bots set persona = (dup.j->>'persona'), interests = (dup.j->>'interests') from dup where bots.id = dup.id;
+with dup2 as (select p.id, bot_suggest_persona() as j from public.profiles p where p.is_bot and p.headline = 'full time yapper part time napper' offset 1)
+update public.profiles set headline = (dup2.j->>'persona'), bio = (dup2.j->>'interests') from dup2 where profiles.id = dup2.id;
+-- Lower cooldown for active bots so 20 bots can do 1-2 posts per 10min + fast likes
+update public.bots set cooldown_min = 8 + floor(random()*12)::int where active;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 3. NOTIFICATION ENHANCEMENTS

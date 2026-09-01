@@ -749,7 +749,7 @@ async function seed(c: Config) {
         id,
         persona: String((persona as any).persona || '').slice(0, 400),
         interests: String((persona as any).interests || '').slice(0, 300),
-        cooldown_min: 60 + Math.floor(Math.random() * 120),
+        cooldown_min: 8 + Math.floor(Math.random() * 12),
         timezone_offset: region.tz,
         active: true
       });
