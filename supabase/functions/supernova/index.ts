@@ -668,6 +668,7 @@ async function notes(c: Config) {
    Also auto-creates new accounts when the active count exceeds existing. */
 
 async function seed(c: Config) {
+  try {
   /* Auto-create bots if needed. Create up to 5 at a time for faster ramp-up. */
   const { data: needCreate } = await admin.rpc('bot_auto_create', { p_count: 5 });
   if (needCreate && needCreate > 0) {
@@ -999,6 +1000,9 @@ async function seed(c: Config) {
     }
   }
   return reply({ posted: made });
+  } catch (e) {
+    return reply({ error: 'seed failed: ' + String(e).slice(0, 300), posted: 0 }, 500);
+  }
 }
 
 /* ── Making one of these accounts ──────────────────────────────────────────
