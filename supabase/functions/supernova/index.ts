@@ -1070,7 +1070,7 @@ Deno.serve(async (req) => {
     if (!cronOk) {
       const uid = await whoIsAsking(req);
       if (!uid) return reply({ error: 'Not for you.' }, 403);
-      const { data: role } = await admin.from('user_roles').select('role').eq('user_id', uid).maybeSingle();
+      const { data: role } = await admin.from('staff').select('role').eq('user_id', uid).maybeSingle();
       if (!role || !['admin', 'moderator', 'superadmin'].includes(role.role)) {
         return reply({ error: 'Not for you.' }, 403);
       }
