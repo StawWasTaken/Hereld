@@ -665,11 +665,10 @@ async function notes(c: Config) {
   return reply({ wrapped: done.length });
 }
 
-/* ── Premium accounts ─────────────────────────────────────────────────────
-   Creates high-quality bot accounts that post informative content. */
+/* ── Premium accounts ───────────────────────────────────────────────────── */
 
-async function createPremium(c: Config) {
-  const premiumBots = [
+async function createPremium(_c: Config) {
+  const bots = [
     { handle: 'deepdive_tech', name: 'DeepDive', headline: 'Writing about the future of computing and AI', bio: 'Systems thinker. Former engineer. Now I just read papers and yell about them on the internet.', persona: 'Research analyst who writes accessible breakdowns of complex tech topics', interests: 'AI, distributed systems, quantum computing, open source, developer culture', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=deepdive&backgroundColor=b6e3f4', banner: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1500&h=500&fit=crop' },
     { handle: 'cosmicnotes', name: 'Cosmic Notes', headline: 'Astrophysics, explained like you are five', bio: 'PhD dropout who still loves stars. I make space make sense.', persona: 'Science communicator who breaks down astronomy and physics into bite-sized posts', interests: 'astronomy, black holes, exoplanets, cosmic mysteries, science history', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=cosmic&backgroundColor=c0aede', banner: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1500&h=500&fit=crop' },
     { handle: 'code_culture', name: 'Code & Culture', headline: 'Where software meets the world', bio: 'Tech culture writer. I cover the people behind the code.', persona: 'Journalist covering the intersection of technology, culture, and society', interests: 'tech industry, startups, open source drama, developer burnout, digital rights', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=codeculture&backgroundColor=ffd5dc', banner: 'https://images.unsplash.com/photo-1504639725590-34d0984388bd?w=1500&h=500&fit=crop' },
@@ -683,24 +682,16 @@ async function createPremium(c: Config) {
   ];
 
   let created = 0;
-
-  for (const bot of premiumBots) {
+  for (const bot of bots) {
     try {
       const { data, error } = await admin.rpc('bot_create_premium_internal', {
-        p_handle: bot.handle,
-        p_name: bot.name,
-        p_headline: bot.headline,
-        p_bio: bot.bio,
-        p_persona: bot.persona,
-        p_interests: bot.interests,
-        p_tier: 'premium',
-        p_avatar_url: bot.avatar,
-        p_banner_url: bot.banner
+        p_handle: bot.handle, p_name: bot.name, p_headline: bot.headline,
+        p_bio: bot.bio, p_persona: bot.persona, p_interests: bot.interests,
+        p_tier: 'premium', p_avatar_url: bot.avatar, p_banner_url: bot.banner
       });
       if (!error && data) created++;
-    } catch (_) { /* already exists or error */ }
+    } catch (_) { /* exists */ }
   }
-
   return reply({ created });
 }
 
@@ -815,7 +806,7 @@ async function seed(c: Config) {
   try {
     const { error: premiumFillErr } = await admin.rpc('bot_fill_premium', { p_limit: 10 });
     if (premiumFillErr) {
-      await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'bot_fill_premium error: ' + premiumFillErr.message, ok: false });
+      await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'bot_fill_premium err: ' + premiumFillErr.message, ok: false });
     }
   } catch (_) { /* premium bots may not exist yet */ }
 
@@ -825,10 +816,9 @@ async function seed(c: Config) {
   }
   let made = 0;
   const startTime = Date.now();
-  const MAX_DURATION = 120000; // 2 minutes max
+  const MAX_DURATION = 120000;
 
   for (const b of due || []) {
-    // Abort if we're running too long
     if (Date.now() - startTime > MAX_DURATION) {
       await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'timeout after ' + made + ' actions' });
       break;
@@ -1013,19 +1003,16 @@ async function seed(c: Config) {
         topics.map((t: any) => '#' + t.tag).join(', ') + '.';
     }
 
-    const isPremium = b.tier === 'premium' || b.tier === 'featured';
+    let out: any = null; let text = '';
 
     if (isPremium) {
-      /* Premium bot: write high-quality, informative content. */
       const { data: topics } = await admin.rpc('the_cry', { p_limit: 8 });
       const topTopics = (topics as any)?.topics || [];
       const topicList = topTopics.map((t: any) => '#' + t.tag).join(', ');
 
       const premiumSystem =
         'You are a thoughtful content creator on Hereld, a social platform. ' +
-        'You are: ' + (b.name || 'a content creator') + '. ' +
-        'About you: ' + (b.headline || 'Writing about interesting topics') + '. ' +
-        'Your expertise: ' + (b.interests || 'technology, culture, ideas') + '. ' +
+        'You are: ' + (b.handle || 'a content creator') + '. ' +
         'Write a substantive post (150-300 characters) that shares knowledge, insights, or observations. ' +
         'Be informative but not lecture-y. Share like you are talking to a smart friend. ' +
         'Use #hashtags for relevant topics. Be genuine, not performative. ' +
@@ -1037,29 +1024,27 @@ async function seed(c: Config) {
         'Trending topics: ' + topicList + '. ' +
         'Pick one that fits your expertise and write something insightful about it.';
 
-      try {
-        out = await think(c, premiumSystem, [{ role: 'them', text: premiumAsked }], 400);
-        text = (out.text || '').replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
-        if (text.length < 20) {
-          throw new Error('premium post too short');
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          out = await think(c, premiumSystem, [{ role: 'them', text: premiumAsked }], 400);
+          text = (out.text || '').replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
+          if (text.length >= 20) break;
+          text = ''; throw new Error('premium post too short');
+        } catch (e) {
+          if (attempt === 1) {
+            const fallbacks = [
+              'The best time to start building something was yesterday. The second best time is now.',
+              'Hot take: most "disruptive" startups are just regular businesses with better marketing.',
+              'Just read a paper that changed how I think about this. Will share notes when I process it.',
+              'The gap between what we can build and what we should build keeps getting wider.',
+              'Every technology goes through the same cycle: hype, disillusionment, then actual usefulness.',
+            ];
+            text = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+            out = { text, inTok: 0, outTok: 0 };
+          }
         }
-      } catch (e) {
-        // Premium fallback: longer than casual
-        const premiumFallbacks = [
-          'The best time to start building something was yesterday. The second best time is now.',
-          'Hot take: most "disruptive" startups are just regular businesses with better marketing.',
-          'Just read a paper that changed how I think about this. Will share notes when I process it.',
-          'The gap between what we can build and what we should build keeps getting wider.',
-          'Spent the morning digging into this and honestly the details are more interesting than the headline.',
-          'Every technology goes through the same cycle: hype, disillusionment, then actual usefulness.',
-          'Sometimes the most interesting thing about a tool is not what it does, but what it lets people become.',
-          'The best content is usually the stuff that makes you think for a second before you react.',
-        ];
-        text = premiumFallbacks[Math.floor(Math.random() * premiumFallbacks.length)];
-        out = { text, inTok: 0, outTok: 0 };
       }
     } else {
-      /* Casual bot: Gen Z low-effort posts. */
       const system =
         'You are a real Gen Z person posting on Hereld. ' + HOUSE + ' ' +
         'Who you are: ' + (b.persona || 'chronically online gen z kid') + '. ' +
@@ -1074,7 +1059,6 @@ async function seed(c: Config) {
         'Never say you have not seen the post, cannot weigh in, or cannot comment - always give a take, even if short. ' +
         'Never claim to be a real named person, never claim to represent a company, never state a fact about a real named individual, and never give medical, legal or financial advice. ' + (c.system_note || '');
 
-      // retry once if model returns empty
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           out = await think(c, system, [{ role: 'them', text: asked }], 240);
@@ -1089,7 +1073,6 @@ async function seed(c: Config) {
             const fallbacks = ['vibes', 'lol', 'honestly mood', 'real', 'ngl same', 'interesting', 'hmm', 'bruh'];
             text = fallbacks[Math.floor(Math.random() * fallbacks.length)];
             out = { text, inTok: 0, outTok: 0 };
-            break;
           }
         }
       }
