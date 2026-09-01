@@ -774,15 +774,26 @@ async function seed(c: Config) {
     let parent: any = null;
 
     if (b.kind === 'reply' && b.about) {
-      const { data } = await admin.from('posts').select('body').eq('id', b.about).maybeSingle();
+      const { data } = await admin.from('posts').select('body, relay_of').eq('id', b.about).maybeSingle();
       parent = data;
       if (!parent) { await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id); continue; }
-      asked = 'Somebody posted:\n' + String(parent.body).slice(0, 600) + '\n\nWrite your reply.';
+      let body = String(parent.body || '').trim();
+      // if post is a repost with no body, fetch the original
+      if (!body && parent.relay_of) {
+        const { data: orig } = await admin.from('posts').select('body').eq('id', parent.relay_of).maybeSingle();
+        if (orig?.body) body = String(orig.body).trim();
+      }
+      if (!body) body = '(a photo / repost)';
+      asked = 'Somebody posted:\n' + body.slice(0, 600) + '\n\nWrite your reply. Never say you have not seen or cannot weigh in - always give a take.';
     } else if (b.kind === 'post') {
       const { data: line } = await admin.rpc('the_cry', { p_limit: 6 });
       const topics = (line as any)?.topics || [];
-      asked = 'Write one post. Things being talked about right now: ' +
-        topics.map((t: any) => '#' + t.tag).join(', ') + '.';
+      if (topics.length) {
+        asked = 'Write one post. Things being talked about right now: ' +
+          topics.map((t: any) => '#' + t.tag).join(', ') + '.';
+      } else {
+        asked = 'Write one post. Anything on your mind - your day, a thought, something funny, a vibe check, overshare a little. Keep it Gen Z.';
+      }
     } else if (b.kind === 'like' && b.about) {
       /* Like: just endorse the post. */
       const { error: likeErr } = await admin.from('endorsements').insert({
@@ -935,12 +946,26 @@ async function seed(c: Config) {
       'You can agree, disagree, overshare, be cryptic, or just say something random you saw today. ' +
       'You can mention @handles or use #hashtags when it fits naturally. Add emoji rarely but when it hits. ' +
       'Do not announce yourself, do not greet, do not sign. ' +
+      'Never say you have not seen the post, cannot weigh in, or cannot comment - always give a take, even if short. ' +
       'Never claim to be a real named person, never claim to represent a company, never state a fact about a real named individual, and never give medical, legal or financial advice. ' + (c.system_note || '');
 
+    // retry once if model returns empty
+    let out: any = null; let text = '';
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        out = await think(c, system, [{ role: 'them', text: asked }], 240);
+        text = out.text.replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
+        // ban the refusal phrase that showed in Vaporloom reply
+        if (/haven.t seen what they actually wrote|can.t weigh in/i.test(text)) {
+          text = ''; throw new Error('refusal phrase');
+        }
+        if (text.length >= 8) break;
+        text = ''; throw new Error('nothing usable came back');
+      } catch(e) {
+        if (attempt === 1) throw e;
+      }
+    }
     try {
-      const out = await think(c, system, [{ role: 'them', text: asked }], 240);
-      const text = out.text.replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
-      if (text.length < 12) throw new Error('nothing usable came back');
 
       const { data: repeat } = await admin.rpc('bot_said_before', { p_bot: b.bot, p_text: text });
       if (repeat) throw new Error('same thing again');

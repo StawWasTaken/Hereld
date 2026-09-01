@@ -369,6 +369,12 @@ end $$;
 
 grant execute on function public.bot_suggest_persona() to authenticated;
 
+-- Backfill null personas for older bots that were created before persona was set
+update public.bots set persona = 'chronically online gen z kid', interests = 'memes, vibes, whatever'
+ where persona is null or persona = '';
+update public.profiles set headline = 'chronically online', bio = 'just here for the vibes'
+ where is_bot = true and (headline is null or headline = '');
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 3. NOTIFICATION ENHANCEMENTS
 -- ═══════════════════════════════════════════════════════════════════════════
