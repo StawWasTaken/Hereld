@@ -766,10 +766,16 @@ async function seed(c: Config) {
     }
   }
 
-  /* Decide what is owed before working out what is due. Queue up to 10 actions. */
-  await admin.rpc('bot_fill', { p_limit: 10 });
+  /* Decide what is owed before working out what is due. Queue up to 20 actions. */
+  const { error: fillErr } = await admin.rpc('bot_fill', { p_limit: 20 });
+  if (fillErr) {
+    await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'bot_fill error: ' + fillErr.message, ok: false });
+  }
 
-  const { data: due } = await admin.rpc('bot_due', { p_limit: 8 });
+  const { data: due, error: dueErr } = await admin.rpc('bot_due', { p_limit: 20 });
+  if (dueErr) {
+    await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'bot_due error: ' + dueErr.message, ok: false });
+  }
   let made = 0;
 
   for (const b of due || []) {
