@@ -1,4 +1,7 @@
-// Build step: _js/*.js -> css/*.js, _css/*.css -> css/*.css
+// Build step: _js/*.js -> docs/css/*.js, _css/*.css -> docs/css/*.css
+//
+// docs/ is what GitHub Pages serves. The sources stay outside it on purpose,
+// so they are not handed out with the site.
 //
 // Strips comments and indentation. It does NOT rename identifiers or join
 // lines, so there is no ASI risk and the output is byte-for-byte behaviour
@@ -123,8 +126,8 @@ function stripCss(src) {
 }
 
 const JOBS = [
-  { from: '_js', to: 'css', ext: '.js', fn: stripJs },
-  { from: '_css', to: 'css', ext: '.css', fn: stripCss },
+  { from: '_js', to: 'docs/css', ext: '.js', fn: stripJs },
+  { from: '_css', to: 'docs/css', ext: '.css', fn: stripCss },
 ];
 
 let stale = 0, built = 0;
@@ -151,9 +154,10 @@ const ROUTES = [
   'home', 'explore', 'search', 'notifications', 'bookmarks',
   'supernova', 'profile', 'settings', 'staff', '404'
 ];
-const appHtml = fs.readFileSync(path.join(ROOT, 'app.html'), 'utf8');
+const SITE = path.join(ROOT, 'docs');
+const appHtml = fs.readFileSync(path.join(SITE, 'app.html'), 'utf8');
 for (const r of ROUTES) {
-  const p = path.join(ROOT, r + '.html');
+  const p = path.join(SITE, r + '.html');
   const cur = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
   if (cur === appHtml) continue;
   if (CHECK) { console.error('stale: ' + r + '.html'); stale++; continue; }
