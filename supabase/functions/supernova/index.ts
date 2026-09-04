@@ -218,19 +218,34 @@ async function gather(uid: string, question: string, postId?: string) {
         bits.push('Disclosures: ' + ctx.post.disclosure.map((d: string) => DISCLOSE_MAP[d] || d).join(', '));
       }
 
-      /* A picture is described by whatever was written about it. Saying so
-         plainly stops the model from talking about an image it cannot see. */
+      /* What the post carries. None of it can be opened or looked at, so the
+         only honest thing to hand over is what was written about each one and
+         what kind of file it is. Saying so plainly stops the model from
+         talking about a picture it cannot see or a document it cannot read. */
       const { data: media } = await admin.from('post_media')
-        .select('url, alt_text, spoiler')
+        .select('url, alt_text, spoiler, kind, mime, name, size_bytes')
         .eq('post_id', postId).order('position');
       if (media?.length) {
-        bits.push('Pictures on this post (' + media.length + '). You cannot see them. ' +
-          'Only what is written about them is known:\n' + media.map((m: any, i: number) =>
-          '- Picture ' + (i + 1) + ': ' +
-          (m.alt_text ? 'described as "' + String(m.alt_text).slice(0, 300) + '"'
-                      : 'no description was written for it') +
-          (m.spoiler ? ', posted covered as sensitive' : '')
-        ).join('\n'));
+        const NOUN: Record<string, string> = {
+          image: 'Picture', video: 'Video', audio: 'Sound file', file: 'File'
+        };
+        const weigh = (n: number) => {
+          const u = ['B', 'KB', 'MB', 'GB'];
+          let v = Number(n) || 0, i = 0;
+          while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+          return (i === 0 ? Math.round(v) : v.toFixed(v < 10 ? 1 : 0)) + ' ' + u[i];
+        };
+        bits.push('Attached to this post (' + media.length + '). You cannot open, see or ' +
+          'read any of them. Only what is written about them is known:\n' +
+          media.map((m: any, i: number) =>
+            '- ' + (NOUN[m.kind] || 'File') + ' ' + (i + 1) +
+            (m.name ? ' named "' + String(m.name).slice(0, 120) + '"' : '') +
+            (m.mime ? ' (' + m.mime + ')' : '') +
+            (m.size_bytes ? ', ' + weigh(m.size_bytes) : '') + ': ' +
+            (m.alt_text ? 'described as "' + String(m.alt_text).slice(0, 300) + '"'
+                        : 'nothing was written about it') +
+            (m.spoiler ? ', posted covered as sensitive' : '')
+          ).join('\n'));
       }
 
       /* The question the post asked, and how it stands. */

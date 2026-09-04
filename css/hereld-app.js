@@ -5,10 +5,36 @@ var db = null, me = null, my = null;
 var el = function (id) { return document.getElementById(id); };
 var esc = U.esc, ic = U.icon;
 var MAX = 600;
+var ATT_ACCEPT = [
+'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif',
+'video/mp4', 'video/webm', 'video/quicktime',
+'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/mp4', 'audio/aac',
+'application/pdf', 'text/plain', 'text/csv', 'text/markdown',
+'application/json', 'application/zip',
+'application/msword',
+'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+'application/vnd.ms-excel',
+'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+'application/vnd.ms-powerpoint',
+'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+'application/vnd.oasis.opendocument.text',
+'application/vnd.oasis.opendocument.spreadsheet',
+'.md', '.csv', '.txt'
+].join(',');
+var ATT_MAX = 4;
+var ATT_BYTES = 64 * 1024 * 1024;
+function kindOf(f) {
+var t = String((f && f.type) || '').toLowerCase();
+if (t.indexOf('image/') === 0) return 'image';
+if (t.indexOf('video/') === 0) return 'video';
+if (t.indexOf('audio/') === 0) return 'audio';
+return 'file';
+}
 var TWEMOJI = 'https://cdn.jsdelivr.net/npm/@twemoji/api@15.1.0/dist/twemoji.min.js';
 var TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/';
 var WITH_AUTHOR = '*, author:profiles!posts_author_fkey(id,handle,name,headline,avatar_url,verified,is_company,is_platform,is_bot,banned,parent_id,assoc_of,assoc_kind,assoc_role,follower_count)' +
-', poll:polls(post_id)';
+', poll:polls(post_id)' +
+', media:post_media(url,alt_text,spoiler,position,kind,mime,name,size_bytes)';
 var mine = { liked: {}, relayed: {}, saved: {}, following: {} };
 var staffRole = null;
 var twemojiAsked = false;
@@ -70,20 +96,76 @@ var PIC_RE = /https?:\/\/[^\s<]+?\.(?:png|jpe?g|webp|gif|avif)(?:\?[^\s<]*)?/gi;
 var VID_RE = /https?:\/\/[^\s<]+?\.(?:mp4|webm|mov)(?:\?[^\s<]*)?/gi;
 function mediaOf(text) {
 var out = [], seen = {}, s = String(text || '');
-s.replace(PIC_RE, function (u) { if (!seen[u]) { seen[u] = 1; out.push({ kind: 'pic', url: u }); } return u; });
-s.replace(VID_RE, function (u) { if (!seen[u]) { seen[u] = 1; out.push({ kind: 'vid', url: u }); } return u; });
+s.replace(PIC_RE, function (u) { if (!seen[u]) { seen[u] = 1; out.push({ kind: 'image', url: u }); } return u; });
+s.replace(VID_RE, function (u) { if (!seen[u]) { seen[u] = 1; out.push({ kind: 'video', url: u }); } return u; });
 return out;
 }
+function attOf(p) {
+var rows = p && p.media;
+if (rows && rows.length) {
+return rows.slice().sort(function (a, b) { return (a.position || 0) - (b.position || 0); });
+}
+return mediaOf(p && p.body);
+}
+var WEIGHTS = ['B', 'KB', 'MB', 'GB'];
+function weigh(n) {
+n = Number(n) || 0;
+var i = 0;
+while (n >= 1024 && i < WEIGHTS.length - 1) { n /= 1024; i++; }
+return (i === 0 ? Math.round(n) : n.toFixed(n < 10 ? 1 : 0)) + ' ' + WEIGHTS[i];
+}
+var KINDS = { pic: 'image', vid: 'video', image: 'image', video: 'video', audio: 'audio', file: 'file' };
 function mediaHTML(list) {
 if (!list || !list.length) return '';
 var few = list.slice(0, 4);
-return '<div class="hd-shots hd-shots--' + few.length + '">' + few.map(function (m, i) {
-if (m.kind === 'vid') {
-return '<video class="hd-shot hd-shot--vid" src="' + esc(m.url) + '" controls playsinline preload="metadata"></video>';
+var shots = [], rest = [], nth = 0;
+few.forEach(function (m) {
+var k = KINDS[m.kind] || 'file';
+if (k === 'image') shots.push({ m: m, k: k, i: nth++ });
+else if (k === 'video') shots.push({ m: m, k: k, i: -1 });
+else rest.push({ m: m, k: k });
+});
+var out = '';
+if (shots.length) {
+out += '<div class="hd-shots hd-shots--' + shots.length + '">' + shots.map(function (s) {
+var m = s.m, inner;
+if (s.k === 'video') {
+inner = '<video class="hd-shot hd-shot--vid" src="' + esc(m.url) +
+'" controls playsinline preload="metadata"></video>';
+} else {
+inner = '<button class="hd-shot-btn" type="button" data-shot="' + esc(m.url) +
+'" data-shot-i="' + s.i + '" aria-label="' +
+esc(m.alt_text ? 'Open picture: ' + m.alt_text : 'Open picture') + '">' +
+'<img class="hd-shot" src="' + esc(m.url) + '" alt="' + esc(m.alt_text || '') +
+'" loading="lazy" decoding="async"></button>';
 }
-return '<button class="hd-shot-btn" type="button" data-shot="' + esc(m.url) + '" data-shot-i="' + i + '" aria-label="Open picture">' +
-'<img class="hd-shot" src="' + esc(m.url) + '" alt="" loading="lazy" decoding="async"></button>';
+return m.spoiler
+? '<div class="hd-spoiler"><div class="hd-spoiler-in">' + inner + '</div>' +
+'<button class="hd-spoiler-bar" type="button" data-reveal>Sensitive. Tap to see it.</button></div>'
+: inner;
 }).join('') + '</div>';
+}
+if (rest.length) {
+out += '<div class="hd-files">' + rest.map(function (f) {
+var m = f.m;
+var name = m.name || decodeURIComponent(String(m.url).split('?')[0].split('/').pop() || 'Attachment');
+var size = m.size_bytes ? weigh(m.size_bytes) : '';
+if (f.k === 'audio') {
+return '<div class="hd-file hd-file--sound">' +
+'<div class="hd-file-line">' + ic('file', 'hd-file-ico') +
+'<span class="hd-file-name">' + esc(name) + '</span>' +
+(size ? '<span class="hd-file-size">' + esc(size) + '</span>' : '') + '</div>' +
+'<audio class="hd-file-play" src="' + esc(m.url) + '" controls preload="metadata"></audio></div>';
+}
+return '<a class="hd-file hd-file--doc" href="' + esc(m.url) +
+'" target="_blank" rel="noopener" download>' + ic('file', 'hd-file-ico') +
+'<span class="hd-file-name">' + esc(name) +
+(m.alt_text ? '<i>' + esc(m.alt_text) + '</i>' : '') + '</span>' +
+'<span class="hd-file-size">' + esc(size || 'Open') + '</span>' +
+ic('out', 'hd-file-go') + '</a>';
+}).join('') + '</div>';
+}
+return out;
 }
 function body(text, o) {
 o = o || {};
@@ -208,8 +290,8 @@ link(p.reply_at.handle, H.tag(p.reply_at.handle), 'hd-lead-at') + '</div>';
 var quoted = p.quote ? '<div class="hd-quote" data-open="' + p.quote.id + '">' +
 '<div class="hd-quote-top">' + avatarOf(p.quote.author, 'hd-av--xs') +
 nameLine(p.quote.author, H.when(p.quote.created_at)) + '</div>' +
-'<p>' + body(p.quote.body) + '</p>' + mediaHTML(mediaOf(p.quote.body).slice(0, 1)) + '</div>' : '';
-var shots = mediaHTML(mediaOf(p.body));
+'<p>' + body(p.quote.body) + '</p>' + mediaHTML(attOf(p.quote).slice(0, 1)) + '</div>' : '';
+var shots = mediaHTML(attOf(p));
 var said = body(p.body);
 return '<article class="nb-card hd-post' + (o.lead ? ' hd-post--lead' : '') + '" data-post="' + p.id +
 '" data-author="' + esc(a.handle || '') + '"' + (o.lead ? '' : ' data-open="' + p.id + '" tabindex="0" role="link"') + '>' +
@@ -816,9 +898,9 @@ return '<option value="' + h.id + '">' + esc(h.name || h.handle) + '</option>';
 : '') +
 '<div class="hd-compose-foot">' +
 '<div class="hd-compose-tools">' +
-'<label class="nb-icon-btn hd-compose-tool" data-tip="Add a picture">' + ic('image') +
-'<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden data-pic>' +
-'<span class="nb-sr">Add a picture</span></label>' +
+'<label class="nb-icon-btn hd-compose-tool" data-tip="Attach something">' + ic('image') +
+'<input type="file" multiple accept="' + ATT_ACCEPT + '" hidden data-pic>' +
+'<span class="nb-sr">Attach something</span></label>' +
 '<button class="nb-icon-btn hd-compose-tool" type="button" data-tag data-tip="Add a topic">' + ic('hash') + '</button>' +
 '<button class="nb-icon-btn hd-compose-tool" type="button" data-emoji data-tip="Add an emoji">' + ic('smile') + '</button>' +
 (o.replyTo ? '' :
@@ -848,7 +930,7 @@ var seen = form.querySelector('[data-seen]');
 var pollBox = form.querySelector('[data-poll]');
 var flagBox = form.querySelector('[data-flags]');
 var panelBox = form.querySelector('[data-panel]');
-var media = null;
+var atts = [];
 var busy = false;
 var openPanel = null;
 var scope = 'all';
@@ -870,7 +952,7 @@ var left = MAX - ta.value.length;
 count.textContent = left;
 count.classList.toggle('is-low', left <= 60);
 count.classList.toggle('is-over', left < 0);
-go.disabled = busy || left < 0 || (!ta.value.trim() && !media && !poll);
+go.disabled = busy || left < 0 || (!ta.value.trim() && !atts.length && !poll);
 go.textContent = when ? 'Schedule' : (o.label || 'Post');
 grow();
 preview();
@@ -1133,35 +1215,82 @@ ta.focus(); tick();
 });
 });
 });
-pic.addEventListener('change', function () {
-var f = pic.files && pic.files[0];
-pic.value = '';
-if (!f) return;
-if (f.size > 24 * 1024 * 1024) return warn('That picture is over 24 MB. Try a smaller one.');
-media = f;
-var read = new FileReader();
-read.onload = function () {
+function paintTray() {
+if (!atts.length) { tray.hidden = true; tray.innerHTML = ''; return; }
 tray.hidden = false;
-tray.innerHTML = '<figure class="hd-compose-pic"><img src="' + read.result + '" alt="">' +
-'<button class="nb-icon-btn nb-icon-btn--round" type="button" data-drop aria-label="Remove picture">' + ic('x') + '</button>' +
-'<span class="hd-compose-bar" data-bar hidden><i></i></span></figure>' +
-'<div class="hd-compose-media-meta">' +
-'<input class="nb-input hd-compose-alt" type="text" placeholder="Alt text (description of the image)" maxlength="500" data-alt>' +
-'<label class="hd-compose-spoiler"><input type="checkbox" data-spoiler> <span>Spoiler / sensitive</span></label>' +
-'</div>';
-tray.querySelector('[data-drop]').addEventListener('click', function () {
-media = null; tray.hidden = true; tray.innerHTML = ''; tick();
+tray.innerHTML = '<div class="hd-atts">' + atts.map(function (a, i) {
+var face;
+if (a.kind === 'image') {
+face = '<img src="' + esc(a.peek) + '" alt="">';
+} else if (a.kind === 'video') {
+face = '<video src="' + esc(a.peek) + '" preload="metadata" muted playsinline></video>';
+} else {
+face = '<span class="hd-att-glyph">' + ic('file') + '</span>';
+}
+return '<figure class="hd-att hd-att--' + a.kind + '" data-att="' + i + '">' +
+'<div class="hd-att-face">' + face +
+'<button class="nb-icon-btn nb-icon-btn--round hd-att-x" type="button" data-drop="' + i +
+'" aria-label="Remove ' + esc(a.file.name) + '">' + ic('x') + '</button>' +
+'<span class="hd-compose-bar" data-bar="' + i + '" hidden><i></i></span></div>' +
+'<figcaption class="hd-att-meta">' +
+'<span class="hd-att-name">' + esc(a.file.name) +
+'<i>' + esc(weigh(a.file.size)) + '</i></span>' +
+'<input class="nb-input hd-compose-alt" type="text" maxlength="500" data-alt="' + i +
+'" placeholder="' + (a.kind === 'image' ? 'Describe it, for anyone who cannot see it'
+: 'Say what this is') +
+'" value="' + esc(a.alt) + '">' +
+'<label class="hd-compose-spoiler"><input type="checkbox" data-cover="' + i + '"' +
+(a.cover ? ' checked' : '') + '> <span>Cover it as sensitive</span></label>' +
+'</figcaption></figure>';
+}).join('') + '</div>' +
+(atts.length >= ATT_MAX
+? '<p class="nb-hint hd-att-hint">That is the four a post can carry.</p>'
+: '');
+}
+tray.addEventListener('input', trayEdit);
+tray.addEventListener('change', trayEdit);
+function trayEdit(e) {
+var t = e.target;
+var ai = t.getAttribute('data-alt');
+if (ai !== null && atts[+ai]) { atts[+ai].alt = t.value; return; }
+var ci = t.getAttribute('data-cover');
+if (ci !== null && atts[+ci]) { atts[+ci].cover = t.checked; }
+}
+tray.addEventListener('click', function (e) {
+var b = e.target.closest && e.target.closest('[data-drop]');
+if (!b) return;
+var i = +b.getAttribute('data-drop');
+if (!atts[i]) return;
+try { URL.revokeObjectURL(atts[i].peek); } catch (err) {  }
+atts.splice(i, 1);
+paintTray(); tick();
 });
-tick();
-};
-read.readAsDataURL(f);
+pic.addEventListener('change', function () {
+var picked = [].slice.call(pic.files || []);
+pic.value = '';
+if (!picked.length) return;
+var room = ATT_MAX - atts.length;
+if (room <= 0) return warn('A post carries four attachments at most.');
+var over = picked.length > room;
+picked.slice(0, room).forEach(function (f) {
+if (f.size > ATT_BYTES) { warn('"' + f.name + '" is over 64 MB. That is too big to post.'); return; }
+atts.push({
+file: f,
+kind: kindOf(f),
+peek: URL.createObjectURL(f),
+alt: '',
+cover: false
+});
+});
+if (over) warn('Only the first ' + room + ' were added. A post carries four at most.');
+paintTray(); tick();
 });
 function warn(m) { say.hidden = false; say.textContent = m; say.className = 'hd-compose-say is-bad'; }
 form.addEventListener('submit', async function (e) {
 e.preventDefault();
 if (busy) return;
 var text = ta.value.trim();
-if (!text && !media && !poll) return;
+if (!text && !atts.length && !poll) return;
 var answers = null;
 if (poll) {
 answers = poll.options.map(function (v) { return v.trim(); }).filter(Boolean);
@@ -1177,14 +1306,26 @@ if (!text) return warn('A poll needs a question. Write it above the answers.');
 busy = true; go.disabled = true; say.hidden = true;
 go.innerHTML = '<span class="nb-loader nb-loader--sm"></span> ' + (when ? 'Scheduling' : 'Posting');
 try {
-if (media) {
-var bar = tray.querySelector('[data-bar]');
+var carried = [];
+for (var ui = 0; ui < atts.length; ui++) {
+var a = atts[ui];
+var bar = tray.querySelector('[data-bar="' + ui + '"]');
 if (bar) bar.hidden = false;
-var path = my.id + '/' + Date.now() + '-' + media.name.replace(/[^a-zA-Z0-9._-]/g, '');
-var up = await db.storage.from('avatars').upload(path, media, { upsert: true });
+var clean = a.file.name.replace(/[^a-zA-Z0-9._-]/g, '-').slice(-80) || 'file';
+var path = my.id + '/' + Date.now() + '-' + ui + '-' + clean;
+var up = await db.storage.from('attachments')
+.upload(path, a.file, { upsert: true, contentType: a.file.type || undefined });
 if (up.error) throw up.error;
-var pub = db.storage.from('avatars').getPublicUrl(path);
-text = (text ? text + '\n' : '') + pub.data.publicUrl;
+carried.push({
+url: db.storage.from('attachments').getPublicUrl(path).data.publicUrl,
+alt_text: a.alt.trim().slice(0, 500),
+spoiler: !!a.cover,
+kind: a.kind,
+mime: a.file.type || '',
+name: a.file.name.slice(0, 200),
+size_bytes: a.file.size
+});
+if (bar) bar.hidden = true;
 }
 var asSel = form.querySelector('[data-as]');
 var asId = asSel ? asSel.value : my.id;
@@ -1193,12 +1334,16 @@ if (asId && asId !== my.id) {
 var made = await db.rpc('post_as', {
 p_as: asId, p_body: text,
 p_reply_to: o.replyTo || null, p_relay_of: o.quoteOf || null,
-p_scope: scope, p_disclosure: flags
+p_scope: scope, p_disclosure: flags,
+p_has_media: carried.length > 0
 });
 if (made.error) throw made.error;
 r = await db.from('posts').select(WITH_AUTHOR).eq('id', made.data).single();
 } else {
-var row = { author: my.id, body: text, reply_scope: scope, disclosure: flags };
+var row = {
+author: my.id, body: text, reply_scope: scope, disclosure: flags,
+has_media: carried.length > 0
+};
 if (o.replyTo) row.reply_to = o.replyTo;
 if (o.quoteOf) row.relay_of = o.quoteOf;
 if (when) row.scheduled_for = when.toISOString();
@@ -1215,22 +1360,21 @@ await db.from('posts').delete().eq('id', r.data.id);
 throw pr.error;
 }
 }
-if (media && r.data) {
-var altInput = tray.querySelector('[data-alt]');
-var spoilerInput = tray.querySelector('[data-spoiler]');
-var mediaUrl = text.match(/(https?:\/\/[^\s]+)$/);
-if (mediaUrl) {
-await db.rpc('set_post_media', {
-p_post: r.data.id,
-p_media: JSON.stringify([{
-url: mediaUrl[1],
-alt_text: altInput ? altInput.value.trim() : '',
-spoiler: spoilerInput ? spoilerInput.checked : false
-}])
+if (carried.length && r.data) {
+var sm = await db.rpc('set_post_media', {
+p_post: r.data.id, p_media: JSON.stringify(carried)
+});
+if (sm.error) {
+await db.from('posts').delete().eq('id', r.data.id);
+throw sm.error;
+}
+r.data.media = carried.map(function (m, i) {
+return Object.assign({ position: i }, m);
 });
 }
-}
-ta.value = ''; media = null; tray.hidden = true; tray.innerHTML = '';
+atts.forEach(function (a) { try { URL.revokeObjectURL(a.peek); } catch (err) {  } });
+atts = [];
+ta.value = ''; tray.hidden = true; tray.innerHTML = '';
 poll = null; when = null; flags = []; scope = 'all';
 paintPoll(); paintFlags(); paintScope();
 tick();
@@ -1247,12 +1391,12 @@ go.textContent = o.label || 'Post';
 tick();
 });
 function snapshot() {
-if (!ta.value.trim() && !poll && !when && !flags.length) return null;
+if (!ta.value.trim() && !poll && !when && !flags.length && !atts.length) return null;
 return {
 text: ta.value, scope: scope, flags: flags.slice(),
 when: when ? when.toISOString() : null,
 poll: poll ? { options: poll.options.slice(), hours: poll.hours } : null,
-hadPic: !!media
+had: atts.map(function (a) { return a.file.name; })
 };
 }
 function restore(d) {
@@ -1264,14 +1408,20 @@ poll = d.poll ? { options: (d.poll.options || ['', '']).slice(), hours: d.poll.h
 var w = d.when ? new Date(d.when) : null;
 when = (w && !isNaN(w.getTime()) && w.getTime() > Date.now()) ? w : null;
 shutPanel(); paintScope(); paintFlags(); paintPoll(); tick();
-if (d.hadPic) warn('The words came back. The picture did not - pick it again.');
+var had = d.had || (d.hadPic ? ['a picture'] : []);
+if (had.length) {
+warn(had.length === 1
+? 'The words came back. ' + had[0] + ' did not - attach it again.'
+: 'The words came back. The ' + had.length + ' attachments did not - attach them again.');
+}
 }
 tick();
 return {
 focus: function () { ta.focus(); },
 snapshot: snapshot, restore: restore,
 clear: function () { ta.value = ''; poll = null; when = null; flags = []; scope = 'all';
-media = null; tray.hidden = true; tray.innerHTML = '';
+atts.forEach(function (a) { try { URL.revokeObjectURL(a.peek); } catch (err) {  } });
+atts = []; tray.hidden = true; tray.innerHTML = '';
 shutPanel(); paintScope(); paintFlags(); paintPoll(); tick(); }
 };
 }
@@ -1325,7 +1475,8 @@ if (d.when) bits.push('going out ' + esc(new Date(d.when).toLocaleString()));
 var f = DISCLOSE.filter(function (x) { return x.k === k; })[0];
 if (f) bits.push(f.t.toLowerCase());
 });
-if (d.hadPic) bits.push('had a picture');
+var had = (d.had || []).length || (d.hadPic ? 1 : 0);
+if (had) bits.push(had === 1 ? 'had an attachment' : 'had ' + had + ' attachments');
 var ago = H.when(new Date(d.at).toISOString());
 ago = ago === 'now' ? 'just now' : (/^\d+[mhd]$/.test(ago) ? ago + ' ago' : 'saved ' + ago);
 return '<div class="nb-card nb-card--tight hd-draft" data-d="' + esc(d.id) + '">' +
@@ -2456,10 +2607,20 @@ var who = a.name || a.handle || 'Someone';
 var avatar = H.avatar(a, 'hd-av--md');
 var verified = a.verified ? ' <span class="hd-badge hd-badge--ver">' + ic('verified') + '</span>' : '';
 var company = a.is_company ? ' <span class="hd-badge hd-badge--co">' + ic('verified') + '</span>' : '';
-var mediaR = await db.from('post_media').select('url, alt_text, spoiler').eq('post_id', id).order('position');
+var mediaR = await db.from('post_media')
+.select('url, alt_text, spoiler, kind, mime, name, size_bytes')
+.eq('post_id', id).order('position');
 var mediaList = mediaR.data || [];
+var NOUN = { image: 'picture', video: 'video', audio: 'sound file', file: 'file' };
 var mediaText = mediaList.length
-? '\n\nImages attached: ' + mediaList.map(function (m) { return m.url + (m.alt_text ? ' [alt: ' + m.alt_text + ']' : '') + (m.spoiler ? ' [spoiler]' : ''); }).join('; ')
+? '\n\nAttached (' + mediaList.length + '), none of which can be opened or seen:\n' +
+mediaList.map(function (m) {
+return '- ' + (NOUN[m.kind] || 'file') +
+(m.name ? ' "' + m.name + '"' : '') +
+(m.size_bytes ? ', ' + weigh(m.size_bytes) : '') + ': ' +
+(m.alt_text ? 'described as "' + m.alt_text + '"' : 'nothing was written about it') +
+(m.spoiler ? ', covered as sensitive' : '');
+}).join('\n')
 : '';
 var [repliesR, repostsR] = await Promise.all([
 db.from('posts').select('id,body,author,created_at,endorse_count,author:profiles!posts_author_fkey(handle,name)')
@@ -3208,6 +3369,11 @@ return;
 if (!b) return;
 if (b.hasAttribute('data-back')) { history.length > 1 ? history.back() : go('home'); return; }
 if (b.hasAttribute('data-retry')) { render(); return; }
+if (b.hasAttribute('data-reveal')) {
+var hid = b.closest('.hd-spoiler');
+if (hid) hid.classList.add('is-revealed');
+return;
+}
 var shot = b.getAttribute('data-shot');
 if (shot) {
 var box = b.closest('.hd-shots');
