@@ -862,9 +862,9 @@ body.hd-wide .hd-aside { display: none; }
   content: ''; position: absolute; inset: 0; z-index: 1;
   background: linear-gradient(135deg, #ff0033, #3ecf6e, #2caffc, #fff93e, #ff77e4);
   background-size: 300% 300%;
-  mask-image: url('Supernova%20mark.png');
+  mask-image: url('../Supernova%20mark.png');
   mask-size: contain; mask-repeat: no-repeat;
-  -webkit-mask-image: url('Supernova%20mark.png');
+  -webkit-mask-image: url('../Supernova%20mark.png');
   -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat;
   opacity: 0;
   animation: hdNovaReveal 1.8s cubic-bezier(.22,1,.36,1) forwards, hdNovaGrad 6s ease 1.8s infinite;
