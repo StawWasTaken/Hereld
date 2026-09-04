@@ -2441,61 +2441,191 @@
     var rows = await hydrate(r.data || []);
     if (token !== painting) return;
 
-    feed.innerHTML = rows.length ? feedHTML(rows)
+    feed.innerHTML = rows.length ? await feedWithModules(rows)
       : empty('Quiet so far', my ? 'Follow a few people, or say the first thing.' : 'Nothing has been posted yet.',
           my ? '<button class="nb-btn nb-btn--primary nb-btn--sm" type="button" id="firstPost">' + ic('quill') + ' Write a post</button>' : '');
+    if (token !== painting) return;
     twem(feed);
     watchViews(feed);
     wireNewPosts(sort === 'latest' ? 'feed_latest' : 'feed');
   }
 
+  /* The right hand column is where topics and suggestions live, and it is gone
+     under 940px. So on a narrow screen the timeline is a composer and then one
+     card shape forever, with no way to find a topic or a person. These put both
+     back, in the feed, and only where the column is not already saying it. */
+  function narrow() {
+    try { return window.matchMedia('(max-width: 940px)').matches; }
+    catch (e) { return false; }
+  }
+
+  function inlineModule(title, icon, body) {
+    return '<section class="nb-card hd-inline-mod">' +
+      '<h2 class="hd-block-h">' + ic(icon) + ' ' + title + '</h2>' + body + '</section>';
+  }
+
+  async function feedWithModules(rows) {
+    var html = rows.map(function (p) { return card(p); });
+    if (!narrow() || rows.length < 5) return html.join('');
+
+    var got = await Promise.all([
+      db.rpc('who_to_follow', { p_limit: 6 }),
+      db.rpc('the_cry', { p_limit: 5 })
+    ]);
+    var people = await attachAssoc(got[0].data || []);
+    var topics = (got[1].data && got[1].data.topics) || [];
+
+    var at = [];
+    if (people.length) at.push([3, inlineModule('Worth following', 'users', peopleStrip(people))]);
+    if (topics.length && rows.length > 9) at.push([9, inlineModule('Vibes', 'fire', trendRows(topics, 1))]);
+
+    for (var i = at.length - 1; i >= 0; i--) {
+      if (at[i][0] < html.length) html.splice(at[i][0], 0, at[i][1]);
+    }
+    return html.join('');
+  }
+
+  /* ── Explore ─────────────────────────────────────────────────────────────
+     The right hand column stands down here, because it holds Vibes and Worth
+     following and this page is those two things. That buys the width for a
+     layout of its own. */
+
+  var EX_TABS = [
+    { key: 'foryou', label: 'For you' },
+    { key: 'vibes', label: 'Vibes' },
+    { key: 'people', label: 'People' },
+    { key: 'latest', label: 'Latest' }
+  ];
+  var exTab = 'foryou';
+
+  function topicLine(t) {
+    var posts = t.post_count + ' post' + (t.post_count === 1 ? '' : 's');
+    if (t.author_count == null) return posts;
+    return posts + ' · ' + t.author_count + ' ' + (t.author_count === 1 ? 'person' : 'people');
+  }
+
+  function topicHref(t) { return 'search?q=' + encodeURIComponent('#' + t.tag); }
+
+  function topTopic(t) {
+    return link(topicHref(t),
+      '<span class="hd-top-n">1</span>' +
+      '<span class="hd-top-t"><b>#' + esc(t.tag) + '</b><i>' + topicLine(t) + '</i></span>',
+      'hd-top');
+  }
+
+  function trendRows(list, from) {
+    return '<div class="hd-trends">' + list.map(function (t, i) {
+      return link(topicHref(t),
+        '<span class="hd-trend-n">' + (from + i) + '</span>' +
+        '<span class="hd-trend-t"><b>#' + esc(t.tag) + '</b><i>' + topicLine(t) + '</i></span>',
+        'hd-trend');
+    }).join('') + '</div>';
+  }
+
+  /* People as cards in a sideways row, so they do not read as more posts. */
+  function peopleStrip(people) {
+    return '<div class="hd-strip-track">' + people.map(function (p) {
+      var on = mine.following[p.handle];
+      return '<div class="hd-strip-card" data-person="' + p.id + '" data-handle="' + esc(p.handle) + '">' +
+        link('@' + p.handle, avatarOf(p, ''), 'hd-av-btn', ' data-card="' + esc(p.handle) + '" aria-hidden="true" tabindex="-1"') +
+        link('@' + p.handle, '<b>' + nameMark(p) + '</b><i>' + H.tag(p.handle) + '</i>', '', ' data-card="' + esc(p.handle) + '"') +
+        (my && p.id !== my.id
+          ? '<button class="nb-btn nb-btn--sm ' + (on ? 'nb-btn--ghost' : 'nb-btn--primary') + '" type="button" data-follow="' + p.id + '">' +
+            (on ? 'Following' : 'Follow') + '</button>'
+          : '') + '</div>';
+    }).join('') + '</div>';
+  }
+
+  function exTabsHTML() {
+    return '<nav class="hd-tabs" aria-label="What Explore is showing">' + EX_TABS.map(function (t) {
+      return '<button class="hd-tab' + (t.key === exTab ? ' is-on' : '') + '" type="button" data-ex="' + t.key + '"' +
+        (t.key === exTab ? ' aria-current="true"' : '') + '>' + t.label + '</button>';
+    }).join('') + '</nav>';
+  }
+
   async function viewExplore() {
+    var split = exTab === 'foryou';
     col.innerHTML = head('Explore', 'What Hereld is talking about.') +
       '<form class="hd-searchbar" id="exSearch">' +
         '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
         '<input class="nb-input" type="search" name="q" placeholder="Search posts, people and topics" aria-label="Search">' +
       '</form>' +
-      '<section class="hd-block"><h2 class="hd-block-h">' + ic('fire') + ' Vibes</h2>' +
-        '<div class="hd-chips" id="exTags">' + skeletons(0) + '<span class="nb-skel nb-skel--line" style="width:60%"></span></div></section>' +
-      '<section class="hd-block"><h2 class="hd-block-h">' + ic('users') + ' Worth following</h2>' +
-        '<div class="hd-list" id="exWho"></div></section>' +
-      '<section class="hd-block"><h2 class="hd-block-h">' + ic('quill') + ' Latest</h2>' +
-        '<div class="hd-new-posts" data-new-posts hidden><div class="hd-new-posts-inner">' +
-          '<span class="hd-new-posts-avs" data-new-avs></span>' +
-          '<span class="hd-new-posts-t" data-new-t></span>' +
-        '</div></div>' +
-        '<div class="hd-feed" id="feed">' + skeletons(3) + '</div></section>';
+      exTabsHTML() +
+      '<div class="hd-ex-grid' + (split ? ' hd-ex-grid--split' : '') + '">' +
+        '<div class="hd-ex-main" id="exMain">' +
+          (exTab === 'vibes' || exTab === 'people' ? '' :
+            '<div class="hd-new-posts" data-new-posts hidden><div class="hd-new-posts-inner">' +
+              '<span class="hd-new-posts-avs" data-new-avs></span>' +
+              '<span class="hd-new-posts-t" data-new-t></span></div></div>') +
+          '<div class="hd-feed" id="feed">' + skeletons(3) + '</div>' +
+        '</div>' +
+        (split ? '<aside class="hd-ex-side">' +
+          '<section class="hd-block"><h2 class="hd-block-h">' + ic('fire') + ' Vibes</h2>' +
+            '<div id="exTags"><p class="nb-muted">Reading the room…</p></div></section>' +
+          '<section class="hd-block"><h2 class="hd-block-h">' + ic('users') + ' Worth following</h2>' +
+            '<div id="exWho"><p class="nb-muted">Looking…</p></div></section>' +
+        '</aside>' : '') +
+      '</div>';
+
+    col.querySelectorAll('[data-ex]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var to = b.getAttribute('data-ex');
+        if (to === exTab) return;
+        exTab = to;
+        viewExplore();
+      });
+    });
 
     var token = painting;
+    var wantTopics = exTab === 'foryou' || exTab === 'vibes';
+    var wantPeople = exTab === 'foryou' || exTab === 'people';
+    var wantFeed = exTab === 'foryou' || exTab === 'latest';
+
     var got = await Promise.all([
-      db.rpc('the_cry', { p_limit: 12 }),
-      db.rpc('who_to_follow', { p_limit: 6 }),
-      db.from('posts').select(WITH_AUTHOR).is('reply_to', null).order('created_at', { ascending: false }).limit(15)
+      wantTopics ? db.rpc('the_cry', { p_limit: exTab === 'vibes' ? 30 : 8 }) : null,
+      wantPeople ? db.rpc('who_to_follow', { p_limit: exTab === 'people' ? 18 : 6 }) : null,
+      wantFeed ? db.from('posts').select(WITH_AUTHOR).is('reply_to', null)
+        .order('created_at', { ascending: false }).limit(exTab === 'latest' ? 25 : 12) : null
     ]);
     if (token !== painting) return;
 
-    var tags = (got[0].data && got[0].data.topics) || [];
-    el('exTags').innerHTML = tags.length
-      ? tags.map(function (t) {
-          return link('search?q=' + encodeURIComponent('#' + t.tag),
-            '<b>#' + esc(t.tag) + '</b><i>' + t.post_count + ' post' + (t.post_count === 1 ? '' : 's') +
-            ' · ' + t.author_count + ' ' + (t.author_count === 1 ? 'person' : 'people') + '</i>', 'hd-chip');
-        }).join('')
-      : '<p class="nb-muted">No topics yet. Put a # in a post and it starts one.</p>';
-
-    var who = await attachAssoc(got[1].data || []);
-    el('exWho').innerHTML = who.length
-      ? who.map(personRow).join('')
-      : '<p class="nb-muted">Nobody to suggest yet.</p>';
-
-    var feed = el('feed');
-    if (got[2].error) { feed.innerHTML = broke(); return; }
-    var rows = await hydrate(got[2].data || []);
+    var topics = (got[0] && got[0].data && got[0].data.topics) || [];
+    var people = got[1] ? await attachAssoc(got[1].data || []) : [];
     if (token !== painting) return;
-    feed.innerHTML = rows.length ? feedHTML(rows) : empty('Nothing yet', 'The first post has not been written.');
+
+    var main = el('exMain');
+
+    if (exTab === 'vibes') {
+      main.innerHTML = topics.length
+        ? topTopic(topics[0]) + (topics.length > 1 ? trendRows(topics.slice(1), 2) : '')
+        : empty('No topics yet', 'Put a # in a post and it starts one.');
+    } else if (exTab === 'people') {
+      main.innerHTML = people.length
+        ? '<div class="hd-people-grid">' + people.map(personRow).join('') + '</div>'
+        : empty('Nobody to suggest yet', 'Once there are more accounts here this fills up.');
+    } else {
+      var feed = el('feed');
+      if (got[2].error) { feed.innerHTML = broke(); }
+      else {
+        var rows = await hydrate(got[2].data || []);
+        if (token !== painting) return;
+        feed.innerHTML = rows.length ? feedHTML(rows) : empty('Nothing yet', 'The first post has not been written.');
+        watchViews(feed);
+        wireNewPosts('feed_latest');
+      }
+    }
+
+    if (el('exTags')) {
+      el('exTags').innerHTML = topics.length
+        ? trendRows(topics.slice(0, 6), 1)
+        : '<p class="nb-muted">No topics yet. Put a # in a post and it starts one.</p>';
+    }
+    if (el('exWho')) {
+      el('exWho').innerHTML = people.length
+        ? '<div class="hd-list">' + people.map(personRow).join('') + '</div>'
+        : '<p class="nb-muted">Nobody to suggest yet.</p>';
+    }
     twem(col);
-    watchViews(feed);
-    wireNewPosts('feed_latest');
   }
 
   function personRow(p) {
@@ -3890,6 +4020,9 @@
     var s = parts();
     paintRail();
     document.body.classList.toggle('hd-wide', s[0] === 'staff');
+    /* Explore is the right hand column, opened out, so the right hand column
+       has nothing left to say while it is on screen. */
+    document.body.classList.toggle('hd-ex', s[0] === 'explore');
 
     var first = s[0] || 'home';
 
