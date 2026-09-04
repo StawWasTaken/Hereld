@@ -55,7 +55,18 @@
   background: var(--nb-bg);
 }
 .hd-splash[hidden] { display: none; }
-.hd-splash img { width: min(272px, 62vw); height: auto; display: block; filter: invert(72%) sepia(87%) saturate(1450%) hue-rotate(174deg) brightness(101%) contrast(98%); }
+/* The artwork is drawn in #0C0F15, which is the background it sits on, so the
+   colour is not decoration - without it there is nothing on the screen. A mask
+   over a --nb-blue fill lands on the brand blue exactly. The filter chain this
+   replaces only approximated it, and left the mark invisible for as long as the
+   stylesheet took to arrive. The head of the page carries the same two rules
+   inline for that reason. */
+.hd-splash-mark {
+  width: min(272px, 62vw); aspect-ratio: 1; display: block;
+  background: var(--nb-blue);
+  -webkit-mask: url('../HereldAt.png') center / contain no-repeat;
+  mask: url('../HereldAt.png') center / contain no-repeat;
+}
 .hd-splash.is-done { opacity: 0; pointer-events: none; transition: opacity .34s var(--nb-ease); }
 
 /* ── LANDING ───────────────────────────────────────────────────────────── */
@@ -101,6 +112,11 @@ body.hd-app { background: var(--nb-bg); }
 
 body.hd-wide .hd-shell { grid-template-columns: var(--hd-rail) minmax(0, 1fr); max-width: 1500px; }
 body.hd-wide .hd-aside { display: none; }
+/* The line above sits after the breakpoints, so on its own it holds the rail at
+   full width all the way down and leaves the console about 148px to live in.
+   The same steps have to be restated for it. */
+@media (max-width: 1180px) { body.hd-wide .hd-shell { grid-template-columns: 88px minmax(0, 1fr); } }
+@media (max-width: 640px)  { body.hd-wide .hd-shell { grid-template-columns: 1fr; } }
 
 /* ── LEFT RAIL ─────────────────────────────────────────────────────────── */
 
@@ -250,7 +266,14 @@ body.hd-wide .hd-aside { display: none; }
 .hd-col-head p { margin: 3px 0 0; font-size: 13px; color: var(--nb-fg-muted); }
 .hd-sub-n { font-variant-numeric: tabular-nums; }
 
-.hd-tabs { display: flex; gap: 8px; margin: 0 0 16px; overflow-x: auto; scrollbar-width: none; }
+/* overflow-x makes overflow-y compute to auto as well, so a scroller shaves the
+   offset shadow off the tab that is on. The padding buys that back and the
+   negative margin returns the row to where it was sitting. */
+.hd-tabs {
+  display: flex; gap: 8px;
+  margin: -1px 0 11px -1px; padding: 1px 6px 5px 1px;
+  overflow-x: auto; scrollbar-width: none;
+}
 .hd-tabs::-webkit-scrollbar { display: none; }
 .hd-tab {
   flex: none;
@@ -1346,7 +1369,7 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
   .hd-stf-body { grid-template-columns: minmax(0, 1fr); }
   .hd-stf-nav {
     position: static; flex-direction: row; overflow-x: auto;
-    padding-bottom: 6px; scrollbar-width: none;
+    margin: -1px 0 0 -1px; padding: 1px 6px 6px 1px; scrollbar-width: none;
   }
   .hd-stf-nav::-webkit-scrollbar { display: none; }
   .hd-stf-nav-i { flex: none; }
