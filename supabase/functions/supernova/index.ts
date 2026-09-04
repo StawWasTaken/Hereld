@@ -24,7 +24,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-cron-secret',
+  'Access-Control-Allow-Headers': 'apikey, authorization, content-type, x-cron-secret',
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
@@ -110,10 +110,12 @@ function log(who: string | null, kind: string, model: string, u: any, ok = true,
 /* House style. Hereld is dark, plain-spoken and British, and it does not use
    the long dash. Saying so once here is cheaper than editing every answer. */
 const HOUSE =
-  'Write in British English. Plain, direct sentences. Never use an em dash; ' +
-  'use a hyphen. No headings, no bullet lists unless asked, no emoji unless ' +
-  'the person used one first. Do not open with a compliment or a summary of ' +
-  'the question. If you do not know something, say so in one line.';
+  'Write in British English. Match the energy of the person you are replying to - ' +
+  'if they are casual and slangy, be casual and slangy back. If they are formal, ' +
+  'be formal. Never use an em dash; use a hyphen. No headings, no bullet lists ' +
+  'unless asked, no emoji unless the person used one first. Do not open with a ' +
+  'compliment or a summary of the question. If you do not know something, say so ' +
+  'in one line. Be real, not corporate. Sound like a person, not a chatbot.';
 
 async function whoIsAsking(req: Request) {
   const auth = req.headers.get('authorization') || '';
@@ -196,6 +198,35 @@ async function gather(uid: string, question: string, postId?: string) {
           '- @' + r.author_handle + ': ' + String(r.body || '').replace(/\s+/g, ' ').slice(0, 200)
         ).join('\n'));
       }
+
+      if (ctx.reposts?.length) {
+        bits.push('Reposts of this post (' + ctx.reposts.length + '):\n' + ctx.reposts.map((r: any) =>
+          '- @' + r.author_handle + ' (' + (r.author_name || r.author_handle) + ')' +
+          (r.body ? ' commented: ' + String(r.body).replace(/\s+/g, ' ').slice(0, 200) : ' (plain repost)')
+        ).join('\n'));
+      }
+
+      if (ctx.notes?.length) {
+        bits.push('Community notes on this post (' + ctx.notes.length + '):\n' + ctx.notes.map((n: any) =>
+          '- [' + (n.author_handle || 'anonymous') + '] ' + String(n.body || '').slice(0, 300) +
+          (n.source ? ' (source: ' + n.source + ')' : '')
+        ).join('\n'));
+      }
+
+      if (ctx.post?.disclosure?.length) {
+        const DISCLOSE_MAP: Record<string, string> = { paid: 'Paid partnership', ai: 'Made with AI' };
+        bits.push('Disclosures: ' + ctx.post.disclosure.map((d: string) => DISCLOSE_MAP[d] || d).join(', '));
+      }
+
+      const { data: media } = await admin.from('post_media')
+        .select('url, alt_text, spoiler')
+        .eq('post_id', postId).order('position');
+      if (media?.length) {
+        bits.push('Media on this post (' + media.length + '):\n' + media.map((m: any) =>
+          '- Image: ' + m.url + (m.alt_text ? ' [alt: ' + m.alt_text + ']' : '') +
+          (m.spoiler ? ' [spoiler]' : '')
+        ).join('\n'));
+      }
     } else {
       /* Fallback to old approach. */
       const { data: p } = await admin.from('posts').select(WITH_WHO).eq('id', postId).maybeSingle();
@@ -265,6 +296,58 @@ const WAYS: Record<string, string> = {
   more:  'Draw the same point out a little further with what is already implied in it. Add nothing that is not.'
 };
 
+async function profileSummary(req: Request, c: Config, uid: string) {
+  const got = await req.json().catch(() => ({}));
+  const handle = String(got?.handle || '').trim().toLowerCase().replace(/^@/, '');
+  if (!handle) return reply({ error: 'No handle given.' }, 400);
+
+  const { data: profile } = await admin.from('profiles').select('id,handle,name,headline,bio,post_count,follower_count,created_at')
+    .eq('handle', handle).maybeSingle();
+  if (!profile) return reply({ error: 'No account with that handle.' }, 404);
+
+  const { data: posts } = await admin.from('posts').select('body,created_at,endorse_count,reply_count')
+    .eq('author', profile.id).is('deleted_at', null)
+    .order('created_at', { ascending: false }).limit(15);
+
+  const { data: topics } = await admin.rpc('post_topics', { p_poster: profile.id, p_limit: 10 });
+
+  const joined = new Date(profile.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const postLines = (posts || []).map((p: any) => {
+    const d = new Date(p.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    return '[' + d + '] ' + String(p.body || '').replace(/\s+/g, ' ').slice(0, 200) +
+      ' (' + (p.endorse_count || 0) + ' likes, ' + (p.reply_count || 0) + ' replies)';
+  }).join('\n');
+
+  const topicList = (topics || []).map((t: any) => t.topic || t.tag).filter(Boolean).join(', ');
+
+  const system =
+    'You write brief profile summaries for Hereld, a public posting platform. ' + HOUSE + ' ' +
+    'Write a 2-4 sentence summary of this person based on their recent posts, topics, and profile info. ' +
+    'Be factual and specific. Mention what they talk about and what kind of account they are. ' +
+    'Never invent traits. If there is not enough to say, say what you can in fewer sentences. ' +
+    'Return only the summary text, no preamble.';
+
+  const context =
+    'Name: ' + (profile.name || profile.handle) + ' (@' + profile.handle + ')' +
+    (profile.headline ? '\nHeadline: ' + profile.headline : '') +
+    (profile.bio ? '\nBio: ' + profile.bio : '') +
+    '\nJoined: ' + joined +
+    '\nPosts: ' + (profile.post_count || 0) + ', Followers: ' + (profile.follower_count || 0) +
+    (topicList ? '\nTopics they post about: ' + topicList : '') +
+    '\n\nRecent posts:\n' + (postLines || '(no posts yet)');
+
+  try {
+    const out = await think(c, system, [{ role: 'user', text: context }], 400);
+    const text = String(out.text || '').trim().slice(0, 800);
+    if (!text) throw new Error('empty');
+    await log(uid, 'profile_summary', c.model, out);
+    return reply({ text });
+  } catch (e) {
+    await log(uid, 'profile_summary', c.model, null, false, String(e));
+    return reply({ error: 'Could not generate a summary just now.' }, 502);
+  }
+}
+
 async function write(req: Request, c: Config, uid: string) {
   const got = await req.json().catch(() => ({}));
   const text = String(got?.text || '').trim();
@@ -333,8 +416,7 @@ async function ask(req: Request, c: Config, uid: string) {
   const { data: me } = await admin.from('profiles').select('handle,name').eq('id', uid).maybeSingle();
 
   const system =
-    'You are Supernova, the assistant built into Hereld, which is a public ' +
-    'posting platform made by Swiftaw. ' + HOUSE + ' ' +
+    'You are Supernova, a feature in Hereld - a public posting platform made by Swiftaw. ' + HOUSE + ' ' +
     'You are talking to ' + (me?.name || me?.handle || 'someone') + '. ' +
     'You can answer general questions and questions about Hereld. You cannot ' +
     'post, follow, block, delete or moderate on anyone\'s behalf, and you must ' +
@@ -342,14 +424,16 @@ async function ask(req: Request, c: Config, uid: string) {
     'policies; if you are not sure a feature exists, say you are not sure. ' +
     'You have access to Hereld\'s data - profiles, posts, engagement numbers. ' +
     'Use it to answer questions about the platform and its users accurately. ' +
+    'Answer every question directly. Only ask for clarification if the question ' +
+    'is genuinely unreadable or empty. Never say "I could not find anything" ' +
+    'when you can still give a useful answer. ' +
     (c.system_note || '');
 
   const seen = await gather(uid, talk[talk.length - 1]?.text || '', typeof post === 'string' ? post : undefined);
   const system2 = seen
-    ? system + '\n\nHere is what was found on Hereld for this question. It is ' +
-      'public material only, and it is all you have: do not claim to know ' +
-      'anything else about Hereld, and do not invent posts, accounts or ' +
-      'numbers. If it does not answer the question, say so.\n\n' + seen
+    ? system + '\n\nHere is some context from Hereld that may help. Use it alongside ' +
+      'your own knowledge. Do not invent posts, accounts or numbers that are not ' +
+      'listed here, but do answer the question using whatever you know.\n\n' + seen
     : system;
 
   try {
@@ -384,15 +468,45 @@ async function mentions(c: Config) {
 
   const done: string[] = [];
   for (const p of called || []) {
-    const { count } = await admin.from('posts').select('id', { count: 'exact', head: true })
-      .eq('reply_to', p.id).eq('author', nova.id);
-    if (count) continue;
+    /* If this post is a reply to another post, Supernova should reply to the
+       ORIGINAL post (the one being discussed), not the reply that mentions it.
+       Find the root of the thread. */
+    let replyTarget = p.id;
+    if (p.reply_to) {
+      /* Walk up to the root post. */
+      let rootId = p.reply_to;
+      let depth = 0;
+      while (depth < 10) {
+        const { data: parent } = await admin.from('posts').select('reply_to')
+          .eq('id', rootId).maybeSingle();
+        if (!parent || !parent.reply_to) break;
+        rootId = parent.reply_to;
+        depth++;
+      }
+      /* Check if Nova has already replied to the root post. */
+      const { count: rootCount } = await admin.from('posts').select('id', { count: 'exact', head: true })
+        .eq('reply_to', rootId).eq('author', nova.id);
+      if (!rootCount) {
+        replyTarget = rootId;
+      } else {
+        /* Nova already replied to the root. Check if Nova replied to this
+           specific mention post too. */
+        const { count: directCount } = await admin.from('posts').select('id', { count: 'exact', head: true })
+          .eq('reply_to', p.id).eq('author', nova.id);
+        if (directCount) continue;
+      }
+    } else {
+      /* Top-level post mentioning @supernova. Check if Nova already replied. */
+      const { count } = await admin.from('posts').select('id', { count: 'exact', head: true })
+        .eq('reply_to', p.id).eq('author', nova.id);
+      if (count) continue;
+    }
 
-    /* Build rich context for the reply. */
+    /* Build rich context for the reply, using the reply target post. */
     let context = '';
 
-    /* Try the rich context RPC. */
-    const { data: ctx } = await admin.rpc('post_context', { p_post: p.id });
+    /* Try the rich context RPC on the reply target. */
+    const { data: ctx } = await admin.rpc('post_context', { p_post: replyTarget });
     if (ctx) {
       const a = ctx.author;
       context = 'Post by @' + a.handle + ' (' + (a.name || a.handle) + ')' +
@@ -403,9 +517,26 @@ async function mentions(c: Config) {
         (ctx.post.relay_count || 0) + ' reposts):\n' +
         String(ctx.post.body || '').replace(/\s+/g, ' ').slice(0, 600);
 
+      if (ctx.post.disclosure?.length) {
+        const DISCLOSE_MAP: Record<string, string> = { paid: 'Paid partnership', ai: 'Made with AI' };
+        context += '\nDisclosures: ' + ctx.post.disclosure.map((d: string) => DISCLOSE_MAP[d] || d).join(', ');
+      }
+
+      if (ctx.reposts?.length) {
+        context += '\n\nReposts of this post:\n' + ctx.reposts.map((r: any) =>
+          '- @' + r.author_handle + (r.body ? ': ' + String(r.body).replace(/\s+/g, ' ').slice(0, 200) : ' (plain repost)')
+        ).join('\n');
+      }
+
+      if (ctx.notes?.length) {
+        context += '\n\nCommunity notes on this post:\n' + ctx.notes.map((n: any) =>
+          '- "' + String(n.body || '').slice(0, 300) + '"' + (n.source ? ' (source: ' + n.source + ')' : '')
+        ).join('\n');
+      }
+
       if (ctx.chain?.length) {
-        context += '\n\nFull conversation chain:\n' + ctx.chain.map((c: any) =>
-          '- @' + c.author_handle + ': ' + String(c.body || '').replace(/\s+/g, ' ').slice(0, 240)
+        context += '\n\nFull conversation chain:\n' + ctx.chain.map((ch: any) =>
+          '- @' + ch.author_handle + ': ' + String(ch.body || '').replace(/\s+/g, ' ').slice(0, 240)
         ).join('\n');
       }
 
@@ -421,25 +552,25 @@ async function mentions(c: Config) {
       }
     } else {
       /* Fallback. */
-      let thread = '';
-      if (p.reply_to) {
-        const { data: parent } = await admin.from('posts').select(WITH_WHO).eq('id', p.reply_to).maybeSingle();
-        if (parent) thread = '\n\nIt is a reply to:\n' + said(parent);
+      const { data: targetPost } = await admin.from('posts').select(WITH_WHO).eq('id', replyTarget).maybeSingle();
+      if (targetPost) context = said(targetPost);
+      if (replyTarget !== p.id) {
+        context += '\n\nThe person who mentioned @supernova said:\n' + said(p);
       }
-      context = said(p) + thread;
     }
 
     const asked = String(p.body || '').replace(/@supernova/gi, '').trim();
     const system =
-      'You are Supernova, the assistant built into Hereld. ' + HOUSE + ' ' +
+      'You are Supernova, a feature in Hereld. ' + HOUSE + ' ' +
       'Somebody has called you into a public thread by writing @supernova. ' +
-      'Answer them in under 80 words, in one paragraph, as a reply that will ' +
-      'be posted publicly under their post. You can see the full context: the ' +
-      'post, the author\'s profile, the thread, and engagement numbers. Use ' +
-      'this to give a thoughtful, contextual reply. Do not greet them, do not ' +
-      'sign off, and do not repeat their question back. If they have not actually ' +
-      'asked anything, say in one line that you are not sure what they want. ' +
-      'Never invent posts, accounts, numbers or Hereld features. ' +
+      'Match their energy - if they are casual, be casual. If they are wound up, ' +
+      'be real about it. Answer in under 80 words, one paragraph, as a reply ' +
+      'posted publicly under the original post. You can see the full context: ' +
+      'the post, the author\'s profile, the thread, and engagement numbers. ' +
+      'Use this to give a contextual reply. Do not greet them, do not sign off, ' +
+      'and do not repeat their question back. Even if the mention is vague, give ' +
+      'a useful response based on the context. Never invent posts, accounts, ' +
+      'numbers or Hereld features. ' +
       (c.system_note || '');
 
     try {
@@ -449,7 +580,7 @@ async function mentions(c: Config) {
       const text = (out.text || '').trim().slice(0, 500);
       if (!text) continue;
 
-      const made = await admin.from('posts').insert({ author: nova.id, body: text, reply_to: p.id });
+      const made = await admin.from('posts').insert({ author: nova.id, body: text, reply_to: replyTarget });
       if (made.error) continue;
       await log(p.author?.id || null, 'mention', c.model, out);
       done.push(p.id);
@@ -534,13 +665,44 @@ async function notes(c: Config) {
   return reply({ wrapped: done.length });
 }
 
+/* ── Premium accounts ───────────────────────────────────────────────────── */
+
+async function createPremium(_c: Config) {
+  const bots = [
+    { handle: 'deepdive_tech', name: 'DeepDive', headline: 'Writing about the future of computing and AI', bio: 'Systems thinker. Former engineer. Now I just read papers and yell about them on the internet.', persona: 'Research analyst who writes accessible breakdowns of complex tech topics', interests: 'AI, distributed systems, quantum computing, open source, developer culture', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=deepdive&backgroundColor=b6e3f4', banner: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1500&h=500&fit=crop' },
+    { handle: 'cosmicnotes', name: 'Cosmic Notes', headline: 'Astrophysics, explained like you are five', bio: 'PhD dropout who still loves stars. I make space make sense.', persona: 'Science communicator who breaks down astronomy and physics into bite-sized posts', interests: 'astronomy, black holes, exoplanets, cosmic mysteries, science history', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=cosmic&backgroundColor=c0aede', banner: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1500&h=500&fit=crop' },
+    { handle: 'code_culture', name: 'Code & Culture', headline: 'Where software meets the world', bio: 'Tech culture writer. I cover the people behind the code.', persona: 'Journalist covering the intersection of technology, culture, and society', interests: 'tech industry, startups, open source drama, developer burnout, digital rights', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=codeculture&backgroundColor=ffd5dc', banner: 'https://images.unsplash.com/photo-1504639725590-34d0984388bd?w=1500&h=500&fit=crop' },
+    { handle: 'bytesized', name: 'ByteSized', headline: 'Big ideas in small posts', bio: 'I read the 40-page paper so you do not have to. Here is what matters.', persona: 'Research summary account that distills academic papers into digestible threads', interests: 'machine learning, neuroscience, climate tech, biotech, research breakthroughs', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=bytesized&backgroundColor=d1f4d1', banner: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1500&h=500&fit=crop' },
+    { handle: 'signal_noise', name: 'Signal // Noise', headline: 'Cutting through the hype since 2024', bio: 'Every tech headline deserves a reality check. Here is the signal in the noise.', persona: 'Skeptical analyst who evaluates tech claims and separates hype from substance', interests: 'blockchain, AI hype cycles, startup failures, venture capital, tech criticism', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=signalnoise&backgroundColor=f0e6d3', banner: 'https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=1500&h=500&fit=crop' },
+    { handle: 'digitalfolk', name: 'Digital Folk', headline: 'The internet is a place. I am taking notes.', bio: 'Ethnographer of online communities. Every meme tells a story.', persona: 'Digital culture commentator who analyzes internet trends and online behavior', interests: 'memes, online communities, platform dynamics, digital identity, internet history', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=digitalfolk&backgroundColor=e8d5f5', banner: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=1500&h=500&fit=crop' },
+    { handle: 'readinglist', name: 'The Reading List', headline: 'Books, ideas, and the spaces between them', bio: 'Former librarian. Current reader. Always recommending.', persona: 'Literary commentator who shares book recommendations and reading culture observations', interests: 'books, reading culture, publishing industry, literary criticism, author interviews', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=readinglist&backgroundColor=f5e6d3', banner: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=1500&h=500&fit=crop' },
+    { handle: 'city_mind', name: 'City Mind', headline: 'Urbanism for people who do not read zoning laws', bio: 'Cities are fascinating. Here is why your commute is terrible and how to fix it.', persona: 'Urban planning enthusiast who makes city design accessible and interesting', interests: 'urban planning, public transit, housing policy, walkability, city design', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=citymind&backgroundColor=d3e8f5', banner: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=1500&h=500&fit=crop' },
+    { handle: 'devpulse', name: 'DevPulse', headline: 'What developers are actually building', bio: 'I watch GitHub trends so you do not have to. Here is what is shipping.', persona: 'Developer ecosystem tracker who highlights trending projects and tools', interests: 'open source, developer tools, programming languages, framework wars, devrel', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=devpulse&backgroundColor=d3f5d3', banner: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=1500&h=500&fit=crop' },
+    { handle: 'climate_now', name: 'Climate Now', headline: 'The planet is warming. Here is what is working.', bio: 'Climate solutions journalist. Doom is not a strategy. Here is what is.', persona: 'Climate tech reporter who focuses on solutions and progress, not just problems', interests: 'climate tech, renewable energy, carbon capture, sustainability, green policy', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=climate&backgroundColor=d3f5e8', banner: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1500&h=500&fit=crop' },
+  ];
+
+  let created = 0;
+  for (const bot of bots) {
+    try {
+      const { data, error } = await admin.rpc('bot_create_premium_internal', {
+        p_handle: bot.handle, p_name: bot.name, p_headline: bot.headline,
+        p_bio: bot.bio, p_persona: bot.persona, p_interests: bot.interests,
+        p_tier: 'premium', p_avatar_url: bot.avatar, p_banner_url: bot.banner
+      });
+      if (!error && data) created++;
+    } catch (_) { /* exists */ }
+  }
+  return reply({ created });
+}
+
 /* ── Seed accounts ───────────────────────────────────────────────────────
    Enhanced: handles posts, replies, likes, reposts, and profile edits.
    Also auto-creates new accounts when the active count exceeds existing. */
 
 async function seed(c: Config) {
-  /* Auto-create bots if needed. */
-  const { data: needCreate } = await admin.rpc('bot_auto_create', { p_count: 2 });
+  try {
+  /* Auto-create bots if needed. Create up to 5 at a time for faster ramp-up. */
+  const { data: needCreate } = await admin.rpc('bot_auto_create', { p_count: 5 });
   if (needCreate && needCreate > 0) {
     for (let i = 0; i < needCreate; i++) {
       const { data: persona } = await admin.rpc('bot_suggest_persona');
@@ -569,7 +731,17 @@ async function seed(c: Config) {
       }
 
       const name = (persona as any).name || 'User';
-      const handle = name.toLowerCase() + '_' + region.handle_suffix + '_' + Math.random().toString(36).slice(2, 6);
+      // Gen Z username: lil / sad / soft / cozy + noun + numbers / dots
+      const gens = ['lil','sad','soft','cozy','glitchy','dazed','sick','ghostly','vibey','angel','sad','y2k'];
+      const nouns = ['ghost','boy','girl','angel','vamp','fairy','bunny','star','moon','void','honey','bleach','whisper','daisy','clover'];
+      const sep = Math.random() < 0.5 ? '_' : '.';
+      const pre = gens[Math.floor(Math.random()*gens.length)];
+      const noun = nouns[Math.floor(Math.random()*nouns.length)];
+      const num = Math.random() < 0.7 ? String(Math.floor(10 + Math.random()*90)) : Math.random().toString(36).slice(2,4);
+      let handle = (pre + sep + noun + num).toLowerCase();
+      // ensure handle length valid 3-20 and starts with letter
+      handle = handle.replace(/[^a-z0-9_.]/g,'').slice(0,20);
+      if (handle.length < 3) handle = name.toLowerCase().replace(/[^a-z0-9_]/g,'').slice(0,10) + '_' + Math.random().toString(36).slice(2,6);
 
       /* Create the auth user. */
       const made = await admin.auth.admin.createUser({
@@ -582,28 +754,21 @@ async function seed(c: Config) {
 
       const id = made.data.user.id;
 
-      /* Random avatar and banner from a pool of placeholder images. */
-      const avatarPool = [
-        'https://api.dicebear.com/7.x/avataaars/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/big-ears/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/bottts/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/croodles/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/fun-emoji/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/icons/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/lorelei/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/notionists/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/open-peeps/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/personas/svg?seed=' + handle,
-        'https://api.dicebear.com/7.x/thumbs/svg?seed=' + handle
-      ];
+      /* Random avatar and banner - Gen Z aesthetic: mix of dicebear styles + more varied */
+      const avatarStyles = ['adventurer','avataaars','big-ears-neutral','lorelei','notionists','personas','thumbs','micah','adventurer-neutral','fun-emoji','bottts-neutral','initials'];
+      const avStyle = avatarStyles[Math.floor(Math.random()*avatarStyles.length)];
+      // use Dicebear with varied background for Gen Z vibe
+      const bgPool = ['b6e3f4','c0aede','d1d4f9','ffd5dc','ffdfbf','8be9fd','a8e6cf'];
+      const bg = bgPool[Math.floor(Math.random()*bgPool.length)];
+      const avatar = 'https://api.dicebear.com/7.x/' + avStyle + '/svg?seed=' + handle + '&backgroundColor=' + bg;
       const bannerPool = [
         'https://images.unsplash.com/photo-1557683316-973673baf926?w=600&h=200&fit=crop',
         'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&h=200&fit=crop',
-        'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600&h=200&fit=crop',
-        'https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=600&h=200&fit=crop',
-        'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=600&h=200&fit=crop'
+        'https://images.unsplash.com/photo-1518895949257-7621c3c786d7?w=600&h=200&fit=crop',
+        'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=600&h=200&fit=crop',
+        'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=600&h=200&fit=crop',
+        'https://images.unsplash.com/photo-1531306728370-e2ebd9d7bb99?w=600&h=200&fit=crop'
       ];
-      const avatar = avatarPool[Math.floor(Math.random() * avatarPool.length)];
       const banner = bannerPool[Math.floor(Math.random() * bannerPool.length)];
 
       await admin.from('profiles').update({
@@ -617,9 +782,9 @@ async function seed(c: Config) {
         id,
         persona: String((persona as any).persona || '').slice(0, 400),
         interests: String((persona as any).interests || '').slice(0, 300),
-        cooldown_min: 60 + Math.floor(Math.random() * 120),
+        cooldown_min: 8 + Math.floor(Math.random() * 12),
         timezone_offset: region.tz,
-        active: false
+        active: true
       });
 
       if (botErr) {
@@ -631,26 +796,59 @@ async function seed(c: Config) {
     }
   }
 
-  /* Decide what is owed before working out what is due. */
-  await admin.rpc('bot_fill', { p_limit: 5 });
+  /* Decide what is owed before working out what is due. Queue up to 20 actions. */
+  const { error: fillErr } = await admin.rpc('bot_fill', { p_limit: 20 });
+  if (fillErr) {
+    await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'bot_fill error: ' + fillErr.message, ok: false });
+  }
 
-  const { data: due } = await admin.rpc('bot_due', { p_limit: 3 });
+  /* Also queue premium bot actions. */
+  try {
+    const { error: premiumFillErr } = await admin.rpc('bot_fill_premium', { p_limit: 10 });
+    if (premiumFillErr) {
+      await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'bot_fill_premium err: ' + premiumFillErr.message, ok: false });
+    }
+  } catch (_) { /* premium bots may not exist yet */ }
+
+  const { data: due, error: dueErr } = await admin.rpc('bot_due', { p_limit: 10 });
+  if (dueErr) {
+    await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'bot_due error: ' + dueErr.message, ok: false });
+  }
   let made = 0;
+  const startTime = Date.now();
+  const MAX_DURATION = 120000;
 
   for (const b of due || []) {
+    if (Date.now() - startTime > MAX_DURATION) {
+      await admin.from('bot_log').insert({ bot: null, kind: 'seed', detail: 'timeout after ' + made + ' actions' });
+      break;
+    }
+
     let asked: string;
     let parent: any = null;
+    const isPremium = b.tier === 'premium' || b.tier === 'featured';
 
     if (b.kind === 'reply' && b.about) {
-      const { data } = await admin.from('posts').select('body').eq('id', b.about).maybeSingle();
+      const { data } = await admin.from('posts').select('body, relay_of').eq('id', b.about).maybeSingle();
       parent = data;
       if (!parent) { await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id); continue; }
-      asked = 'Somebody posted:\n' + String(parent.body).slice(0, 600) + '\n\nWrite your reply.';
+      let body = String(parent.body || '').trim();
+      // if post is a repost with no body, fetch the original
+      if (!body && parent.relay_of) {
+        const { data: orig } = await admin.from('posts').select('body').eq('id', parent.relay_of).maybeSingle();
+        if (orig?.body) body = String(orig.body).trim();
+      }
+      if (!body) body = '(a photo / repost)';
+      asked = 'Somebody posted:\n' + body.slice(0, 600) + '\n\nWrite your reply. Never say you have not seen or cannot weigh in - always give a take.';
     } else if (b.kind === 'post') {
       const { data: line } = await admin.rpc('the_cry', { p_limit: 6 });
       const topics = (line as any)?.topics || [];
-      asked = 'Write one post. Things being talked about right now: ' +
-        topics.map((t: any) => '#' + t.tag).join(', ') + '.';
+      if (topics.length) {
+        asked = 'Write one post. Things being talked about right now: ' +
+          topics.map((t: any) => '#' + t.tag).join(', ') + '.';
+      } else {
+        asked = 'Write one post. Anything on your mind - your day, a thought, something funny, a vibe check, overshare a little. Keep it Gen Z.';
+      }
     } else if (b.kind === 'like' && b.about) {
       /* Like: just endorse the post. */
       const { error: likeErr } = await admin.from('endorsements').insert({
@@ -672,6 +870,77 @@ async function seed(c: Config) {
       if (!relayErr) {
         await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
         await admin.from('bot_log').insert({ bot: b.bot, kind: 'repost', detail: 'reposted ' + b.about });
+        made++;
+      } else {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+      }
+      continue;
+    } else if (b.kind === 'follow' && b.about) {
+      /* Follow: follow a user. */
+      const { error: followErr } = await admin.from('follows').insert({
+        follower: b.bot, following: b.about
+      });
+      if (!followErr) {
+        await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
+        await admin.from('bot_log').insert({ bot: b.bot, kind: 'follow', detail: 'followed ' + b.about });
+        made++;
+      } else {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+      }
+      continue;
+    } else if (b.kind === 'bookmark' && b.about) {
+      /* Bookmark: save a post. */
+      const { error: bmErr } = await admin.from('bookmarks').insert({
+        user_id: b.bot, post_id: b.about
+      });
+      if (!bmErr) {
+        await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
+        await admin.from('bot_log').insert({ bot: b.bot, kind: 'bookmark', detail: 'bookmarked ' + b.about });
+        made++;
+      } else {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+      }
+      continue;
+    } else if (b.kind === 'community_note' && b.about) {
+      /* Community note: add context to a popular post using AI. */
+      const { data: notePost } = await admin.from('posts').select('body').eq('id', b.about).maybeSingle();
+      if (!notePost) {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+        continue;
+      }
+      const noteSystem =
+        'You are adding a community note to a post on Hereld. ' + HOUSE + ' ' +
+        'Write a brief, factual note that adds context, corrects misinformation, or provides ' +
+        'relevant background. Be neutral and cite facts. Under 100 words. ' +
+        'Return only the note text, no preamble.';
+      try {
+        const out = await think(c, noteSystem,
+          [{ role: 'them', text: 'Post to note:\n' + String(notePost.body || '').slice(0, 600) }], 200);
+        const text = (out.text || '').trim().slice(0, 500);
+        if (!text) throw new Error('empty note');
+        const { error: noteErr } = await admin.from('community_notes').insert({
+          post_id: b.about, author: b.bot, body: text, status: 'proposed'
+        });
+        if (!noteErr) {
+          await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
+          await admin.from('bot_log').insert({ bot: b.bot, kind: 'community_note', detail: 'noted ' + b.about });
+          made++;
+        } else {
+          await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+        }
+      } catch (e) {
+        await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
+        await admin.from('bot_log').insert({ bot: b.bot, kind: 'community_note', detail: String(e).slice(0, 200), ok: false });
+      }
+      continue;
+    } else if (b.kind === 'view' && b.about) {
+      /* View: record a view on a post. */
+      const { error: viewErr } = await admin.from('post_views').insert({
+        post_id: b.about, viewer: b.bot
+      });
+      if (!viewErr) {
+        await admin.rpc('bot_acted', { p_bot: b.bot, p_queue: b.queue_id });
+        await admin.from('bot_log').insert({ bot: b.bot, kind: 'view', detail: 'viewed ' + b.about });
         made++;
       } else {
         await admin.from('bot_queue').update({ done_at: new Date().toISOString() }).eq('id', b.queue_id);
@@ -734,25 +1003,81 @@ async function seed(c: Config) {
         topics.map((t: any) => '#' + t.tag).join(', ') + '.';
     }
 
-    const system =
-      'You are writing as one person with an account on Hereld, a public ' +
-      'posting platform. ' + HOUSE + ' ' +
-      'Who you are: ' + (b.persona || 'an ordinary person with a job and opinions') + '. ' +
-      'What you care about: ' + (b.interests || 'whatever is going on') + '. ' +
-      'Write under 240 characters. One thought, said the way a person says it. ' +
-      'Sometimes be serious, sometimes silly, sometimes opinionated, sometimes ' +
-      'observational. Mix it up - real people do not post the same kind of thing ' +
-      'every time. You can agree or disagree with things. You can mention other ' +
-      'users with @handles. You can use #hashtags when they fit naturally. ' +
-      'Do not announce yourself, do not greet anybody, do not sign it. ' +
-      'Never claim to be a real named person, never claim to represent a real ' +
-      'company, never state a fact about a real named individual, and never ' +
-      'give medical, legal or financial advice. ' + (c.system_note || '');
+    let out: any = null; let text = '';
 
+    if (isPremium) {
+      const { data: topics } = await admin.rpc('the_cry', { p_limit: 8 });
+      const topTopics = (topics as any)?.topics || [];
+      const topicList = topTopics.map((t: any) => '#' + t.tag).join(', ');
+
+      const premiumSystem =
+        'You are a thoughtful content creator on Hereld, a social platform. ' +
+        'You are: ' + (b.handle || 'a content creator') + '. ' +
+        'Write a substantive post (150-300 characters) that shares knowledge, insights, or observations. ' +
+        'Be informative but not lecture-y. Share like you are talking to a smart friend. ' +
+        'Use #hashtags for relevant topics. Be genuine, not performative. ' +
+        'Never claim to be a real named person, never give medical, legal or financial advice. ' +
+        'Do not start with "Fun fact" or "Did you know". Mix up your style: sometimes a question, ' +
+        'sometimes an observation, sometimes a mini-thread hook. ' + (c.system_note || '');
+
+      const premiumAsked = 'Write a post about something happening right now. ' +
+        'Trending topics: ' + topicList + '. ' +
+        'Pick one that fits your expertise and write something insightful about it.';
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          out = await think(c, premiumSystem, [{ role: 'them', text: premiumAsked }], 400);
+          text = (out.text || '').replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
+          if (text.length >= 20) break;
+          text = ''; throw new Error('premium post too short');
+        } catch (e) {
+          if (attempt === 1) {
+            const fallbacks = [
+              'The best time to start building something was yesterday. The second best time is now.',
+              'Hot take: most "disruptive" startups are just regular businesses with better marketing.',
+              'Just read a paper that changed how I think about this. Will share notes when I process it.',
+              'The gap between what we can build and what we should build keeps getting wider.',
+              'Every technology goes through the same cycle: hype, disillusionment, then actual usefulness.',
+            ];
+            text = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+            out = { text, inTok: 0, outTok: 0 };
+          }
+        }
+      }
+    } else {
+      const system =
+        'You are a real Gen Z person posting on Hereld. ' + HOUSE + ' ' +
+        'Who you are: ' + (b.persona || 'chronically online gen z kid') + '. ' +
+        'What you care about: ' + (b.interests || 'memes, vibes, whatever') + '. ' +
+        'Write under 240 characters, lowercase often, gen Z slang, no corporate speak. ' +
+        'Use slang naturally: fr, ngl, lowkey, highkey, its giving, ate, slay, rizz, delulu, vibe, deadass. ' +
+        'Sometimes typo or shorthand is fine (u, ur, rn, idk, tbh, btw). Lowercase is common. ' +
+        'Be chaotic, sincere, funny, oversharing, or dry. Mix it up - real people post different vibes each time. ' +
+        'You can agree, disagree, overshare, be cryptic, or just say something random you saw today. ' +
+        'You can mention @handles or use #hashtags when it fits naturally. Add emoji rarely but when it hits. ' +
+        'Do not announce yourself, do not greet, do not sign. ' +
+        'Never say you have not seen the post, cannot weigh in, or cannot comment - always give a take, even if short. ' +
+        'Never claim to be a real named person, never claim to represent a company, never state a fact about a real named individual, and never give medical, legal or financial advice. ' + (c.system_note || '');
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          out = await think(c, system, [{ role: 'them', text: asked }], 240);
+          text = (out.text || '').replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
+          if (/haven.t seen what they actually wrote|can.t weigh in|cannot comment/i.test(text)) {
+            text = ''; throw new Error('refusal phrase');
+          }
+          if (text.length >= 4) break;
+          text = ''; throw new Error('nothing usable came back');
+        } catch(e) {
+          if (attempt === 1) {
+            const fallbacks = ['vibes', 'lol', 'honestly mood', 'real', 'ngl same', 'interesting', 'hmm', 'bruh'];
+            text = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+            out = { text, inTok: 0, outTok: 0 };
+          }
+        }
+      }
+    }
     try {
-      const out = await think(c, system, [{ role: 'them', text: asked }], 240);
-      const text = out.text.replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
-      if (text.length < 12) throw new Error('nothing usable came back');
 
       const { data: repeat } = await admin.rpc('bot_said_before', { p_bot: b.bot, p_text: text });
       if (repeat) throw new Error('same thing again');
@@ -772,7 +1097,22 @@ async function seed(c: Config) {
       await log(null, b.kind === 'reply' ? 'bot_reply' : 'bot_post', c.model, null, false, String(e));
     }
   }
+
+  /* Also check for @supernova mentions while we're here. */
+  try {
+    const mRes = await mentions(c);
+    if (mRes) {
+      const mBody = await mRes.json().catch(() => ({}));
+      await admin.from('bot_log').insert({ bot: null, kind: 'mentions', detail: JSON.stringify(mBody).slice(0, 200) });
+    }
+  } catch (e) {
+    await admin.from('bot_log').insert({ bot: null, kind: 'mentions', detail: 'error: ' + String(e).slice(0, 200), ok: false });
+  }
+
   return reply({ posted: made });
+  } catch (e) {
+    return reply({ error: 'seed failed: ' + String(e).slice(0, 300), posted: 0 }, 500);
+  }
 }
 
 /* ── Making one of these accounts ──────────────────────────────────────────
@@ -811,26 +1151,19 @@ async function newBot(req: Request, uid: string) {
 
   const id = made.data.user.id;
 
-  const avatarPool = [
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/big-ears/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/bottts/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/croodles/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/fun-emoji/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/lorelei/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/notionists/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/open-peeps/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/personas/svg?seed=' + handle,
-    'https://api.dicebear.com/7.x/thumbs/svg?seed=' + handle
-  ];
+  const avatarStyles = ['adventurer','avataaars','big-ears-neutral','lorelei','notionists','personas','thumbs','micah','adventurer-neutral','fun-emoji','bottts-neutral','initials'];
+  const avStyle = avatarStyles[Math.floor(Math.random()*avatarStyles.length)];
+  const bgPool = ['b6e3f4','c0aede','d1d4f9','ffd5dc','ffdfbf','8be9fd','a8e6cf'];
+  const bg = bgPool[Math.floor(Math.random()*bgPool.length)];
+  const avatar = 'https://api.dicebear.com/7.x/' + avStyle + '/svg?seed=' + handle + '&backgroundColor=' + bg;
   const bannerPool = [
     'https://images.unsplash.com/photo-1557683316-973673baf926?w=600&h=200&fit=crop',
     'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&h=200&fit=crop',
-    'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600&h=200&fit=crop',
-    'https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=600&h=200&fit=crop',
-    'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=600&h=200&fit=crop'
+    'https://images.unsplash.com/photo-1518895949257-7621c3c786d7?w=600&h=200&fit=crop',
+    'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=600&h=200&fit=crop',
+    'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=600&h=200&fit=crop',
+    'https://images.unsplash.com/photo-1531306728370-e2ebd9d7bb99?w=600&h=200&fit=crop'
   ];
-  const avatar = avatarPool[Math.floor(Math.random() * avatarPool.length)];
   const banner = bannerPool[Math.floor(Math.random() * bannerPool.length)];
 
   const mark = await admin.from('profiles').update({
@@ -876,19 +1209,34 @@ Deno.serve(async (req) => {
   const c = await config();
   if (!c) return reply({ error: 'Supernova has no key set yet.' }, 503);
 
-  /* The timer jobs are not something a visitor may start. */
-  if (job === 'notes' || job === 'seed' || job === 'mentions') {
+  /* The timer jobs need either the cron secret or a staff member. */
+  if (job === 'seed' || job === 'seed_all' || job === 'notes' || job === 'mentions' || job === 'create_premium') {
     const secret = Deno.env.get('HERELD_CRON_SECRET') || '';
-    if (!secret || req.headers.get('x-cron-secret') !== secret) {
-      return reply({ error: 'Not for you.' }, 403);
+    const cronOk = secret && req.headers.get('x-cron-secret') === secret;
+    if (!cronOk) {
+      const uid = await whoIsAsking(req);
+      if (!uid) return reply({ error: 'Not for you.' }, 403);
+      const { data: role } = await admin.from('staff').select('role').eq('user_id', uid).maybeSingle();
+      if (!role || !['admin', 'moderator', 'superadmin'].includes(role.role)) {
+        return reply({ error: 'Not for you.' }, 403);
+      }
+    }
+
+    if (job === 'seed_all') {
+      const { error: fillErr } = await admin.rpc('bot_fill', { p_limit: 50 });
+      if (fillErr) return reply({ error: 'bot_fill failed: ' + fillErr.message }, 500);
+      return await seed(c);
     }
     if (job === 'notes') return await notes(c);
     if (job === 'mentions') return await mentions(c);
+    if (job === 'create_premium') return await createPremium(c);
     return await seed(c);
   }
 
+  /* Everything else needs a signed-in user. */
   const uid = await whoIsAsking(req);
   if (!uid) return reply({ error: 'Sign in first.' }, 401);
   if (job === 'write') return await write(req, c, uid);
+  if (job === 'profile_summary') return await profileSummary(req, c, uid);
   return await ask(req, c, uid);
 });

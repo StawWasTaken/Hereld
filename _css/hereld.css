@@ -55,7 +55,7 @@
   background: var(--nb-bg);
 }
 .hd-splash[hidden] { display: none; }
-.hd-splash img { width: min(272px, 62vw); height: auto; display: block; }
+.hd-splash img { width: min(272px, 62vw); height: auto; display: block; filter: invert(72%) sepia(87%) saturate(1450%) hue-rotate(174deg) brightness(101%) contrast(98%); }
 .hd-splash.is-done { opacity: 0; pointer-events: none; transition: opacity .34s var(--nb-ease); }
 
 /* ── LANDING ───────────────────────────────────────────────────────────── */
@@ -235,7 +235,7 @@ body.hd-wide .hd-aside { display: none; }
 
 /* ── COLUMN HEAD + TABS ────────────────────────────────────────────────── */
 
-.hd-col { min-width: 0; padding-top: 16px; }
+.hd-col { min-width: 0; padding-top: 16px; position: relative; }
 .hd-col:focus { outline: none; }
 
 .hd-col-head {
@@ -311,12 +311,12 @@ body.hd-wide .hd-aside { display: none; }
 }
 .hd-spoiler.is-revealed .hd-spoiler-bar { opacity: 0; pointer-events: none; }
 
-.hd-compose-foot {
+.hd-compose-foot { position: relative;
   display: flex; align-items: center; gap: 12px;
   margin-top: 14px; padding-top: 13px;
   border-top: var(--nb-bd-thin);
 }
-.hd-compose-tools { display: flex; gap: 6px; }
+.hd-compose-tools { display: flex; gap: 6px; flex-wrap: wrap; }
 .hd-compose-tool { width: 38px; height: 38px; cursor: pointer; }
 .hd-compose-tool svg { width: 17px; height: 17px; fill: currentColor; }
 .hd-count { margin-left: auto; font-family: var(--nb-font-mono); font-size: 13px; color: var(--nb-surface-fg-muted); font-variant-numeric: tabular-nums; }
@@ -325,6 +325,7 @@ body.hd-wide .hd-aside { display: none; }
 .hd-compose-say { margin: 12px 0 0; font-size: 13.5px; }
 .hd-compose-say[hidden] { display: none; }
 .hd-compose-say.is-bad { color: var(--nb-red); }
+
 
 /* ── A POST ────────────────────────────────────────────────────────────── */
 
@@ -366,15 +367,15 @@ body.hd-wide .hd-aside { display: none; }
 /* The mark is the mark. Nothing sits behind it. */
 .hd-badge { display: inline-grid; place-items: center; flex: none; line-height: 0; }
 .hd-badge svg { width: 16px; height: 16px; }
-.hd-badge--ver svg { fill: var(--nb-blue); }
-.hd-badge--co svg { width: 17px; fill: var(--nb-yellow); }
+.hd-badge--ver svg { fill: #2CAFFC; }
+.hd-badge--co svg { fill: #FFF93E; }
 .hd-badge--plat svg { fill: var(--nb-yellow); }
 
 /* A product, regional or linked account carries the account it belongs to,
    pinned to the badges so it reads as part of the name. */
 .hd-badge--par { text-decoration: none; line-height: 0; }
-.hd-av--pin { width: 17px; height: 17px; font-size: 9px; border-width: 1.5px; }
-.hd-av--pin.hd-av--sq { border-radius: 4px; }
+.hd-av--pin { width: 18px; height: 18px; font-size: 9px; border-width: 1.5px; }
+.hd-av--pin.hd-av--sq { border-radius: 2px; }
 .hd-badge--par:hover .hd-av--pin { transform: translateY(-1px); }
 
 .hd-who-fol { font-size: 12.5px; color: var(--nb-surface-fg-muted); }
@@ -382,8 +383,15 @@ body.hd-wide .hd-aside { display: none; }
 
 .hd-post-body { margin: 12px 0 0; font-size: 15.5px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; }
 .hd-post-body a { color: var(--nb-blue); }
+.hd-edited { font-size: 12.5px; color: var(--nb-fg-muted); font-weight: 400; }
 .hd-mention, .hd-tag-link { font-family: var(--nb-font-head); font-weight: 700; text-decoration: none; }
 .hd-mention:hover, .hd-tag-link:hover { text-decoration: underline; }
+
+.hd-repliers { display: flex; align-items: center; gap: 4px; margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.06); }
+.hd-repliers-av { display: flex; }
+.hd-repliers-av .hd-av { width: 22px; height: 22px; border-width: 1.5px; margin-left: -6px; }
+.hd-repliers-av .hd-av:first-child { margin-left: 0; }
+.hd-repliers-t { font-size: 12.5px; color: var(--nb-fg-muted); margin-left: 6px; }
 
 .hd-quote {
   margin-top: 13px; padding: 13px 15px;
@@ -506,6 +514,8 @@ body.hd-wide .hd-aside { display: none; }
   letter-spacing: .09em; text-transform: uppercase; color: var(--nb-fg-muted);
 }
 .hd-block-h svg { width: 14px; height: 14px; fill: currentColor; }
+.hd-block-link { color: inherit; text-decoration: none; }
+.hd-block-link:hover { text-decoration: underline; }
 
 .hd-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
 .hd-chip {
@@ -726,64 +736,76 @@ body.hd-wide .hd-aside { display: none; }
 .hd-act-nvm { height: 17px; }
 .hd-nav-nvm { height: 21px; }
 
-.hd-nova-off { text-align: center; }
+.hd-nova-off { text-align: center; padding: 60px 20px; }
 .hd-nova-mark { margin: 0 auto 18px; }
 .hd-nova-off p { max-width: 54ch; margin: 12px auto 0; font-size: 14.5px; line-height: 1.65; color: var(--nb-surface-fg-muted); }
 .hd-nova-acts { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 
-/* The chat. The column already scrolls, so the talk grows down the page
-   rather than inside a box of its own; the composer is what stays put. */
+/* The chat. */
 .hd-nova { padding: 0 4px 24px; }
-.hd-nova-talk { display: flex; flex-direction: column; gap: 16px; padding: 18px 0 20px; }
+.hd-nova-card { margin: 0; }
+.hd-nova-card .hd-grok-chat { padding: 16px 18px; min-height: 200px; max-height: 60vh; overflow-y: auto; }
+.hd-nova-card .hd-grok-follow { border-top: var(--nb-bd-thin); }
+.hd-nova-talk { display: flex; flex-direction: column; gap: 20px; }
 
-.hd-nova-hello { display: flex; align-items: flex-start; gap: 14px; text-align: left; }
+.hd-nova-hello {
+  display: flex; align-items: flex-start; gap: 16px; text-align: left;
+  padding: 20px; border-radius: var(--nb-r);
+  background: var(--nb-surface-2);
+  border: var(--nb-bd-thin);
+}
 .hd-nova-hello .hd-nova-mark { margin: 0; flex: none; }
-.hd-nova-hello p { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--nb-surface-fg-muted); }
+.hd-nova-hello p { margin: 0; font-size: 14.5px; line-height: 1.65; color: var(--nb-surface-fg-muted); }
 
 .hd-nova-turn { display: flex; align-items: flex-start; gap: 12px; }
 .hd-nova-turn--me { flex-direction: row-reverse; }
 .hd-nova-av { flex: none; }
 .hd-nova-turn .hd-av { flex: none; }
 .hd-nova-said {
-  max-width: 78%; padding: 12px 15px; font-size: 15px; line-height: 1.62;
-  border: var(--nb-bd-thin); border-radius: var(--nb-r);
-  background: var(--nb-surface); box-shadow: var(--nb-sh-sm);
+  max-width: 78%; padding: 14px 18px; font-size: 15px; line-height: 1.65;
+  border-radius: 18px; border: var(--nb-bd-thin);
 }
-.hd-nova-turn--me .hd-nova-said { background: var(--nb-blue); color: var(--nb-ink); border-color: var(--nb-ink); }
+.hd-nova-turn:not(.hd-nova-turn--me) .hd-nova-said {
+  background: var(--nb-surface-2); border-color: var(--nb-line);
+  border-top-left-radius: 4px;
+}
+.hd-nova-turn--me .hd-nova-said {
+  background: var(--nb-blue);
+  color: var(--nb-ink); border-color: transparent;
+  border-top-right-radius: 4px;
+}
 .hd-nova-turn--me .hd-nova-said a { color: var(--nb-ink); }
 .hd-nova-said a { color: var(--nb-blue); }
 .hd-nova-said img.hd-em { vertical-align: -.16em; }
 
-.hd-nova-dots { display: inline-flex; gap: 5px; padding: 3px 0; }
+.hd-nova-dots { display: inline-flex; gap: 6px; padding: 4px 0; }
 .hd-nova-dots i {
-  width: 7px; height: 7px; border-radius: 50%; background: var(--nb-fg-muted);
-  animation: hdNovaDot 1.05s var(--nb-ease) infinite;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #fff;
+  animation: hdNovaDot 1.2s ease infinite;
 }
-.hd-nova-dots i:nth-child(2) { animation-delay: .16s; }
-.hd-nova-dots i:nth-child(3) { animation-delay: .32s; }
-@keyframes hdNovaDot { 0%, 60%, 100% { opacity: .3; } 30% { opacity: 1; } }
+.hd-nova-dots i:nth-child(2) { animation-delay: .18s; }
+.hd-nova-dots i:nth-child(3) { animation-delay: .36s; }
+@keyframes hdNovaDot { 0%, 60%, 100% { opacity: .25; transform: scale(.85); } 30% { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .hd-nova-dots i { animation: none; opacity: .55; } }
 
 .hd-nova-ask {
-  position: sticky; bottom: 14px; z-index: 3;
-  display: flex; align-items: flex-end; gap: 10px; padding: 12px;
+  display: flex; align-items: flex-end; gap: 10px;
+  padding: 12px 18px 16px;
+  border-top: var(--nb-bd-thin);
 }
 .hd-nova-ask textarea { flex: 1; resize: none; min-height: 44px; max-height: 200px; }
 .hd-nova-ask .nb-btn { flex: none; }
 .hd-nova-ask .nb-btn svg { width: 15px; height: 15px; fill: currentColor; }
 .hd-nova-fine {
-  margin: 12px 0 0; text-align: center; font-size: 12.5px; color: var(--nb-fg-muted);
+  margin: 10px 18px 0; text-align: center; font-size: 12.5px; color: var(--nb-fg-muted);
 }
 
 /* ── Supernova gradient avatar ──────────────────────────────────────────── */
-/* ── Supernova gradient avatar ─────────────────────────────────────────────
-   The mark PNG is transparent. The gradient is masked to ONLY the visible
-   pixels of the PNG using CSS mask-image. No circle, no background. */
 .hd-nova-av-wrap {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
   flex: none;
 }
-/* Gradient layer — masked to the PNG's own pixels. */
 .hd-nva--grad {
   position: relative; width: 100%; height: 100%; object-fit: contain;
 }
@@ -792,11 +814,9 @@ body.hd-wide .hd-aside { display: none; }
   background: linear-gradient(135deg, #ff0033, #3ecf6e, #2caffc, #fff93e, #ff77e4);
   background-size: 300% 300%;
   mask-image: url('Supernova%20mark.png');
-  mask-size: contain;
-  mask-repeat: no-repeat;
+  mask-size: contain; mask-repeat: no-repeat;
   -webkit-mask-image: url('Supernova%20mark.png');
-  -webkit-mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat;
   opacity: 0;
   animation: hdNovaReveal 1.8s cubic-bezier(.22,1,.36,1) forwards, hdNovaGrad 6s ease 1.8s infinite;
 }
@@ -815,11 +835,12 @@ body.hd-wide .hd-aside { display: none; }
   .hd-nova-av-wrap::after { animation: none; opacity: 1; }
 }
 
-/* ── Supernova post card (opens from the mark on a post) ───────────────── */
+/* ── Supernova post card ──────────────────────────────────────────────── */
 .hd-nova-post-card {
-  padding: 16px; margin-bottom: 14px;
-  border: var(--nb-bd-thin); border-radius: var(--nb-r);
+  padding: 18px; margin-bottom: 14px;
+  border-radius: var(--nb-r);
   background: var(--nb-surface);
+  border: var(--nb-bd-thin);
 }
 .hd-nova-post-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .hd-nova-post-av { flex: none; text-decoration: none; color: inherit; }
@@ -831,7 +852,7 @@ body.hd-wide .hd-aside { display: none; }
 }
 .hd-nova-post-handle { display: block; font-size: 13px; color: var(--nb-fg-muted); }
 .hd-nova-post-body {
-  font-size: 15px; line-height: 1.6; margin-bottom: 10px;
+  font-size: 15px; line-height: 1.65; margin-bottom: 10px;
   overflow-wrap: break-word;
 }
 .hd-nova-post-meta {
@@ -843,33 +864,28 @@ body.hd-wide .hd-aside { display: none; }
 /* ── Supernova answer section ──────────────────────────────────────────── */
 .hd-nova-answer-box {
   position: relative;
-  padding: 18px; margin-bottom: 14px;
+  padding: 20px; margin-bottom: 14px;
   border-radius: var(--nb-r);
-  background: linear-gradient(135deg, rgba(255,0,51,.06), rgba(62,207,110,.04), rgba(44,175,252,.06));
-  border: 1px solid rgba(255,0,51,.15);
+  background: var(--nb-surface-2);
+  border: var(--nb-bd-thin);
   overflow: hidden;
 }
 .hd-nova-answer-box::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, #ff0033, #3ecf6e, #2caffc, #fff93e, #ff77e4);
-  background-size: 200% 100%;
-  animation: hdNovaGrad 4s ease infinite;
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--nb-blue);
 }
 .hd-nova-answer-head {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
 }
 .hd-nova-answer-av { width: 32px; height: 32px; }
 .hd-nova-answer-label {
   font-family: var(--nb-font-head); font-weight: 700; font-size: 14px;
-  background: linear-gradient(135deg, #ff0033, #3ecf6e, #2caffc);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--nb-blue);
 }
 .hd-nova-answer-body { font-size: 15px; line-height: 1.65; min-height: 24px; }
 .hd-nova-answer-body a { color: var(--nb-blue); }
 .hd-nova-bad { margin: 0; color: var(--nb-red); }
 
-/* Old quote kept for reference / fallback. */
 .hd-nova-quote {
   margin: 0 0 18px; padding: 13px 15px; border: var(--nb-bd-thin);
   border-left-width: var(--nb-bd-w); border-left-color: var(--nb-blue);
@@ -1368,6 +1384,36 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
 
 .hd-lead-at { color: var(--nb-blue) !important; }
 
+/* ── NEW POSTS CAPSULE ────────────────────────────────────────────────────
+   Floating pill on home/explore that shows when new posts arrive. */
+.hd-new-posts { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); z-index: 25; margin-bottom: 10px; }
+.hd-new-posts[hidden] { display: none; }
+.hd-new-posts-inner {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 20px; cursor: pointer;
+  border-radius: 24px;
+  background: var(--nb-blue);
+  border: none;
+  font-family: var(--nb-font-head); font-weight: 700; font-size: 13.5px;
+  color: #fff;
+  transition: all .15s ease;
+  box-shadow: 0 4px 16px rgba(44,175,252,.35);
+}
+.hd-new-posts-inner:hover {
+  background: #1b9cf7;
+  box-shadow: 0 6px 24px rgba(44,175,252,.45);
+  transform: translateY(-1px);
+}
+.hd-new-posts-avs { display: flex; }
+.hd-new-posts-av {
+  display: inline-flex; width: 20px; height: 20px; border-radius: 50%;
+  border: 2px solid var(--nb-blue); margin-left: -5px; overflow: hidden;
+  background: var(--nb-surface-2);
+}
+.hd-new-posts-av:first-child { margin-left: 0; }
+.hd-new-posts-av img { width: 100%; height: 100%; object-fit: cover; }
+.hd-new-posts-av .hd-av-n { width: 100%; height: 100%; display: grid; place-items: center; font-size: 9px; font-weight: 700; }
+
 /* ── WRITTEN EMPHASIS ─────────────────────────────────────────────────────
    Bold, italic, struck through, a quoted line and a run of code. Enough to
    write with, not a word processor. */
@@ -1392,6 +1438,105 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
 
 /* Twemoji sits on the text baseline rather than floating above it. */
 .hd-post-body .hd-emo, .hd-pcard-bio .hd-emo, .hd-prof-bio .hd-emo { vertical-align: -.12em; }
+
+/* ── GROK-STYLE ANALYSING CARD ────────────────────────────────────────────
+   Dark card for explain & profile summary, inspired by Grok. */
+.hd-grok-card {
+  background: var(--nb-surface); border-radius: var(--nb-r); overflow: hidden;
+  border: var(--nb-bd-thin);
+}
+.hd-grok-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px 12px;
+  border-bottom: var(--nb-bd-thin);
+}
+.hd-grok-title {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--nb-font-head); font-weight: 700; font-size: 15px;
+  color: var(--nb-surface-fg);
+}
+.hd-grok-title svg { width: 18px; height: 18px; fill: currentColor; }
+.hd-grok-actions { display: flex; gap: 4px; }
+.hd-grok-actions .nb-icon-btn { color: var(--nb-fg-muted); }
+.hd-grok-post {
+  padding: 16px 18px; margin: 0;
+  border-bottom: var(--nb-bd-thin);
+}
+.hd-grok-post-inner { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.hd-grok-post-av { text-decoration: none; color: inherit; }
+.hd-grok-post-av .hd-av { border-color: var(--nb-line); }
+.hd-grok-post-who { flex: 1; min-width: 0; }
+.hd-grok-post-name {
+  display: flex; align-items: center; gap: 4px;
+  font-family: var(--nb-font-head); font-weight: 700; font-size: 14px;
+  text-decoration: none; color: var(--nb-surface-fg);
+}
+.hd-grok-post-name:hover { text-decoration: underline; }
+.hd-grok-post-handle { display: block; font-size: 13px; color: var(--nb-fg-muted); }
+.hd-grok-post-head { margin: 0 0 6px; font-size: 13.5px; color: var(--nb-fg-muted); }
+.hd-grok-post-body { margin: 0 0 10px; font-size: 15px; line-height: 1.6; }
+.hd-grok-post-body a { color: var(--nb-blue); }
+.hd-grok-post-media { display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; }
+.hd-grok-post-media img { height: 120px; border-radius: var(--nb-r-sm); object-fit: cover; border: var(--nb-bd-thin); }
+.hd-grok-post-meta {
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  font-size: 12.5px; color: var(--nb-fg-muted);
+}
+.hd-grok-loading {
+  padding: 16px 18px; display: flex; align-items: center; gap: 10px;
+  font-size: 14px; color: var(--nb-fg-muted);
+}
+.hd-grok-loading[hidden] { display: none; }
+.hd-grok-answer {
+  padding: 0 18px 16px;
+}
+.hd-grok-answer[hidden] { display: none; }
+.hd-grok-answer-text {
+  margin: 0; font-size: 15px; line-height: 1.65; color: var(--nb-surface-fg);
+}
+.hd-grok-answer-text a { color: var(--nb-blue); }
+.hd-grok-chat { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.hd-grok-chat-turn { display: flex; align-items: flex-start; gap: 10px; }
+.hd-grok-chat-turn--me { flex-direction: row-reverse; }
+.hd-grok-chat-turn .hd-av { flex: none; }
+.hd-grok-chat-said {
+  max-width: 80%; padding: 10px 14px; font-size: 14px; line-height: 1.6;
+  border-radius: var(--nb-r); border: var(--nb-bd-thin);
+}
+.hd-grok-chat-turn:not(.hd-grok-chat-turn--me) .hd-grok-chat-said {
+  background: var(--nb-surface-2); border-color: var(--nb-line);
+}
+.hd-grok-chat-turn--me .hd-grok-chat-said {
+  background: var(--nb-blue);
+  color: var(--nb-ink); border-color: transparent;
+}
+.hd-grok-chat-turn--me .hd-grok-chat-said a { color: var(--nb-ink); }
+.hd-grok-chat-said a { color: var(--nb-blue); }
+.hd-grok-follow {
+  display: flex; align-items: flex-end; gap: 10px;
+  padding: 12px 18px 16px;
+  border-top: var(--nb-bd-thin);
+}
+.hd-grok-follow[hidden] { display: none; }
+.hd-grok-follow textarea { flex: 1; resize: none; min-height: 40px; max-height: 120px; }
+.hd-grok-follow .nb-btn { flex: none; }
+
+.hd-grok-replies, .hd-grok-reposts {
+  padding: 12px 18px; border-top: var(--nb-bd-thin);
+}
+.hd-grok-replies-title {
+  margin: 0 0 8px; font-size: 12.5px; font-weight: 700; color: var(--nb-fg-muted);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.hd-grok-reply {
+  display: flex; gap: 6px; padding: 6px 0; font-size: 13.5px; line-height: 1.5;
+}
+.hd-grok-reply + .hd-grok-reply { border-top: var(--nb-bd-thin); }
+.hd-grok-reply-handle {
+  flex: none; font-weight: 700; color: var(--nb-blue); font-size: 13px;
+}
+.hd-grok-reply-body { color: var(--nb-fg-muted); min-width: 0; }
+.hd-grok-reply-body.hd-muted { font-style: italic; opacity: .7; }
 
 /* ── THE CARD THAT APPEARS ON A NAME ──────────────────────────────────────
    Rested on, not clicked. It is positioned against the name it belongs to,
@@ -1421,6 +1566,27 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
 .hd-pcard-bio { margin: 9px 0 0; font-size: 14px; line-height: 1.5; }
 .hd-pcard-counts { display: flex; gap: 16px; margin: 11px 0 0; font-size: 13.5px; color: var(--nb-surface-fg-muted); }
 .hd-pcard-counts b { font-family: var(--nb-font-head); font-weight: 700; color: var(--nb-surface-fg); }
+.hd-pcard-summary {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  margin-top: 12px; justify-content: center;
+}
+.hd-pcard-summary svg { width: 14px; height: 14px; }
+.hd-pcard-summary-out {
+  margin-top: 12px; padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255,0,51,.04), rgba(62,207,110,.03), rgba(44,175,252,.05));
+  border: 1px solid rgba(44,175,252,.12);
+}
+.hd-pcard-summary-label {
+  display: flex; align-items: center; gap: 6px; margin: 0 0 6px;
+  font-family: var(--nb-font-head); font-weight: 700; font-size: 12px;
+  text-transform: uppercase; letter-spacing: .05em;
+  background: linear-gradient(135deg, #ff0033, #3ecf6e, #2caffc);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hd-pcard-summary-label svg { width: 14px; height: 14px; }
+.hd-pcard-summary-text { margin: 0; font-size: 14px; line-height: 1.55; }
 
 @media (hover: none) { .hd-pcard { display: none !important; } }
 
@@ -1588,18 +1754,13 @@ label.nb-btn { display: inline-flex; align-items: center; justify-content: cente
    differently from what was typed, so a plain line does not open a panel to
    say it is a plain line. */
 .hd-compose-see {
-  margin-top: 12px; padding: 11px 13px;
-  background: var(--nb-surface-2);
-  border: var(--nb-bd-thin); border-radius: var(--nb-r-sm);
+  margin-top: 12px; padding: 12px 14px;
+  background: var(--nb-surface);
+  border: 1px solid rgba(255,255,255,.06); border-radius: 12px;
+  min-height: 24px;
 }
 .hd-compose-see[hidden] { display: none; }
-.hd-compose-see-lb {
-  display: block; margin-bottom: 7px;
-  font-family: var(--nb-font-head); font-weight: 700;
-  font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--nb-surface-fg-muted);
-}
-.hd-compose-see .hd-post-body { margin: 0; }
+.hd-compose-see .hd-post-body { margin: 0; font-size: 15px; line-height: 1.6; }
 
 /* Who may answer. A pill, because it is a statement about the post rather
    than a control that does something on its own. */
@@ -1636,53 +1797,60 @@ label.nb-btn { display: inline-flex; align-items: center; justify-content: cente
 .hd-disc-one { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
 .hd-disc-one small { font-family: var(--nb-font-body); font-weight: 400; font-size: 12.5px; opacity: .85; }
 
-.hd-compose-flags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.hd-compose-flags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .hd-compose-flags[hidden] { display: none; }
 .hd-fchip {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 5px 7px 5px 12px;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 7px 3px 8px;
   background: var(--nb-yellow); color: var(--nb-ink);
-  border: var(--nb-bd-thin); border-radius: var(--nb-r-pill);
-  font-family: var(--nb-font-head); font-weight: 700; font-size: 12.5px;
+  border: 1px solid var(--nb-ink); border-radius: var(--nb-r-pill);
+  font-family: var(--nb-font-head); font-weight: 700; font-size: 11px;
 }
+.hd-fchip svg { width: 11px; height: 11px; fill: currentColor; }
 .hd-fchip button {
-  display: grid; place-items: center; width: 19px; height: 19px;
+  display: grid; place-items: center; width: 16px; height: 16px;
   background: var(--nb-ink); color: var(--nb-yellow);
   border: 0; border-radius: 50%; cursor: pointer;
 }
-.hd-fchip button svg { width: 10px; height: 10px; fill: currentColor; }
+.hd-fchip button svg { width: 8px; height: 8px; fill: currentColor; }
 
 /* The Supernova mark on the composer keeps its own colours: it is a logo,
    not an icon, so it is never painted over. */
 .hd-compose-nvm { width: 19px; height: 19px; }
 .hd-nova-was {
-  margin: 0 0 14px; padding: 11px 13px;
-  background: var(--nb-surface-2); border: var(--nb-bd-thin);
+  margin: 0 0 14px; padding: 12px 14px;
+  background: var(--nb-surface); border: var(--nb-bd-thin);
   border-radius: var(--nb-r-sm); font-size: 14px; white-space: pre-wrap;
+  color: var(--nb-surface-fg-muted);
 }
-.hd-nova-ways { display: flex; flex-wrap: wrap; gap: 8px; }
+.hd-nova-ways { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .hd-nova-way {
   padding: 8px 14px;
   background: var(--nb-surface); color: var(--nb-surface-fg);
-  border: var(--nb-bd-thin); border-radius: var(--nb-r-pill);
+  border: var(--nb-bd-thin); border-radius: var(--nb-r-sm);
   font-family: var(--nb-font-head); font-weight: 700; font-size: 13px;
-  cursor: pointer; transition: background var(--nb-fast), color var(--nb-fast);
+  cursor: pointer; transition: all .15s ease;
 }
-.hd-nova-way:hover { background: var(--nb-surface-2); }
-.hd-nova-way.is-on { background: var(--nb-blue); color: var(--nb-ink); }
+.hd-nova-way:hover { background: var(--nb-surface-2); border-color: var(--nb-line); }
+.hd-nova-way.is-on {
+  background: var(--nb-blue);
+  color: var(--nb-ink); border-color: transparent;
+}
 .hd-nova-out {
-  margin-top: 16px; padding: 13px;
-  background: var(--nb-surface-2); border: var(--nb-bd-w) solid var(--nb-ink);
-  border-radius: var(--nb-r-sm); box-shadow: var(--nb-sh-sm);
+  margin-top: 16px; padding: 14px;
+  background: var(--nb-surface-2);
+  border: var(--nb-bd-thin);
+  border-radius: var(--nb-r);
 }
 .hd-nova-lb {
-  display: block; margin-bottom: 7px;
+  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
   font-family: var(--nb-font-head); font-weight: 700;
-  font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  font-size: 12px; letter-spacing: .05em; text-transform: uppercase;
   color: var(--nb-surface-fg-muted);
 }
-.hd-nova-line { margin: 0; font-size: 15px; white-space: pre-wrap; }
-.hd-nova-new { margin-top: 12px; }
+.hd-nova-lb svg { width: 14px; height: 14px; }
+.hd-nova-line { margin: 0; font-size: 15px; white-space: pre-wrap; line-height: 1.6; }
+.hd-nova-new { margin-top: 12px; font-size: 15px; line-height: 1.6; }
 
 /* Writing a poll. Two answers at least, four at most, and the answers are
    the poll: the question is the post above them. */
@@ -1791,17 +1959,17 @@ label.nb-btn { display: inline-flex; align-items: center; justify-content: cente
 /* ── ON THE POST ───────────────────────────────────────────────────────── */
 
 .hd-disc {
-  display: flex; flex-wrap: wrap; gap: 7px;
-  margin: 0 0 10px;
+  display: flex; flex-wrap: wrap; gap: 5px;
+  margin: 0 0 8px;
 }
 .hd-disc span {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 10px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px;
   background: var(--nb-yellow); color: var(--nb-ink);
-  border: 2px solid var(--nb-ink); border-radius: var(--nb-r-pill);
-  font-family: var(--nb-font-head); font-weight: 700; font-size: 11.5px;
+  border: 1px solid var(--nb-ink); border-radius: var(--nb-r-pill);
+  font-family: var(--nb-font-head); font-weight: 700; font-size: 10.5px;
 }
-.hd-disc svg { width: 12px; height: 12px; fill: currentColor; }
+.hd-disc svg { width: 10px; height: 10px; fill: currentColor; }
 
 .hd-planned, .hd-scope-note {
   display: flex; align-items: center; gap: 7px;

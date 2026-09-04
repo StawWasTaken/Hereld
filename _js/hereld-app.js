@@ -38,6 +38,7 @@
        place a ballot can be filled in without thirteen callers remembering
        to ask for it. */
     if (typeof paintPolls === 'function') paintPolls(node);
+    if (typeof paintRepliers === 'function') paintRepliers(node);
     if (window.twemoji) {
       try {
         window.twemoji.parse(node, { folder: 'svg', ext: '.svg', className: 'hd-emo', base: TWEMOJI_BASE });
@@ -194,12 +195,9 @@
      building. Neither sits on a disc - the mark is the mark. */
   function badges(p) {
     var out = '';
-    if (p.is_platform) {
-      out += '<span class="hd-badge hd-badge--plat" title="Official Hereld account">' + ic('shield') +
-             '<span class="nb-sr">Official Hereld account</span></span>';
-    } else if (p.verified) {
+    if (p.verified) {
       out += p.is_company
-        ? '<span class="hd-badge hd-badge--co" title="Verified company">' + ic('verifiedco') +
+        ? '<span class="hd-badge hd-badge--co" title="Verified company">' + ic('verified') +
           '<span class="nb-sr">Verified company</span></span>'
         : '<span class="hd-badge hd-badge--ver" title="Verified account">' + ic('verified') +
           '<span class="nb-sr">Verified account</span></span>';
@@ -332,9 +330,10 @@
             { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) +
           '. Only you can see it until then.</p>'
         : '') +
-      (said ? '<p class="hd-post-body">' + said + '</p>' : '') +
+      (said ? '<p class="hd-post-body">' + said + (p.edited_at ? ' <span class="hd-edited">· edited</span>' : '') + '</p>' : '') +
       shots + pollHTML(p) + quoted + note +
-      scopeNote(p) + acts(p) +
+      scopeNote(p) + '<div class="hd-repliers" data-repliers="' + p.id + '"></div>' +
+      acts(p) +
     '</article>';
   }
 
@@ -394,6 +393,177 @@
       (total === 1 ? '1 answer' : num(total) + ' answers') + ' · ' + esc(left) + '</p>';
   }
 
+  async function loadProfileSummary(handle, container, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Summarising';
+    try {
+      var got = await H.fn('supernova?job=profile_summary', { handle: handle });
+      var text = (got && got.text || '').trim();
+      if (!text) throw new Error('empty');
+      var existing = container.querySelector('.hd-pcard-summary-out');
+      if (existing) existing.remove();
+      var div = document.createElement('div');
+      div.className = 'hd-pcard-summary-out';
+      div.innerHTML = '<p class="hd-pcard-summary-label">' + novaAv('hd-nva--grad', 20) + ' Summary</p>' +
+        '<p class="hd-pcard-summary-text">' + esc(text) + '</p>';
+      container.appendChild(div);
+      btn.remove();
+    } catch (e) {
+      btn.innerHTML = ic('sparkle') + ' Try again';
+      btn.disabled = false;
+    }
+  }
+
+  function openProfileSummary(p) {
+    var handle = p.handle || '';
+    var who = p.name || handle;
+    var avatar = H.avatar(p, 'hd-av--md');
+
+    U.sheet({
+      wide: true,
+      title: '',
+      html:
+        '<div class="hd-grok-card">' +
+          '<div class="hd-grok-head">' +
+            '<span class="hd-grok-title">' + novaAv('hd-nva--grad', 20) + ' Analysing profile...</span>' +
+            '<div class="hd-grok-actions">' +
+              '<button class="nb-icon-btn" type="button" data-grok-close title="Close">' + ic('x') + '</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="hd-grok-post">' +
+            '<div class="hd-grok-post-inner">' +
+              '<a href="' + url('profile/' + handle) + '" data-r class="hd-grok-post-av">' + avatar + '</a>' +
+              '<div class="hd-grok-post-who">' +
+                '<a href="' + url('profile/' + handle) + '" data-r class="hd-grok-post-name">' + esc(who) + badges(p) + '</a>' +
+                '<span class="hd-grok-post-handle">' + H.tag(handle) + '</span>' +
+              '</div>' +
+            '</div>' +
+            (p.headline ? '<p class="hd-grok-post-head">' + esc(p.headline) + '</p>' : '') +
+            (p.bio ? '<p class="hd-grok-post-body">' + body(p.bio) + '</p>' : '') +
+          '</div>' +
+          '<div class="hd-grok-loading" id="grokLoad">' +
+            '<span class="hd-nova-dots"><i></i><i></i><i></i></span> Thinking about your request' +
+          '</div>' +
+          '<div class="hd-grok-answer" id="grokAns" hidden></div>' +
+        '</div>',
+      wire: function (api) {
+        api.q('[data-grok-close]').addEventListener('click', api.close);
+        twem(api.body);
+        H.fn('supernova?job=profile_summary', { handle: handle }).then(function (got) {
+          var text = (got && got.text || '').trim();
+          var load = api.q('#grokLoad');
+          var ans = api.q('#grokAns');
+          if (!text) { if (load) load.innerHTML = 'Nothing came back.'; return; }
+          if (load) load.hidden = true;
+          if (ans) { ans.hidden = false; ans.innerHTML = '<p>' + esc(text) + '</p>'; twem(ans); }
+        }).catch(function (e) {
+          var load = api.q('#grokLoad');
+          if (load) load.innerHTML = '<span class="hd-nova-bad">' + esc(e.message || 'Could not generate summary.') + '</span>';
+        });
+      }
+    });
+  }
+
+  function wireNewPosts(rpcName) {
+    var capsule = col.querySelector('[data-new-posts]');
+    var avsEl = col.querySelector('[data-new-avs]');
+    var tEl = col.querySelector('[data-new-t]');
+    if (!capsule) return;
+    var firstId = null;
+    var feed = el('feed');
+    if (feed) {
+      var firstPost = feed.querySelector('[data-post]');
+      if (firstPost) firstId = firstPost.getAttribute('data-post');
+    }
+    var queue = [];
+    var isExplore = !!col.querySelector('#feed') && col.innerHTML.indexOf('Latest') !== -1 && rpcName === 'feed_latest';
+    function renderQueue() {
+      if (!queue.length) return;
+      if (!col.querySelector('[data-new-posts]')) return;
+      capsule.hidden = false;
+      var shown = queue.slice(0, 5);
+      avsEl.innerHTML = shown.map(function (p) {
+        var u = p.profiles;
+        return '<span class="hd-new-posts-av">' +
+          (u && u.avatar_url
+            ? '<img alt="" src="' + esc(u.avatar_url) + '">'
+            : '<span class="hd-av-n">' + esc((u && (u.name || u.handle) || '?')[0]).toUpperCase() + '</span>') +
+          '</span>';
+      }).join('');
+      var count = queue.length;
+      var who = shown.length === 1 && shown[0].profiles
+        ? (shown[0].profiles.name || shown[0].profiles.handle) + ' posted'
+        : count + ' new post' + (count === 1 ? '' : 's');
+      tEl.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg> ' + esc(who);
+    }
+    var lastScroll = 0;
+    col.addEventListener('scroll', function () {
+      var st = col.scrollTop;
+      var scrollingUp = st < lastScroll - 30;
+      lastScroll = st;
+      if (scrollingUp && !capsule.hidden) capsule.hidden = true;
+    });
+    capsule.onclick = function () {
+      capsule.hidden = true;
+      queue = [];
+      col.scrollTop = 0;
+      if (chan) try { db.removeChannel(chan); } catch (e) {}
+      if (isExplore) viewExplore(); else viewHome();
+    };
+    var chan = null;
+    try {
+      chan = db.channel('hd-new-posts-' + Date.now())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async function (payload) {
+          if (!col.querySelector('[data-new-posts]')) { try { db.removeChannel(chan); } catch (e) {} return; }
+          var nid = payload.new && payload.new.id;
+          var authorId = payload.new && payload.new.author;
+          if (!nid) return;
+          if (nid === firstId) return;
+          if (queue.some(function (x) { return x.id === nid; })) return;
+          if (authorId && my && authorId === my.id) return;
+          if (!firstId) {
+            var f2 = el('feed');
+            if (f2) { var fp2 = f2.querySelector('[data-post]'); if (fp2) firstId = fp2.getAttribute('data-post'); }
+          }
+          var prof = null;
+          if (authorId) {
+            try { var pr = await db.from('profiles').select('handle,name,avatar_url').eq('id', authorId).maybeSingle(); prof = pr.data; } catch (e) {}
+          }
+          queue.unshift({ id: nid, profiles: prof });
+          if (queue.length > 25) queue.length = 25;
+          renderQueue();
+        }).subscribe();
+    } catch (e) {}
+    var poller = setInterval(async function () {
+      if (!col.querySelector('[data-new-posts]')) { clearInterval(poller); if (chan) try { db.removeChannel(chan); } catch (e2) {} return; }
+      if (!firstId) {
+        var f = el('feed');
+        if (f) { var fp = f.querySelector('[data-post]'); if (fp) firstId = fp.getAttribute('data-post'); }
+      }
+      if (!firstId) return;
+      var r = await db.rpc(rpcName, { p_limit: 25 });
+      if (r.error || !r.data || !r.data.length) return;
+      var newer = [];
+      for (var i = 0; i < r.data.length; i++) {
+        if (r.data[i].id === firstId) break;
+        if (queue.some(function (x) { return x.id === r.data[i].id; })) continue;
+        newer.push(r.data[i]);
+      }
+      if (!newer.length) return;
+      for (var j = newer.length - 1; j >= 0; j--) {
+        var row = newer[j];
+        var u2 = null;
+        try {
+          var rr = await db.from('profiles').select('handle,name,avatar_url').eq('id', row.author).maybeSingle();
+          u2 = rr.data;
+        } catch (e3) {}
+        queue.unshift({ id: row.id, profiles: u2 || row.profiles || null });
+      }
+      if (queue.length > 25) queue.length = 25;
+      renderQueue();
+    }, 15000);
+  }
+
   /* Fills in every ballot on screen that has not been filled in yet. */
   async function paintPolls(root) {
     var boxes = [].slice.call((root || document).querySelectorAll('[data-pollof]:not([data-done])'));
@@ -404,6 +574,28 @@
       var r = await db.rpc('poll_state', { p_post: id });
       if (r.error || !r.data) { box.remove(); continue; }
       box.innerHTML = pollBars(r.data, id);
+    }
+  }
+
+  async function paintRepliers(root) {
+    var boxes = [].slice.call((root || document).querySelectorAll('[data-repliers]:not([data-done])'));
+    for (var i = 0; i < boxes.length; i++) {
+      var box = boxes[i];
+      var id = box.getAttribute('data-repliers');
+      var r = await db.rpc('post_repliers', { p_post_id: id, p_limit: 3 });
+      if (r.error || !r.data || !r.data.length) { box.remove(); continue; }
+      box.setAttribute('data-done', '1');
+      var avs = r.data.map(function (u) {
+        return '<a class="hd-av-btn" href="#/' + esc(u.handle) + '" data-r>' +
+          '<span class="hd-av hd-av--sm">' +
+          (u.avatar_url
+            ? '<img alt="" loading="lazy" src="' + esc(u.avatar_url) + '">'
+            : '<span class="hd-av-n">' + esc((u.name || u.handle || '?')[0]).toUpperCase() + '</span>') +
+          '</span></a>';
+      }).join('');
+      var count = r.data.length;
+      box.innerHTML = '<div class="hd-repliers-av">' + avs + '</div>' +
+        '<span class="hd-repliers-t">' + count + (count === 1 ? ' person' : ' people') + ' replied</span>';
     }
   }
 
@@ -815,13 +1007,12 @@
       (o.replyTo ? '<p class="hd-compose-to">Replying to ' + H.tag(esc(o.toHandle || '')) + '</p>' : '') +
       '<div class="hd-compose-row">' + avatarOf(my) +
         '<textarea class="hd-compose-in" rows="' + (o.rows || 2) + '" maxlength="' + MAX + '" ' +
-          'placeholder="' + esc(o.placeholder || 'What is worth saying?') + '"></textarea>' +
+          'placeholder="' + esc(o.placeholder || 'hear me out...') + '"></textarea>' +
       '</div>' +
       /* What it will look like once it is out, drawn from the same renderer
          the feed uses. It appears only once there is something to show that
          plain text would not already say. */
-      '<div class="hd-compose-see" data-see hidden>' +
-        '<span class="hd-compose-see-lb">As it will read</span>' +
+      '<div class="hd-compose-see" data-see>' +
         '<div class="hd-post-body" data-seen></div>' +
       '</div>' +
       '<div class="hd-compose-media" hidden></div>' +
@@ -897,17 +1088,9 @@
     /* Anything the renderer would turn into something other than plain text.
        Below that bar the preview would only repeat what is already on
        screen, so it stays out of the way. */
-    var RICH = /(^|[\s(])[@#][a-z0-9_]/i;
-    function worthSeeing(t) {
-      return RICH.test(t) || /https?:\/\//i.test(t) ||
-        /\*\*[^*\n]+\*\*|(^|[^*\w])\*[^*\n]+\*|(^|[^_\w])_[^_\n]+_|~~[^~\n]+~~|`[^`\n]+`/.test(t) ||
-        /(^|\n)>/.test(t);
-    }
-
     function preview() {
       var t = ta.value;
-      if (!worthSeeing(t)) { see.hidden = true; seen.innerHTML = ''; return; }
-      see.hidden = false;
+      if (!t.trim()) { seen.innerHTML = ''; return; }
       seen.innerHTML = body(t, { keepMedia: true });
       twem(seen);
     }
@@ -1778,6 +1961,43 @@
     return true;
   }
 
+  async function editPost(id, node) {
+    var cur = null;
+    try {
+      var r = await db.from('posts').select('body').eq('id', id).maybeSingle();
+      cur = r.data ? r.data.body : '';
+    } catch (e) { cur = ''; }
+    if (cur == null) cur = '';
+    var existing = node.querySelector('.hd-post-body');
+    if (!cur && existing) cur = existing.textContent.replace(/\s*·\s*edited\s*$/, '').trim();
+    U.sheet({
+      title: 'Edit post',
+      wide: true,
+      html: '<div class="nb-card hd-compose-card">' + composerHTML({ placeholder: 'Edit your post...', label: 'Save' }) + '</div>',
+      wire: function (api) {
+        var form = api.q('.hd-compose');
+        var ta = api.q('.hd-compose-in');
+        var btn = api.q('[data-go]');
+        ta.value = cur;
+        btn.disabled = false;
+        btn.textContent = 'Save';
+        ta.focus(); try { ta.selectionStart = ta.value.length; ta.selectionEnd = ta.value.length; } catch (e) {}
+        form.addEventListener('submit', async function (e) {
+          e.preventDefault();
+          var txt = ta.value.trim();
+          if (!txt) return U.toast('Post cannot be empty.', 'bad');
+          if (txt.length > 600) return U.toast('Too long — 600 max.', 'bad');
+          btn.disabled = true; btn.textContent = 'Saving…';
+          var res = await db.from('posts').update({ body: txt, edited_at: new Date().toISOString() }).eq('id', id);
+          if (res.error) { U.toast(H.trouble(res.error, 'Could not save.'), 'bad'); btn.disabled = false; btn.textContent = 'Save'; return; }
+          var bodyEl = node.querySelector('.hd-post-body');
+          if (bodyEl) { bodyEl.innerHTML = body(txt) + ' <span class="hd-edited">· edited</span>'; twem(bodyEl); }
+          api.close(); U.toast('Post updated.');
+        });
+      }
+    });
+  }
+
   async function binPost(id, node) {
     var yes = await U.ask({
       title: 'Delete this post?',
@@ -1801,6 +2021,7 @@
     var items = [];
 
     if (owned) {
+      items.push({ label: 'Edit post', ic: 'edit', run: function () { editPost(id, node); } });
       items.push({ label: 'Copy link', ic: 'link', run: function () { U.copy(postLink(id), 'Link copied.'); } });
       items.push({ label: 'Embed post', ic: 'code', run: function () { embed(id); } });
       items.push({ label: mine.saved[id] ? 'Remove bookmark' : 'Bookmark', ic: 'bookmark',
@@ -1928,9 +2149,16 @@
       '<p class="hd-pcard-counts">' +
         '<span><b>' + num(p.following_count) + '</b> Following</span>' +
         '<span><b>' + num(p.follower_count) + '</b> Followers</span>' +
-      '</p>';
+      '</p>' +
+      (my && !isMe ? '<button class="nb-btn nb-btn--ghost nb-btn--sm hd-pcard-summary" type="button" data-summary="' + esc(p.handle) + '">' + ic('sparkle') + ' Profile Summary</button>' : '');
 
     twem(box);
+
+    var sumBtn = box.querySelector('[data-summary]');
+    if (sumBtn) sumBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      loadProfileSummary(p.handle, box, sumBtn);
+    });
     placeCard(anchor);
     requestAnimationFrame(function () { box.classList.add('is-in'); });
   }
@@ -1982,6 +2210,10 @@
           (sort === 'latest' ? ' aria-current="true"' : '') + '>Latest</button>' +
       '</nav>' +
       (my ? '<div class="nb-card hd-compose-card">' + composerHTML({}) + '</div>' : '') +
+      '<div class="hd-new-posts" data-new-posts hidden><div class="hd-new-posts-inner">' +
+        '<span class="hd-new-posts-avs" data-new-avs></span>' +
+        '<span class="hd-new-posts-t" data-new-t></span>' +
+      '</div></div>' +
       '<div class="hd-feed" id="feed">' + skeletons(4) + '</div>';
 
     if (my) {
@@ -2019,6 +2251,7 @@
           my ? '<button class="nb-btn nb-btn--primary nb-btn--sm" type="button" id="firstPost">' + ic('quill') + ' Write a post</button>' : '');
     twem(feed);
     watchViews(feed);
+    wireNewPosts(sort === 'latest' ? 'feed_latest' : 'feed');
   }
 
   async function viewExplore() {
@@ -2027,11 +2260,15 @@
         '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
         '<input class="nb-input" type="search" name="q" placeholder="Search posts, people and topics" aria-label="Search">' +
       '</form>' +
-      '<section class="hd-block"><h2 class="hd-block-h">' + ic('hash') + ' The Cry</h2>' +
+      '<section class="hd-block"><h2 class="hd-block-h">' + ic('fire') + ' Vibes</h2>' +
         '<div class="hd-chips" id="exTags">' + skeletons(0) + '<span class="nb-skel nb-skel--line" style="width:60%"></span></div></section>' +
       '<section class="hd-block"><h2 class="hd-block-h">' + ic('users') + ' Worth following</h2>' +
         '<div class="hd-list" id="exWho"></div></section>' +
       '<section class="hd-block"><h2 class="hd-block-h">' + ic('quill') + ' Latest</h2>' +
+        '<div class="hd-new-posts" data-new-posts hidden><div class="hd-new-posts-inner">' +
+          '<span class="hd-new-posts-avs" data-new-avs></span>' +
+          '<span class="hd-new-posts-t" data-new-t></span>' +
+        '</div></div>' +
         '<div class="hd-feed" id="feed">' + skeletons(3) + '</div></section>';
 
     var token = painting;
@@ -2042,12 +2279,12 @@
     ]);
     if (token !== painting) return;
 
-    var tags = got[0].data || [];
+    var tags = (got[0].data && got[0].data.topics) || [];
     el('exTags').innerHTML = tags.length
       ? tags.map(function (t) {
           return link('search?q=' + encodeURIComponent('#' + t.tag),
-            '<b>#' + esc(t.tag) + '</b><i>' + t.posts + ' post' + (t.posts === 1 ? '' : 's') +
-            ' · ' + t.people + ' ' + (t.people === 1 ? 'person' : 'people') + '</i>', 'hd-chip');
+            '<b>#' + esc(t.tag) + '</b><i>' + t.post_count + ' post' + (t.post_count === 1 ? '' : 's') +
+            ' · ' + t.author_count + ' ' + (t.author_count === 1 ? 'person' : 'people') + '</i>', 'hd-chip');
         }).join('')
       : '<p class="nb-muted">No topics yet. Put a # in a post and it starts one.</p>';
 
@@ -2063,6 +2300,7 @@
     feed.innerHTML = rows.length ? feedHTML(rows) : empty('Nothing yet', 'The first post has not been written.');
     twem(col);
     watchViews(feed);
+    wireNewPosts('feed_latest');
   }
 
   function personRow(p) {
@@ -2328,14 +2566,11 @@
             '<div class="hd-prof-acts">' + profileActs(p, isMe, following, blocked) + '</div>' +
           '</div>' +
           '<h2 class="hd-prof-name">' + nameMark(p) + '</h2>' +
-          '<p class="hd-prof-at">' + H.tag(p.handle, 'hd-at--lg') +
-            /* An automated account says so. Nothing else needs a capsule: the
-               mark carries a company, and its trade sits in the line below. */
-            (p.is_bot ? '<span class="hd-kind hd-kind--bot">' + ic('robot') + ' Automated</span>' : '') + '</p>' +
+          '<p class="hd-prof-at">' + H.tag(p.handle, 'hd-at--lg') + '</p>' +
           (p.headline ? '<p class="hd-prof-head">' + esc(p.headline) + '</p>' : '') +
           (p.bio ? '<p class="hd-prof-bio">' + body(p.bio) + '</p>' : '') +
           '<p class="hd-prof-meta">' +
-            (p.location ? '<span>' + ic('compass') + esc(p.location) + '</span>' : '') +
+            (p.location ? '<span>' + ic('mapmarker') + esc(p.location) + '</span>' : '') +
             (p.website ? '<span>' + ic('link') + '<a href="' + esc(p.website) + '" target="_blank" rel="noopener nofollow">' +
               esc(p.website.replace(/^https?:\/\/(www\.)?/, '')) + '</a></span>' : '') +
             '<span>' + ic('clock') + 'Joined ' + esc(joined) + '</span>' +
@@ -2664,11 +2899,11 @@
   var novaTalk = [];
 
   function novaTurn(t) {
-    return '<div class="hd-nova-turn hd-nova-turn--' + (t.role === 'you' ? 'nova' : 'me') + '">' +
+    return '<div class="hd-grok-chat-turn hd-grok-chat-turn--' + (t.role === 'you' ? 'me' : 'nova') + '">' +
       (t.role === 'you'
-        ? novaAv('hd-nova-av-grad', 30)
-        : H.avatar(my, 'hd-av--sm')) +
-      '<div class="hd-nova-said">' + body(t.text) + '</div></div>';
+        ? H.avatar(my, 'hd-av--sm')
+        : novaAv('hd-nova-av-grad', 26)) +
+      '<div class="hd-grok-chat-said">' + body(t.text) + '</div></div>';
   }
 
   /* The mark on a post. It opens a card with the post above the answer, so
@@ -2686,58 +2921,164 @@
     var p = r.data, a = p.author || {};
     var who = a.name || a.handle || 'Someone';
     var avatar = H.avatar(a, 'hd-av--md');
-    var verified = a.verified ? ' <span class="hd-badge hd-badge--ver">' + ic('tick') + '</span>' : '';
-    var company = a.is_company ? ' <span class="hd-badge hd-badge--co">' + ic('building') + '</span>' : '';
+    var verified = a.verified ? ' <span class="hd-badge hd-badge--ver">' + ic('verified') + '</span>' : '';
+    var company = a.is_company ? ' <span class="hd-badge hd-badge--co">' + ic('verified') + '</span>' : '';
+
+    var mediaR = await db.from('post_media').select('url, alt_text, spoiler').eq('post_id', id).order('position');
+    var mediaList = mediaR.data || [];
+    var mediaText = mediaList.length
+      ? '\n\nImages attached: ' + mediaList.map(function (m) { return m.url + (m.alt_text ? ' [alt: ' + m.alt_text + ']' : '') + (m.spoiler ? ' [spoiler]' : ''); }).join('; ')
+      : '';
+
+    var [repliesR, repostsR] = await Promise.all([
+      db.from('posts').select('id,body,author,created_at,endorse_count,author:profiles!posts_author_fkey(handle,name)')
+        .eq('reply_to', id).order('created_at').limit(5),
+      db.from('posts').select('id,body,author,created_at,author:profiles!posts_author_fkey(handle,name)')
+        .eq('relay_of', id).order('created_at').limit(5)
+    ]);
+    var replies = repliesR.data || [];
+    var reposts = repostsR.data || [];
+    var repliesText = replies.length
+      ? '\n\nReplies (' + (p.reply_count || 0) + ' total, showing ' + replies.length + '):\n' +
+        replies.map(function (r) {
+          var ra = r.author || {};
+          return '- @' + (ra.handle || '?') + ': ' + String(r.body || '').replace(/\s+/g, ' ').slice(0, 200);
+        }).join('\n')
+      : '';
+    var repostsText = reposts.length
+      ? '\n\nReposts (' + (p.relay_count || 0) + ' total, showing ' + reposts.length + '):\n' +
+        reposts.map(function (r) {
+          var ra = r.author || {};
+          return '- @' + (ra.handle || '?') + (r.body ? ': ' + String(r.body).replace(/\s+/g, ' ').slice(0, 200) : ' (plain repost)');
+        }).join('\n')
+      : '';
+
+    var turns = [{ role: 'them', text:
+      'Explain this post from Hereld in plain language, in under 120 words. ' +
+      'Say what it is about and anything a reader would need to know to follow it. ' +
+      'Include context from replies and reposts if they help explain the discussion. ' +
+      'If it is too short or too vague to explain, say that instead of guessing.\n\n' +
+      who + ' posted:\n' + String(p.body || '') + mediaText + repliesText + repostsText }];
 
     U.sheet({
+      wide: true,
       title: '',
       html:
-        '<div class="hd-nova-post-card">' +
-          '<div class="hd-nova-post-head">' +
-            '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-av">' + avatar + '</a>' +
-            '<div class="hd-nova-post-who">' +
-              '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-nova-post-name">' + esc(who) + verified + company + '</a>' +
-              '<span class="hd-nova-post-handle">' + H.tag(a.handle || '') + '</span>' +
+        '<div class="hd-grok-card">' +
+          '<div class="hd-grok-head">' +
+            '<span class="hd-grok-title">' + novaAv('hd-nva--grad', 20) + ' Analysing Post...</span>' +
+            '<div class="hd-grok-actions">' +
+              '<button class="nb-icon-btn" type="button" data-grok-close title="Close">' + ic('x') + '</button>' +
             '</div>' +
           '</div>' +
-          '<div class="hd-nova-post-body">' + body(p.body) + '</div>' +
-          '<div class="hd-nova-post-meta">' +
-            '<span>' + esc(H.when(p.created_at)) + '</span>' +
-            '<span class="hd-dot">&middot;</span>' +
-            '<span>' + num(p.endorse_count || 0) + ' likes</span>' +
-            '<span class="hd-dot">&middot;</span>' +
-            '<span>' + num(p.reply_count || 0) + ' replies</span>' +
-            (a.follower_count ? '<span class="hd-dot">&middot;</span><span>' + num(a.follower_count) + ' followers</span>' : '') +
+          '<div class="hd-grok-post">' +
+            '<div class="hd-grok-post-inner">' +
+              '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-grok-post-av">' + avatar + '</a>' +
+              '<div class="hd-grok-post-who">' +
+                '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-grok-post-name">' + esc(who) + verified + company + '</a>' +
+                '<span class="hd-grok-post-handle">' + H.tag(a.handle || '') + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<p class="hd-grok-post-body">' + body(p.body) + '</p>' +
+            (mediaList.length ? '<div class="hd-grok-post-media">' + mediaList.map(function (m) {
+              return '<img src="' + esc(m.url) + '" alt="' + esc(m.alt_text || '') + '" loading="lazy">';
+            }).join('') + '</div>' : '') +
+            '<div class="hd-grok-post-meta">' +
+              '<span>' + esc(H.when(p.created_at)) + '</span>' +
+              '<span class="hd-dot">&middot;</span>' +
+              '<span>' + num(p.endorse_count || 0) + ' likes</span>' +
+              '<span class="hd-dot">&middot;</span>' +
+              '<span>' + num(p.reply_count || 0) + ' replies</span>' +
+              '<span class="hd-dot">&middot;</span>' +
+              '<span>' + num(p.relay_count || 0) + ' reposts</span>' +
+            '</div>' +
+            (replies.length ? '<div class="hd-grok-replies">' +
+              '<p class="hd-grok-replies-title">Recent replies</p>' +
+              replies.map(function (r) {
+                var ra = r.author || {};
+                return '<div class="hd-grok-reply">' +
+                  '<span class="hd-grok-reply-handle">@' + esc(ra.handle || '?') + '</span> ' +
+                  '<span class="hd-grok-reply-body">' + esc(String(r.body || '').replace(/\s+/g, ' ').slice(0, 160)) + '</span>' +
+                '</div>';
+              }).join('') +
+            '</div>' : '') +
+            (reposts.length ? '<div class="hd-grok-reposts">' +
+              '<p class="hd-grok-replies-title">Reposts</p>' +
+              reposts.map(function (r) {
+                var ra = r.author || {};
+                return '<div class="hd-grok-reply">' +
+                  '<span class="hd-grok-reply-handle">@' + esc(ra.handle || '?') + '</span> ' +
+                  (r.body ? '<span class="hd-grok-reply-body">' + esc(String(r.body).replace(/\s+/g, ' ').slice(0, 160)) + '</span>' : '<span class="hd-grok-reply-body hd-muted">reposted</span>') +
+                '</div>';
+              }).join('') +
+            '</div>' : '') +
           '</div>' +
-        '</div>' +
-        '<div class="hd-nova-answer-box">' +
-          '<div class="hd-nova-answer-head">' +
-            novaAv('hd-nova-answer-av', 32) +
-            '<span class="hd-nova-answer-label">Supernova</span>' +
+          '<div class="hd-grok-loading" id="grokLoad">' +
+            '<span class="hd-nova-dots"><i></i><i></i><i></i></span> Thinking about your request' +
           '</div>' +
-          '<div class="hd-nova-answer-body hd-nova-answer" id="novaAns" aria-live="polite">' +
-            '<span class="hd-nova-dots"><i></i><i></i><i></i></span></div>' +
-        '</div>' +
-        '<div class="hd-ask-foot"><button class="nb-btn nb-btn--ghost" type="button" data-no>Close</button>' +
-        '<a class="nb-btn nb-btn--primary" href="' + url('supernova') + '" data-r>Keep asking</a></div>',
+          '<div class="hd-grok-answer" id="grokAns" hidden></div>' +
+          '<div class="hd-grok-follow" id="grokFollow" hidden>' +
+            '<textarea class="nb-input" rows="1" placeholder="Ask follow-up..." id="novaExplainInput"></textarea>' +
+            '<button class="nb-btn nb-btn--primary" type="button" id="novaExplainSend" disabled>' + ic('send') + '</button>' +
+          '</div>' +
+        '</div>',
       wire: function (api) {
-        api.q('[data-no]').addEventListener('click', api.close);
+        api.q('[data-grok-close]').addEventListener('click', api.close);
         twem(api.body);
-        H.fn('supernova?job=ask', {
-          post: id,
-          turns: [{ role: 'them', text:
-            'Explain this post from Hereld in plain language, in under 120 words. ' +
-            'Say what it is about and anything a reader would need to know to follow it. ' +
-            'If it is too short or too vague to explain, say that instead of guessing.\n\n' +
-            who + ' posted:\n' + String(p.body || '') }]
-        }).then(function (out) {
-          var ans = api.q('#novaAns');
-          if (!ans) return;
-          ans.innerHTML = body(out.text || 'Nothing came back.');
+
+        var load = api.q('#grokLoad');
+        var ans = api.q('#grokAns');
+        var follow = api.q('#grokFollow');
+        var input = api.q('#novaExplainInput');
+        var sendBtn = api.q('#novaExplainSend');
+        var busy = false;
+
+        input.addEventListener('input', function () {
+          sendBtn.disabled = !input.value.trim() || busy;
+          input.style.height = 'auto';
+          input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+        });
+        input.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
+        });
+
+        function addChatTurn(role, text) {
+          var chat = ans.querySelector('.hd-grok-chat');
+          if (!chat) { chat = document.createElement('div'); chat.className = 'hd-grok-chat'; ans.appendChild(chat); }
+          var div = document.createElement('div');
+          div.className = 'hd-grok-chat-turn hd-grok-chat-turn--' + (role === 'you' ? 'me' : 'nova');
+          div.innerHTML = (role === 'you' ? H.avatar(my, 'hd-av--sm') : novaAv('hd-nova-av-grad', 26)) +
+            '<div class="hd-grok-chat-said">' + body(text) + '</div>';
+          chat.appendChild(div);
+          twem(div);
+          ans.scrollTop = ans.scrollHeight;
+        }
+
+        sendBtn.addEventListener('click', async function () {
+          var txt = input.value.trim();
+          if (!txt || busy) return;
+          busy = true; sendBtn.disabled = true; input.value = ''; input.style.height = 'auto';
+          addChatTurn('you', txt);
+          turns.push({ role: 'them', text: txt });
+          try {
+            var out = await H.fn('supernova?job=ask', { post: id, turns: turns });
+            addChatTurn('me', out.text || 'Nothing came back.');
+            turns.push({ role: 'you', text: out.text || '' });
+          } catch (e) {
+            addChatTurn('me', 'Supernova could not answer that.');
+          }
+          busy = false; sendBtn.disabled = !input.value.trim();
+        });
+
+        H.fn('supernova?job=ask', { post: id, turns: turns }).then(function (out) {
+          var text = out.text || 'Nothing came back.';
+          if (load) load.hidden = true;
+          if (ans) { ans.hidden = false; ans.innerHTML = '<p class="hd-grok-answer-text">' + esc(text) + '</p>'; }
+          if (follow) follow.hidden = false;
+          turns.push({ role: 'you', text: text });
           twem(ans);
-        }).catch(function (err) {
-          var ans = api.q('#novaAns');
-          if (ans) ans.innerHTML = '<p class="hd-nova-bad">' + esc(err.message || 'Supernova could not answer that.') + '</p>';
+        }).catch(function (e) {
+          if (load) load.innerHTML = '<span class="hd-nova-bad">' + esc(e.message || 'Could not answer.') + '</span>';
         });
       }
     });
@@ -2762,21 +3103,26 @@
 
     col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
       '<div class="hd-nova">' +
-        '<div class="hd-nova-talk" id="novaTalk" aria-live="polite">' +
-          (novaTalk.length ? novaTalk.map(novaTurn).join('') :
-            '<div class="nb-card hd-nova-hello">' +
-              novaAv('hd-nova-hello-av', 48) +
-              '<p>Ask about a post, a word you have not met, or anything else. ' +
-              'Supernova cannot post, follow or moderate for you, and it will say so rather than pretend.</p>' +
-            '</div>') +
+        '<div class="hd-grok-card hd-nova-card">' +
+          '<div class="hd-grok-head">' +
+            '<span class="hd-grok-title">' + novaAv('hd-nva--grad', 20) + ' Ask Supernova</span>' +
+          '</div>' +
+          '<div class="hd-grok-chat hd-nova-talk" id="novaTalk" aria-live="polite">' +
+            (novaTalk.length ? novaTalk.map(novaTurn).join('') :
+              '<div class="nb-card hd-nova-hello">' +
+                novaAv('hd-nova-hello-av', 48) +
+                '<p>Ask about a post, a word you have not met, or anything else. ' +
+                'Supernova cannot post, follow or moderate for you, and it will say so rather than pretend.</p>' +
+              '</div>') +
+          '</div>' +
+          '<div class="hd-grok-follow hd-nova-ask" id="novaForm">' +
+            '<label class="nb-sr" for="novaIn">Ask Supernova</label>' +
+            '<textarea class="nb-input" id="novaIn" rows="1" maxlength="1200" ' +
+              'placeholder="Ask Supernova..."></textarea>' +
+            '<button class="nb-btn nb-btn--primary" type="submit" id="novaGo">' + ic('send') + '</button>' +
+          '</div>' +
+          '<p class="hd-nova-fine">Answers are generated and can be wrong. Check anything that matters.</p>' +
         '</div>' +
-        '<form class="nb-card hd-nova-ask" id="novaForm">' +
-          '<label class="nb-sr" for="novaIn">Ask Supernova</label>' +
-          '<textarea class="nb-input" id="novaIn" rows="1" maxlength="1200" ' +
-            'placeholder="Ask Supernova"></textarea>' +
-          '<button class="nb-btn nb-btn--primary nb-btn--sm" type="submit" id="novaGo">' + ic('send') + ' Ask</button>' +
-        '</form>' +
-        '<p class="hd-nova-fine">Answers are generated and can be wrong. Check anything that matters.</p>' +
       '</div>';
 
     twem(col);
@@ -2790,19 +3136,19 @@
     function grow() { box.style.height = 'auto'; box.style.height = Math.min(box.scrollHeight, 200) + 'px'; }
     box.addEventListener('input', grow);
     box.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go.click(); }
     });
 
     function paint() {
       talk.innerHTML = novaTalk.map(novaTurn).join('') +
-        (busy ? '<div class="hd-nova-turn hd-nova-turn--nova hd-nova-wait">' +
-          novaAv('hd-nova-av-grad', 30) +
-          '<div class="hd-nova-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div></div>' : '');
+        (busy ? '<div class="hd-grok-chat-turn hd-grok-chat-turn--nova">' +
+          novaAv('hd-nova-av-grad', 26) +
+          '<div class="hd-grok-chat-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div></div>' : '');
       twem(talk);
       talk.scrollTop = talk.scrollHeight;
     }
 
-    form.addEventListener('submit', async function (e) {
+    go.addEventListener('click', async function (e) {
       e.preventDefault();
       if (busy) return;
       if (needAccount()) return;
@@ -2846,7 +3192,7 @@
         '<span class="hd-searchbar-ic">' + ic('search') + '</span>' +
         '<input class="nb-input" type="search" name="q" placeholder="Search Hereld" aria-label="Search Hereld">' +
       '</form>' +
-      '<section class="nb-card hd-aside-card" id="asideTags"><h2>' + ic('hash') + ' The Cry</h2>' +
+      '<section class="nb-card hd-aside-card" id="asideTags"><h2>' + ic('fire') + ' Vibes</h2>' +
         '<p class="nb-muted">Reading the room…</p></section>' +
       '<section class="nb-card hd-aside-card" id="asideWho"><h2>' + ic('users') + ' Worth following</h2>' +
         '<p class="nb-muted">Looking…</p></section>' +
@@ -2861,13 +3207,13 @@
       db.rpc('who_to_follow', { p_limit: 3 })
     ]);
 
-    var tags = got[0].data || [];
+    var tags = (got[0].data && got[0].data.topics) || [];
     var tagBox = el('asideTags');
     if (tagBox) {
-      tagBox.innerHTML = '<h2>' + ic('hash') + ' The Cry</h2>' + (tags.length
+      tagBox.innerHTML = '<h2>' + ic('fire') + ' Vibes</h2>' + (tags.length
         ? tags.map(function (t) {
             return link('search?q=' + encodeURIComponent('#' + t.tag),
-              '<b>#' + esc(t.tag) + '</b><i>' + t.posts + ' post' + (t.posts === 1 ? '' : 's') + '</i>', 'hd-aside-row');
+              '<b>#' + esc(t.tag) + '</b><i>' + t.post_count + ' post' + (t.post_count === 1 ? '' : 's') + '</i>', 'hd-aside-row');
           }).join('')
         : '<p class="nb-muted">Nothing trending yet. Start something with a #.</p>');
     }
@@ -3563,6 +3909,7 @@
       { label: 'Copy link to profile', ic: 'link', run: function () { U.copy(location.origin + who(p.handle), 'Link copied.'); } }
     ];
     if (!isMe) {
+      items.push({ label: 'Summarise profile', ic: 'sparkle', run: function () { openProfileSummary(p); } });
       items.push({ label: 'Mute @' + p.handle, ic: 'mute', run: function () { mutePerson(p); } });
       items.push({ label: 'Block @' + p.handle, ic: 'ban', kind: 'bad', run: function () { blockPerson(p); } });
       items.push('rule');

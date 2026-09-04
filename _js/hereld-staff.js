@@ -484,14 +484,23 @@ var b = await db.from('bots')
 .order('created_at', { ascending: true }).limit(60);
 var total = b.error ? 0 : b.data.length;
 var live = b.error ? 0 : b.data.filter(function (x) { return x.active; }).length;
+// fetch last action per bot from bot_log
+var lastMap = {};
+try {
+  var lg = await db.from('bot_log').select('bot,kind,detail,created_at,ok').order('created_at', { ascending: false }).limit(120);
+  if (!lg.error && lg.data) lg.data.forEach(function (r) { if (!lastMap[r.bot]) lastMap[r.bot] = r; });
+} catch(e) {}
 var rows = b.error ? broke(why(b.error))
 : total ? b.data.map(function (x) {
+var last = lastMap[x.id];
+var lastLine = last ? esc(last.kind) + (last.detail ? ': ' + esc(String(last.detail).slice(0,60)) : '') + ' <span class="hd-stf-row-n">' + esc(H.when(last.created_at)) + '</span>' + (last.ok === false ? ' ' + tag('failed','bad') : '') : '<span class="hd-stf-row-n">no actions yet</span>';
 return '<div class="hd-stf-row">' + who(x.who, x.persona || 'No persona set') +
 '<span class="hd-stf-row-tags">' + (x.active ? tag('Active', 'ok') : tag('Inactive')) +
 tag(x.act_count + ' actions') + '</span>' +
 '<span class="hd-stf-row-n">' + (x.last_act_at ? 'last ' + H.when(x.last_act_at) : 'never run') + '</span>' +
 '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-bot="' + esc(x.id) + '" data-on="' +
 (x.active ? '' : '1') + '">' + (x.active ? 'Deactivate' : 'Activate') + '</button>' +
+'<div class="hd-stf-row-last">' + lastLine + '</div>' +
 '</div>';
 }).join('')
 : empty('No seed accounts exist. None can run.');
@@ -502,23 +511,59 @@ node.innerHTML =
 '<div class="nb-card hd-stf-tile"><span class="hd-stf-tile-n">' + live + '</span>' +
 '<span class="hd-stf-tile-l">Active now</span><span class="hd-stf-tile-s">Allowed to take part</span></div>' +
 '</div>' +
-switchRow('bots_enabled', 'Seed system', 'While this is off nothing automated runs at all.', flag.bots_enabled) +
-switchRow('bots_emergency', 'Emergency stop', 'Setting this on deactivates every seed account and turns the system off.', flag.bots_emergency, true) +
 '<form class="hd-stf-search" id="stfBotN">' +
-'<label class="nb-label" for="stfBotNi">Accounts allowed to take part</label>' +
+'<label class="nb-label" for="stfBotNi">Seed accounts (set to 0 to stop everything)</label>' +
 '<input class="nb-input" id="stfBotNi" type="number" min="0" step="1" inputmode="numeric" value="' +
 ((flag.bots_active && flag.bots_active.number) || 0) + '">' +
 '<button class="nb-btn nb-btn--primary" type="submit">Set</button>' +
 '</form>' +
-'<div class="nb-alert nb-alert--info hd-stf-note">Nothing here writes anything on its own. ' +
-'A seed account acts only when the server runs, the system above is on, the account is active, ' +
-'its cooldown has passed and Supernova has a key set. Any one of those missing and the account stays quiet.</div>' +
+'<div class="hd-stf-row">' +
+'<button class="nb-btn nb-btn--ghost" type="button" id="stfSeedNow">Run bots now</button>' +
+'<button class="nb-btn nb-btn--ghost" type="button" id="stfSeedAll">Run ALL bots</button>' +
+'<button class="nb-btn nb-btn--ghost" type="button" id="stfMentionsNow">Run mentions now</button>' +
+'<button class="nb-btn nb-btn--primary" type="button" id="stfCreatePremium">Create premium accounts</button>' +
+'</div>' +
+'<div class="nb-alert nb-alert--info hd-stf-note">Set a number above 0 to enable the bot system. ' +
+'Set to 0 to stop everything immediately. Supernova API key must also be set in the Supernova tab. ' +
+'Use the buttons above to trigger bots manually (no cron needed). ' +
+'Premium accounts post high-quality, informative content (not Gen Z spam).</div>' +
 '<h3 class="hd-stf-sub">Accounts</h3><div class="hd-stf-rows">' + rows + '</div>';
 var form = node.querySelector('#stfBotN');
 form.addEventListener('submit', async function (e) {
 e.preventDefault();
 var n = Math.max(0, parseInt(node.querySelector('#stfBotNi').value, 10) || 0);
 if (await call('staff_set_flag', { p_key: 'bots_active', p_number: n }, 'Set. Nothing was deleted.')) render();
+});
+var seedBtn = node.querySelector('#stfSeedNow');
+if (seedBtn) seedBtn.addEventListener('click', async function () {
+seedBtn.disabled = true; seedBtn.textContent = 'Running...';
+try { var r = await H.fn('supernova?job=seed'); U.toast('Bots ran. ' + (r.made || 0) + ' actions taken.'); }
+catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
+seedBtn.disabled = false; seedBtn.textContent = 'Run bots now';
+});
+var seedAllBtn = node.querySelector('#stfSeedAll');
+if (seedAllBtn) seedAllBtn.addEventListener('click', async function () {
+seedAllBtn.disabled = true; seedAllBtn.textContent = 'Running ALL...';
+try { var r = await H.fn('supernova?job=seed_all'); U.toast('All bots ran. ' + (r.posted || 0) + ' actions taken.'); }
+catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
+seedAllBtn.disabled = false; seedAllBtn.textContent = 'Run ALL bots';
+});
+var mentBtn = node.querySelector('#stfMentionsNow');
+if (mentBtn) mentBtn.addEventListener('click', async function () {
+mentBtn.disabled = true; mentBtn.textContent = 'Running...';
+try { var r = await H.fn('supernova?job=mentions'); U.toast('Mentions answered: ' + (r.answered || 0)); }
+catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
+mentBtn.disabled = false; mentBtn.textContent = 'Run mentions now';
+});
+var premBtn = node.querySelector('#stfCreatePremium');
+if (premBtn) premBtn.addEventListener('click', async function () {
+premBtn.disabled = true; premBtn.textContent = 'Creating premium accounts...';
+try {
+var r = await H.fn('supernova?job=create_premium');
+U.toast('Premium accounts created: ' + (r.created || 0));
+render();
+} catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
+premBtn.disabled = false; premBtn.textContent = 'Create premium accounts';
 });
 }
 var PROVIDERS = [
@@ -805,13 +850,7 @@ var fl = t.closest('[data-flag]');
 if (fl) {
 var on = fl.dataset.next === '1';
 var key = fl.dataset.flag;
-(key === 'bots_emergency' && on
-? U.ask({ title: 'Stop everything automated', line: 'Every seed account is deactivated and the system is switched off. Nothing is deleted.', yes: 'Stop it all', bad: true })
-: Promise.resolve(true)
-).then(function (ok) {
-if (!ok) return;
 call('staff_set_flag', { p_key: key, p_on: on }, 'Saved.').then(function (done) { if (done) render(); });
-});
 return;
 }
 var b = t.closest('[data-bot]');
