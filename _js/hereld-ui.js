@@ -214,10 +214,17 @@
     var api = {
       node: wrap, card: card, body: body,
       q: function (s) { return wrap.querySelector(s); },
-      close: function () { close(); }
+      close: function () { close(true); }
     };
 
-    function close() {
+    /* A card may ask to be let go first - the composer does, so a draft is
+       never thrown away by a stray click on the backdrop. Closing from code
+       skips the question, because by then the work is already done. */
+    function close(forced) {
+      if (o.guard && forced !== true) {
+        Promise.resolve(o.guard()).then(function (ok) { if (ok) close(true); });
+        return;
+      }
       var i = stack.indexOf(api);
       if (i < 0) return;
       stack.splice(i, 1);
@@ -229,11 +236,11 @@
     }
 
     function key(e) {
-      if (e.key === 'Escape' && stack[stack.length - 1] === api) { e.stopPropagation(); close(); }
+      if (e.key === 'Escape' && stack[stack.length - 1] === api) { e.stopPropagation(); close(false); }
     }
 
-    wrap.addEventListener('mousedown', function (e) { if (e.target === wrap && o.dismissable !== false) close(); });
-    wrap.querySelector('.hd-modal-x').addEventListener('click', close);
+    wrap.addEventListener('mousedown', function (e) { if (e.target === wrap && o.dismissable !== false) close(false); });
+    wrap.querySelector('.hd-modal-x').addEventListener('click', function () { close(false); });
     document.addEventListener('keydown', key, true);
 
     document.body.appendChild(wrap);

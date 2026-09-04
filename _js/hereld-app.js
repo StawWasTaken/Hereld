@@ -702,63 +702,93 @@
     { k: 'more',   t: 'Say more of it' }
   ];
 
-  function novaWrite(start, keep) {
-    var way = 'tidy';
-    var s = U.sheet({
-      title: 'Work on this',
-      html: '<p class="hd-modal-line">Supernova rewrites what you have written. Nothing goes out until you post it yourself.</p>' +
-        '<div class="hd-nova-was">' + esc(start) + '</div>' +
-        '<div class="hd-nova-ways">' + NOVA_WAYS.map(function (w) {
-          return '<button class="hd-nova-way' + (w.k === way ? ' is-on' : '') + '" type="button" data-w="' + w.k + '">' +
-            esc(w.t) + '</button>';
-        }).join('') + '</div>' +
-        '<div class="nb-field"><label class="nb-label" for="nvAs">Or say how ' +
-          '<span class="nb-hint">optional</span></label>' +
-          '<input class="nb-input" id="nvAs" maxlength="120" placeholder="As a shipping note. As if I were annoyed."></div>' +
-        '<div class="hd-modal-do">' +
-          '<button class="nb-btn nb-btn--primary" type="button" data-run>Rewrite it</button>' +
-          '<button class="nb-btn nb-btn--ghost" type="button" data-shut>Keep mine</button></div>' +
-        '<div class="hd-nova-out" data-out hidden></div>'
-    });
+  /* ── Drafts ───────────────────────────────────────────────────────────
+     Kept on this device, under this account, because a draft is not something
+     anybody else should be able to read. A picture is a file the browser holds
+     in memory and cannot be written down, so a draft says plainly that the
+     picture is the one thing it did not keep. */
 
-    s.body.addEventListener('click', function (e) {
-      var w = e.target.closest('[data-w]');
-      if (!w) return;
-      way = w.getAttribute('data-w');
-      [].forEach.call(s.body.querySelectorAll('[data-w]'), function (b) {
-        b.classList.toggle('is-on', b === w);
+  /* Save, throw away, or neither. A plain yes-or-no cannot say the third,
+     and the third is what dismissing this question means: go back to the post
+     and leave it alone. */
+  function askKeep() {
+    return new Promise(function (done) {
+      var said = null;
+      var s = U.sheet({
+        title: 'Save this post?',
+        html: '<p class="hd-ask-line">You can finish it later from your drafts.</p>' +
+          '<div class="hd-ask-foot hd-ask-foot--stack">' +
+            '<button class="nb-btn nb-btn--primary nb-btn--block" type="button" data-save data-focus>Save</button>' +
+            '<button class="nb-btn nb-btn--ghost nb-btn--block" type="button" data-drop>Discard</button>' +
+          '</div>',
+        onClose: function () { done(said || 'stay'); },
+        wire: function (api) {
+          api.q('[data-save]').addEventListener('click', function () { said = 'save'; api.close(); });
+          api.q('[data-drop]').addEventListener('click', function () { said = 'drop'; api.close(); });
+        }
       });
-    });
-    s.q('[data-shut]').addEventListener('click', s.close);
-
-    var run = s.q('[data-run]');
-    run.addEventListener('click', async function () {
-      var out = s.q('[data-out]');
-      run.disabled = true;
-      run.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Working';
-      out.hidden = false;
-      out.innerHTML = '<div class="hd-nova-line"></div><div class="hd-nova-line"></div>';
-      try {
-        var got = await H.fn('supernova?job=write', {
-          text: start, way: way, how: (s.q('#nvAs').value || '').trim(), limit: MAX
-        });
-        var made = String((got && got.text) || '').trim();
-        if (!made) throw new Error('nothing came back');
-        out.innerHTML = '<p class="hd-nova-lb">' + ic('icon') + ' Supernova wrote this</p>' +
-          '<div class="hd-nova-new" data-new></div>' +
-          '<div class="hd-modal-do"><button class="nb-btn nb-btn--primary" type="button" data-use>Use this</button>' +
-            '<button class="nb-btn nb-btn--ghost" type="button" data-again>Try again</button></div>';
-        s.q('[data-new]').textContent = made;
-        s.q('[data-use]').addEventListener('click', function () { keep(made); s.close(); });
-        s.q('[data-again]').addEventListener('click', function () { out.hidden = true; });
-      } catch (err) {
-        out.innerHTML = '<p class="nb-note is-bad">' +
-          esc(H.trouble(err, 'Supernova could not work on that just now.')) + '</p>';
-      }
-      run.disabled = false;
-      run.textContent = 'Rewrite it';
+      return s;
     });
   }
+
+  function draftKey() { return 'hereld.drafts.' + ((my && my.id) || 'anon'); }
+
+  function drafts() {
+    try { return JSON.parse(localStorage.getItem(draftKey()) || '[]'); }
+    catch (e) { return []; }
+  }
+
+  function draftsPut(list) {
+    try { localStorage.setItem(draftKey(), JSON.stringify(list.slice(0, 30))); }
+    catch (e) { /* a full or shut-off store is not worth a message */ }
+  }
+
+  function draftSave(d) {
+    var list = drafts();
+    d.id = d.id || String(Date.now()) + Math.random().toString(36).slice(2, 6);
+    d.at = Date.now();
+    list = list.filter(function (x) { return x.id !== d.id; });
+    list.unshift(d);
+    draftsPut(list);
+    return d.id;
+  }
+
+  function draftDrop(id) {
+    draftsPut(drafts().filter(function (x) { return x.id !== id; }));
+  }
+
+  /* When the rewrite comes back refused, say which refusal it was. A server
+     still running the version from before this job existed answers as though
+     the call were a question with nothing in it, and no amount of retrying
+     changes that - it needs deploying. */
+  function novaTrouble(err) {
+    var m = String((err && err.message) || err || '');
+    if (/nothing was asked/i.test(m)) {
+      return 'Supernova on the server is older than this control. Deploy the function again and rewriting works.';
+    }
+    if (/no key set/i.test(m)) return 'Supernova has no key set yet.';
+    if (/asked supernova a lot/i.test(m)) return m;
+    return H.trouble(err, 'Supernova could not work on that just now.');
+  }
+
+  /* Enough to say something with, sorted the way somebody looks for one.
+     Written as characters and drawn as marks, like every other emoji here. */
+  var EMOJI = [
+    { t: 'Faces', e: ['\u{1F600}', '\u{1F602}', '\u{1F923}', '\u{1F60D}', '\u{1F970}', '\u{1F60E}',
+      '\u{1F929}', '\u{1F973}', '\u{1F60F}', '\u{1F622}', '\u{1F62D}', '\u{1F624}', '\u{1F92F}',
+      '\u{1F97A}', '\u{1FAE1}', '\u{1F914}', '\u{1F9D0}', '\u{1F62C}', '\u{1FAE0}', '\u{1F644}',
+      '\u{1F634}', '\u{1F621}', '\u{1F925}', '\u{1F92B}'] },
+    { t: 'People', e: ['\u{1F44B}', '\u{1F44D}', '\u{1F44E}', '\u{1F44F}', '\u{1F64F}', '\u{1F4AA}',
+      '\u{1F91D}', '\u{1FAF6}', '\u{1F440}', '\u{1F9E0}', '\u{1F480}', '\u{1F921}', '\u{1F47B}',
+      '\u{1F916}', '\u{1F984}'] },
+    { t: 'Things', e: ['\u{2764}\u{FE0F}', '\u{1F494}', '\u{1F525}', '\u{1F4AF}', '\u{2705}',
+      '\u{274C}', '\u{2B50}', '\u{1F389}', '\u{1F680}', '\u{1F4AC}', '\u{1F4F0}', '\u{1F6E0}\u{FE0F}',
+      '\u{1F4A1}', '\u{26A1}', '\u{1F3C6}', '\u{1F511}', '\u{1F4CA}', '\u{1F4F8}', '\u{1F3AE}',
+      '\u{1F3AC}', '\u{1F4DA}', '\u{1F52C}'] },
+    { t: 'Out there', e: ['\u{2615}', '\u{1F319}', '\u{2600}\u{FE0F}', '\u{1F308}', '\u{1F3B5}',
+      '\u{1F338}', '\u{1F340}', '\u{1F30A}', '\u{1F355}', '\u{1F37A}', '\u{1F419}', '\u{1F98B}',
+      '\u{1F6F8}'] }
+  ];
 
   /* Who is allowed into the thread. The wording is the whole explanation, so
      nothing here needs a note underneath it. */
@@ -797,6 +827,9 @@
       '<div class="hd-compose-media" hidden></div>' +
       '<div class="hd-compose-poll" data-poll hidden></div>' +
       '<div class="hd-compose-flags" data-flags hidden></div>' +
+      /* Every choice the toolbar offers opens here, inside the same card.
+         One at a time, and the tool that opened it stays lit. */
+      '<div class="hd-cpanel" data-panel hidden></div>' +
       /* A reply goes into somebody else's thread, so it is theirs to gate,
          not yours. The control only belongs on a post of its own. */
       (o.replyTo ? '' :
@@ -845,8 +878,10 @@
     var seen = form.querySelector('[data-seen]');
     var pollBox = form.querySelector('[data-poll]');
     var flagBox = form.querySelector('[data-flags]');
+    var panelBox = form.querySelector('[data-panel]');
     var media = null;
     var busy = false;
+    var openPanel = null;
 
     /* Everything the composer carries beyond its words. */
     var scope = 'all';
@@ -900,22 +935,56 @@
     }
     paintScope();
 
+    /* ── One panel, inside the card ───────────────────────────────────────
+       Every tool that used to throw a second card over the first now opens
+       here instead. The one that is open stays lit, and opening another
+       closes it, so there is only ever one thing to read. */
+
+    function shutPanel() {
+      openPanel = null;
+      panelBox.hidden = true;
+      panelBox.innerHTML = '';
+      [].forEach.call(form.querySelectorAll('.hd-compose-tool.is-on, [data-scope].is-open'), function (b) {
+        b.classList.remove('is-on'); b.classList.remove('is-open');
+      });
+      grow();
+    }
+
+    function showPanel(name, title, html, wire) {
+      if (openPanel === name) { shutPanel(); return; }
+      shutPanel();
+      openPanel = name;
+      panelBox.hidden = false;
+      panelBox.innerHTML =
+        '<div class="hd-cpanel-head"><b>' + esc(title) + '</b>' +
+          '<button class="nb-icon-btn nb-icon-btn--round hd-cpanel-x" type="button" data-shut aria-label="Close">' +
+            ic('x') + '</button></div>' +
+        '<div class="hd-cpanel-body">' + html + '</div>';
+      panelBox.querySelector('[data-shut]').addEventListener('click', shutPanel);
+      var lit = name === 'scope' ? form.querySelector('[data-scope]')
+                                 : form.querySelector('[data-' + name + ']');
+      if (lit) lit.classList.add(name === 'scope' ? 'is-open' : 'is-on');
+      if (wire) wire(panelBox.querySelector('.hd-cpanel-body'));
+      var first = panelBox.querySelector('[data-focus]');
+      if (first) setTimeout(function () { first.focus(); }, 30);
+    }
+
     var scopeBtn = form.querySelector('[data-scope]');
     if (scopeBtn) scopeBtn.addEventListener('click', function () {
-      var s = U.sheet({
-        title: 'Who can reply',
-        html: '<p class="hd-modal-line">Anyone can see this post and pass it on. Only the accounts you pick can answer it.</p>' +
-          '<div class="hd-pick">' + SCOPES.map(function (x) {
-            return '<button class="hd-pick-one' + (x.k === scope ? ' is-on' : '') + '" type="button" data-k="' + x.k + '">' +
-              ic(x.i) + '<span>' + esc(x.t) + '</span>' + (x.k === scope ? ic('tick') : '') + '</button>';
-          }).join('') + '</div>'
-      });
-      s.body.addEventListener('click', function (e) {
-        var b = e.target.closest('[data-k]');
-        if (!b) return;
-        scope = b.getAttribute('data-k');
-        paintScope(); s.close();
-      });
+      showPanel('scope', 'Who can reply',
+        '<p class="hd-cpanel-line">Anyone can see this post and pass it on. Only the accounts you pick can answer it.</p>' +
+        '<div class="hd-pick">' + SCOPES.map(function (x) {
+          return '<button class="hd-pick-one' + (x.k === scope ? ' is-on' : '') + '" type="button" data-k="' + x.k + '">' +
+            ic(x.i) + '<span>' + esc(x.t) + '</span>' + ic('tick') + '</button>';
+        }).join('') + '</div>',
+        function (box) {
+          box.addEventListener('click', function (e) {
+            var b = e.target.closest('[data-k]');
+            if (!b) return;
+            scope = b.getAttribute('data-k');
+            paintScope(); shutPanel();
+          });
+        });
     });
 
     function paintFlags() {
@@ -953,47 +1022,51 @@
 
     var whenBtn = form.querySelector('[data-when]');
     if (whenBtn) whenBtn.addEventListener('click', function () {
-      var soon = new Date(Date.now() + 60 * 60 * 1000);
-      soon.setSeconds(0, 0);
-      var val = new Date(soon.getTime() - soon.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-      var s = U.sheet({
-        title: 'Send it later',
-        html: '<p class="hd-modal-line">It stays out of sight until then, and nobody but you can see it in the meantime.</p>' +
-          '<div class="nb-field"><label class="nb-label" for="wIn">Date and time</label>' +
-            '<input class="nb-input" id="wIn" type="datetime-local" data-focus value="' + esc(val) + '"></label></div>' +
-          '<p class="nb-note" data-wsay hidden></p>' +
-          '<div class="hd-modal-do"><button class="nb-btn nb-btn--primary" type="button" data-ok>Schedule it</button>' +
-            '<button class="nb-btn nb-btn--ghost" type="button" data-now>Send it now instead</button></div>'
-      });
-      s.q('[data-now]').addEventListener('click', function () { when = null; paintFlags(); tick(); s.close(); });
-      s.q('[data-ok]').addEventListener('click', function () {
-        var d = new Date(s.q('#wIn').value);
-        var bad = s.q('[data-wsay]');
-        if (isNaN(d.getTime()) || d.getTime() <= Date.now() + 60000) {
-          bad.hidden = false; bad.textContent = 'Pick a time at least a minute from now.'; return;
-        }
-        when = d; paintFlags(); tick(); s.close();
-      });
+      var start = when || new Date(Date.now() + 60 * 60 * 1000);
+      start.setSeconds(0, 0);
+      var val = new Date(start.getTime() - start.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      showPanel('when', 'Send it later',
+        '<p class="hd-cpanel-line">It stays out of sight until then, and nobody but you can see it in the meantime.</p>' +
+        '<div class="nb-field"><label class="nb-label" for="wIn">Date and time</label>' +
+          '<input class="nb-input" id="wIn" type="datetime-local" data-focus value="' + esc(val) + '"></div>' +
+        '<p class="nb-note" data-wsay hidden></p>' +
+        '<div class="hd-cpanel-do"><button class="nb-btn nb-btn--primary nb-btn--sm" type="button" data-ok>Schedule it</button>' +
+          '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-now>Send it now instead</button></div>',
+        function (box) {
+          box.querySelector('[data-now]').addEventListener('click', function () {
+            when = null; paintFlags(); tick(); shutPanel();
+          });
+          box.querySelector('[data-ok]').addEventListener('click', function () {
+            var d = new Date(box.querySelector('#wIn').value);
+            var bad = box.querySelector('[data-wsay]');
+            if (isNaN(d.getTime()) || d.getTime() <= Date.now() + 60000) {
+              bad.hidden = false; bad.className = 'nb-note is-bad';
+              bad.textContent = 'Pick a time at least a minute from now.'; return;
+            }
+            when = d; paintFlags(); tick(); shutPanel();
+          });
+        });
     });
 
     form.querySelector('[data-disc]').addEventListener('click', function () {
-      var s = U.sheet({
-        title: 'Say what this is',
-        html: '<p class="hd-modal-line">Both of these show on the post itself. Use them when they are true.</p>' +
-          DISCLOSE.map(function (d) {
-            return '<label class="nb-check hd-disc-one"><input type="checkbox" data-d="' + d.k + '"' +
-              (flags.indexOf(d.k) > -1 ? ' checked' : '') + '><span class="nb-box"></span>' +
-              '<span><b>' + esc(d.t) + '</b><i>' + esc(d.s) + '</i></span></label>';
-          }).join('') +
-          '<div class="hd-modal-do"><button class="nb-btn nb-btn--primary" type="button" data-ok>Done</button></div>'
-      });
-      s.q('[data-ok]').addEventListener('click', function () {
-        flags = [];
-        [].forEach.call(s.body.querySelectorAll('[data-d]'), function (c) {
-          if (c.checked) flags.push(c.getAttribute('data-d'));
+      showPanel('disc', 'Say what this is',
+        '<p class="hd-cpanel-line">Both of these show on the post itself. Use them when they are true.</p>' +
+        DISCLOSE.map(function (d) {
+          return '<label class="nb-check hd-disc-one"><input type="checkbox" data-d="' + d.k + '"' +
+            (flags.indexOf(d.k) > -1 ? ' checked' : '') + '><span class="nb-box"></span>' +
+            '<span><b>' + esc(d.t) + '</b><i>' + esc(d.s) + '</i></span></label>';
+        }).join(''),
+        function (box) {
+          /* No Done button: a tick is the whole decision, so it takes effect
+             where it is made and the chip below says what is on. */
+          box.addEventListener('change', function () {
+            flags = [];
+            [].forEach.call(box.querySelectorAll('[data-d]'), function (c) {
+              if (c.checked) flags.push(c.getAttribute('data-d'));
+            });
+            paintFlags();
+          });
         });
-        paintFlags(); s.close();
-      });
     });
 
     /* ── The poll ─────────────────────────────────────────────────────── */
@@ -1047,10 +1120,63 @@
 
     /* ── Supernova, on the words already written ──────────────────────── */
 
+    var novaWay = 'tidy';
     form.querySelector('[data-nova]').addEventListener('click', function () {
-      var startWith = ta.value.trim();
-      if (!startWith) { warn('Write something first and Supernova will work on that.'); return; }
-      novaWrite(startWith, function (out) { ta.value = out; tick(); ta.focus(); });
+      if (!ta.value.trim()) { warn('Write something first and Supernova will work on that.'); return; }
+      showPanel('nova', 'Work on this',
+        '<p class="hd-cpanel-line">Supernova rewrites what you have written. Nothing goes out until you post it yourself.</p>' +
+        '<div class="hd-nova-ways">' + NOVA_WAYS.map(function (w) {
+          return '<button class="hd-nova-way' + (w.k === novaWay ? ' is-on' : '') + '" type="button" data-w="' + w.k + '">' +
+            esc(w.t) + '</button>';
+        }).join('') + '</div>' +
+        '<div class="nb-field"><label class="nb-label" for="nvAs">Or say how <span class="nb-hint">optional</span></label>' +
+          '<input class="nb-input" id="nvAs" maxlength="120" placeholder="As a shipping note. As if I were annoyed."></div>' +
+        '<div class="hd-cpanel-do"><button class="nb-btn nb-btn--primary nb-btn--sm" type="button" data-run>Rewrite it</button></div>' +
+        '<div class="hd-nova-out" data-out hidden></div>',
+        function (box) {
+          box.addEventListener('click', function (e) {
+            var w = e.target.closest('[data-w]');
+            if (!w) return;
+            novaWay = w.getAttribute('data-w');
+            [].forEach.call(box.querySelectorAll('[data-w]'), function (b) {
+              b.classList.toggle('is-on', b === w);
+            });
+          });
+
+          var run = box.querySelector('[data-run]');
+          run.addEventListener('click', async function () {
+            var out = box.querySelector('[data-out]');
+            var start = ta.value.trim();
+            if (!start) { shutPanel(); return; }
+            run.disabled = true;
+            run.innerHTML = '<span class="nb-loader nb-loader--sm"></span> Working';
+            out.hidden = false;
+            out.innerHTML = '<div class="hd-nova-line"></div><div class="hd-nova-line"></div>';
+            try {
+              var got = await H.fn('supernova?job=write', {
+                text: start, way: novaWay, how: (box.querySelector('#nvAs').value || '').trim(), limit: MAX
+              });
+              var made = String((got && got.text) || '').trim();
+              if (!made) throw new Error('nothing came back');
+              out.innerHTML = '<p class="hd-nova-lb">' + ic('icon') + ' Supernova wrote this</p>' +
+                '<div class="hd-nova-new" data-new></div>' +
+                '<div class="hd-cpanel-do"><button class="nb-btn nb-btn--primary nb-btn--sm" type="button" data-use>Use this</button>' +
+                  '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-again>Try again</button></div>';
+              out.querySelector('[data-new]').textContent = made;
+              out.querySelector('[data-use]').addEventListener('click', function () {
+                ta.value = made; tick(); shutPanel(); ta.focus();
+              });
+              out.querySelector('[data-again]').addEventListener('click', function () {
+                out.hidden = true; out.innerHTML = '';
+              });
+            } catch (err) {
+              out.innerHTML = '<p class="nb-note is-bad">' + esc(novaTrouble(err)) + '</p>';
+            }
+            run.disabled = false;
+            run.textContent = 'Rewrite it';
+            grow();
+          });
+        });
     });
 
     ta.addEventListener('input', tick);
@@ -1065,25 +1191,26 @@
     });
 
     form.querySelector('[data-emoji]').addEventListener('click', function () {
-      var existing = form.querySelector('.hd-emoji-pop');
-      if (existing) { existing.remove(); return; }
-      var pop = document.createElement('div');
-      pop.className = 'hd-emoji-pop';
-      var emojis = ['😀','😂','🤣','😍','🥰','😘','😎','🤩','🥳','😏','😢','😤','🤯','🥺','🫡','🤔','💀','👀','🔥','❤️','💔','💯','✅','❌','⭐','🎉','🚀','💬','📰','🛠️','🧠','☕','🌙','☀️','🌈','🎵','📸','💡','⚡','🏆','🤝','👋','🫶','💪','🙏','🤣','😭','🫠','😤','🤡','👻','🫣','🤯','🧐','😬','🫡','😴','🫨','🤮','😈','💩','🦄','🐙','🦋','🌸','🍀','🌊','🍕','🍺','🧪','📊','🎮','🎲','🏆','🎬','📚','🔑','💡','🛸'];
-      pop.innerHTML = '<div class="hd-emoji-grid">' + emojis.map(function (e) {
-        return '<button type="button" class="hd-emoji-btn" data-em="' + e + '">' + e + '</button>';
-      }).join('') + '</div>';
-      form.appendChild(pop);
-      pop.addEventListener('click', function (ev) {
-        var btn = ev.target.closest('[data-em]');
-        if (!btn) return;
-        var at = ta.selectionStart;
-        ta.setRangeText(btn.dataset.em, at, at, 'end');
-        ta.focus(); tick();
-        pop.remove();
-      });
-      function closePop(ev) { if (!pop.contains(ev.target) && ev.target.getAttribute('data-emoji') !== '') pop.remove(); }
-      setTimeout(function () { document.addEventListener('click', closePop, { once: true }); }, 10);
+      showPanel('emoji', 'Add an emoji',
+        EMOJI.map(function (g) {
+          return '<p class="hd-emoji-lb">' + esc(g.t) + '</p>' +
+            '<div class="hd-emoji-grid">' + g.e.map(function (ch) {
+              return '<button class="hd-emoji-btn" type="button" data-em="' + ch + '">' + ch + '</button>';
+            }).join('') + '</div>';
+        }).join(''),
+        function (box) {
+          /* Drawn as characters and turned into marks here, the same way every
+             other piece of text on the platform is. */
+          twem(box);
+          box.addEventListener('click', function (ev) {
+            var btn = ev.target.closest('[data-em]');
+            if (!btn) return;
+            var ch = btn.getAttribute('data-em');
+            var at = ta.selectionStart;
+            ta.setRangeText(ch, at, ta.selectionEnd, 'end');
+            ta.focus(); tick();
+          });
+        });
     });
 
     pic.addEventListener('change', function () {
@@ -1217,24 +1344,134 @@
       tick();
     });
 
+    /* What the composer is holding, and putting it back. Only the parts that
+       survive being written down: a picture is a file this page holds and the
+       next one will not. */
+    function snapshot() {
+      if (!ta.value.trim() && !poll && !when && !flags.length) return null;
+      return {
+        text: ta.value, scope: scope, flags: flags.slice(),
+        when: when ? when.toISOString() : null,
+        poll: poll ? { options: poll.options.slice(), hours: poll.hours } : null,
+        hadPic: !!media
+      };
+    }
+
+    function restore(d) {
+      if (!d) return;
+      ta.value = d.text || '';
+      scope = d.scope || 'all';
+      flags = (d.flags || []).slice();
+      poll = d.poll ? { options: (d.poll.options || ['', '']).slice(), hours: d.poll.hours || 24 } : null;
+      var w = d.when ? new Date(d.when) : null;
+      when = (w && !isNaN(w.getTime()) && w.getTime() > Date.now()) ? w : null;
+      shutPanel(); paintScope(); paintFlags(); paintPoll(); tick();
+      if (d.hadPic) warn('The words came back. The picture did not - pick it again.');
+    }
+
     tick();
-    return { focus: function () { ta.focus(); } };
+    return {
+      focus: function () { ta.focus(); },
+      snapshot: snapshot, restore: restore,
+      clear: function () { ta.value = ''; poll = null; when = null; flags = []; scope = 'all';
+        media = null; tray.hidden = true; tray.innerHTML = '';
+        shutPanel(); paintScope(); paintFlags(); paintPoll(); tick(); }
+    };
   }
 
   function openComposer(o) {
     o = o || {};
+    var c = null, posted = false, from = o.draft || null;
+    /* A reply belongs to the thread it is in, so it is not something to come
+       back to later; only a post of its own is worth keeping. */
+    var keeps = !o.replyTo && !o.quoteOf;
+
     var s = U.sheet({
       title: o.title || 'New post',
-      tools: '',
+      tools: keeps ? '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-drafts>Drafts</button>' : '',
       html: composerHTML(Object.assign({ rows: 4, placeholder: 'What is worth saying?' }, o)),
+      /* Closing with something written asks first. Posting closes from code,
+         which skips the question because there is nothing left to lose. */
+      guard: keeps ? function () {
+        if (posted) return true;
+        var d = c && c.snapshot();
+        if (!d) { if (from) draftDrop(from.id); return true; }
+        return askKeep().then(function (said) {
+          if (said === 'stay') return false;
+          if (said === 'save') { if (from) d.id = from.id; draftSave(d); U.toast('Saved to your drafts.'); }
+          else if (from) draftDrop(from.id);
+          return true;
+        });
+      } : null,
       wire: function (api) {
-        var c = wireComposer(api.q('.hd-compose'), Object.assign({}, o, {
-          after: function (row) { api.close(); if (o.after) o.after(row); }
+        c = wireComposer(api.q('.hd-compose'), Object.assign({}, o, {
+          after: function (row) { posted = true; if (from) draftDrop(from.id); api.close(); if (o.after) o.after(row); }
         }));
+        if (from) c.restore(from);
+        var db2 = api.q('[data-drafts]');
+        if (db2) db2.addEventListener('click', function () {
+          pickDraft(function (d) {
+            /* What is on screen is not lost to open an older one: it is put
+               away first, then the chosen one is laid out. */
+            var now = c.snapshot();
+            if (now) { if (from) now.id = from.id; draftSave(now); }
+            from = d; c.restore(d);
+          });
+        });
         setTimeout(c.focus, 60);
       }
     });
     return s;
+  }
+
+  /* The list of what is waiting. Opened from the composer, so it closes back
+     onto it rather than taking over. */
+  function pickDraft(take) {
+    var list = drafts();
+    var s = U.sheet({
+      title: 'Drafts',
+      html: list.length
+        ? '<div class="hd-drafts">' + list.map(function (d) {
+            var bits = [];
+            if (d.poll) bits.push('a question');
+            if (d.when) bits.push('going out ' + esc(new Date(d.when).toLocaleString()));
+            (d.flags || []).forEach(function (k) {
+              var f = DISCLOSE.filter(function (x) { return x.k === k; })[0];
+              if (f) bits.push(f.t.toLowerCase());
+            });
+            if (d.hadPic) bits.push('had a picture');
+            /* A short stamp reads as an age, a date does not, so only one of
+               them is given the word "ago". */
+            var ago = H.when(new Date(d.at).toISOString());
+            ago = ago === 'now' ? 'just now' : (/^\d+[mhd]$/.test(ago) ? ago + ' ago' : 'saved ' + ago);
+            return '<div class="nb-card nb-card--tight hd-draft" data-d="' + esc(d.id) + '">' +
+              '<button class="hd-draft-open" type="button" data-open="' + esc(d.id) + '">' +
+                '<b>' + esc((d.text || '').slice(0, 140) || 'Nothing written yet') + '</b>' +
+                '<i>' + esc(ago) +
+                  (bits.length ? ' \u00b7 ' + esc(bits.join(' \u00b7 ')) : '') + '</i></button>' +
+              '<button class="nb-icon-btn" type="button" data-drop="' + esc(d.id) + '" aria-label="Throw this away">' +
+                ic('trash') + '</button></div>';
+          }).join('') + '</div>'
+        : empty('No drafts', 'A post you close before sending can be kept here.')
+    });
+
+    s.body.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      var drop = b.getAttribute('data-drop');
+      if (drop) {
+        draftDrop(drop);
+        var row = b.closest('.hd-draft');
+        if (row) row.remove();
+        if (!s.body.querySelector('.hd-draft')) s.close();
+        return;
+      }
+      var open = b.getAttribute('data-open');
+      if (!open) return;
+      var d = drafts().filter(function (x) { return x.id === open; })[0];
+      s.close();
+      if (d) take(d);
+    });
   }
 
   /* ── Acting on a post ───────────────────────────────────────────────────── */
@@ -2693,23 +2930,24 @@
       html:
         '<div class="hd-set" id="setBody">' +
 
+        /* Shown the way a profile shows it - the banner across the top with
+           the picture sitting on it - so what is being changed is the thing
+           itself rather than two tiles that have to be imagined together. */
         setCard('Pictures',
           'Your picture sits on every post. Your banner sits across the top of your profile.',
-          '<div class="hd-set-pics">' +
-            '<span id="setFace"></span>' +
-            '<div class="hd-set-pics-do">' +
-              '<label class="nb-btn nb-btn--sm">Change picture' +
-                '<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden id="pickFace"></label>' +
-              '<p class="nb-hint">PNG, JPEG, WebP or GIF, up to 24 MB.</p>' +
-            '</div>' +
+          '<div class="hd-set-stage">' +
+            '<div class="hd-set-cover" id="setCover"></div>' +
+            '<span class="hd-set-face" id="setFace"></span>' +
           '</div>' +
-          '<div class="hd-set-cover" id="setCover"></div>' +
-          '<div class="hd-set-foot">' +
+          '<div class="hd-set-foot hd-set-foot--pics">' +
+            '<label class="nb-btn nb-btn--sm">Change picture' +
+              '<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden id="pickFace"></label>' +
             '<label class="nb-btn nb-btn--sm">Change banner' +
               '<input type="file" accept="image/png,image/jpeg,image/webp" hidden id="pickCover"></label>' +
             '<button type="button" class="nb-btn nb-btn--ghost nb-btn--sm" id="dropCover" hidden>Remove banner</button>' +
             '<span class="hd-busy" id="picBusy" hidden><span class="nb-loader nb-loader--sm"></span> Uploading</span>' +
           '</div>' +
+          '<p class="nb-hint hd-set-hint">PNG, JPEG, WebP or GIF, up to 24 MB.</p>' +
           '<p class="nb-alert nb-alert--error hd-say" id="picSay" hidden></p>') +
 
         '<form class="nb-card hd-set-card" id="setForm">' +

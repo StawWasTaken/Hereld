@@ -168,9 +168,13 @@ if (o.tools) wrap.querySelector('.hd-modal-tools').innerHTML = o.tools;
 var api = {
 node: wrap, card: card, body: body,
 q: function (s) { return wrap.querySelector(s); },
-close: function () { close(); }
+close: function () { close(true); }
 };
-function close() {
+function close(forced) {
+if (o.guard && forced !== true) {
+Promise.resolve(o.guard()).then(function (ok) { if (ok) close(true); });
+return;
+}
 var i = stack.indexOf(api);
 if (i < 0) return;
 stack.splice(i, 1);
@@ -181,10 +185,10 @@ if (o.onClose) o.onClose();
 if (o.back && o.back.focus) o.back.focus();
 }
 function key(e) {
-if (e.key === 'Escape' && stack[stack.length - 1] === api) { e.stopPropagation(); close(); }
+if (e.key === 'Escape' && stack[stack.length - 1] === api) { e.stopPropagation(); close(false); }
 }
-wrap.addEventListener('mousedown', function (e) { if (e.target === wrap && o.dismissable !== false) close(); });
-wrap.querySelector('.hd-modal-x').addEventListener('click', close);
+wrap.addEventListener('mousedown', function (e) { if (e.target === wrap && o.dismissable !== false) close(false); });
+wrap.querySelector('.hd-modal-x').addEventListener('click', function () { close(false); });
 document.addEventListener('keydown', key, true);
 document.body.appendChild(wrap);
 lockPage(true);
