@@ -218,14 +218,78 @@ async function gather(uid: string, question: string, postId?: string) {
         bits.push('Disclosures: ' + ctx.post.disclosure.map((d: string) => DISCLOSE_MAP[d] || d).join(', '));
       }
 
+      /* A picture is described by whatever was written about it. Saying so
+         plainly stops the model from talking about an image it cannot see. */
       const { data: media } = await admin.from('post_media')
         .select('url, alt_text, spoiler')
         .eq('post_id', postId).order('position');
       if (media?.length) {
-        bits.push('Media on this post (' + media.length + '):\n' + media.map((m: any) =>
-          '- Image: ' + m.url + (m.alt_text ? ' [alt: ' + m.alt_text + ']' : '') +
-          (m.spoiler ? ' [spoiler]' : '')
+        bits.push('Pictures on this post (' + media.length + '). You cannot see them. ' +
+          'Only what is written about them is known:\n' + media.map((m: any, i: number) =>
+          '- Picture ' + (i + 1) + ': ' +
+          (m.alt_text ? 'described as "' + String(m.alt_text).slice(0, 300) + '"'
+                      : 'no description was written for it') +
+          (m.spoiler ? ', posted covered as sensitive' : '')
         ).join('\n'));
+      }
+
+      /* The question the post asked, and how it stands. */
+      const { data: poll } = await admin.from('polls')
+        .select('options, closes_at').eq('post_id', postId).maybeSingle();
+      if (poll) {
+        const { data: votes } = await admin.from('poll_votes')
+          .select('choice').eq('post_id', postId);
+        const tally = (poll.options as string[]).map((_o, i) =>
+          (votes || []).filter((v: any) => v.choice === i).length);
+        const total = tally.reduce((a, b) => a + b, 0);
+        const shut = new Date(poll.closes_at).getTime() <= Date.now();
+        bits.push('This post asks a question. ' +
+          (shut ? 'It closed on ' : 'It closes on ') + String(poll.closes_at).slice(0, 16) +
+          '. ' + total + ' ' + (total === 1 ? 'account has' : 'accounts have') + ' answered.\n' +
+          (poll.options as string[]).map((o, i) =>
+            '- ' + o + ': ' + tally[i] +
+            (total ? ' (' + Math.round((tally[i] / total) * 100) + '%)' : '')
+          ).join('\n'));
+      }
+
+      /* A relay carries somebody else's post inside it, and answering about
+         the wrapper without the thing wrapped is answering about nothing. */
+      if (p?.relay_of) {
+        const { data: q } = await admin.from('posts')
+          .select('body, created_at, endorse_count, reply_count, ' +
+                  'author:profiles!posts_author_fkey(handle,name,headline,verified,is_company)')
+          .eq('id', p.relay_of).maybeSingle();
+        if (q) {
+          const qa: any = q.author;
+          bits.push('The post it relays:\n- @' + (qa?.handle || '?') +
+            ' (' + (qa?.name || qa?.handle || 'someone') + ')' +
+            (qa?.headline ? ', ' + qa.headline : '') +
+            (qa?.verified ? ', verified' : '') +
+            ': ' + String(q.body || '').replace(/\s+/g, ' ').slice(0, 500) +
+            '\n  ' + (q.endorse_count || 0) + ' likes, ' + (q.reply_count || 0) + ' replies.');
+        }
+      }
+
+      /* What the numbers say beyond the three counters, and whether the words
+         standing there now are the words that were first posted. */
+      const { data: extra } = await admin.from('posts')
+        .select('view_count, edited_at, scheduled_for, created_at, reply_scope')
+        .eq('id', postId).maybeSingle();
+      if (extra) {
+        const seen = extra.view_count || 0;
+        const age = Math.max(1, Math.round(
+          (Date.now() - new Date(extra.created_at).getTime()) / 3600000));
+        bits.push('Reach: seen ' + seen + ' ' + (seen === 1 ? 'time' : 'times') +
+          ', posted about ' + age + ' ' + (age === 1 ? 'hour' : 'hours') + ' ago.' +
+          (extra.edited_at ? ' It was edited on ' + String(extra.edited_at).slice(0, 16) +
+            ', so these are not the words first posted.' : '') +
+          (extra.scheduled_for ? ' It was written ahead and went out on its own.' : ''));
+        const GATE: Record<string, string> = {
+          following: 'only accounts the author follows can reply to it',
+          mentioned: 'only accounts named in it can reply to it',
+          verified:  'only verified accounts can reply to it'
+        };
+        if (GATE[extra.reply_scope]) bits.push('Replies are gated: ' + GATE[extra.reply_scope] + '.');
       }
     } else {
       /* Fallback to old approach. */
