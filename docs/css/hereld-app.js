@@ -78,8 +78,8 @@ return '<img class="hd-nva' + (cls ? ' ' + cls : '') + '" src="' + url('Supernov
 '" alt="" height="' + h + '" width="' + Math.round(h * MARK_W / MARK_H) + '">';
 }
 function novaAv(cls, h) {
-return '<span class="hd-nova-av-wrap' + (cls ? ' ' + cls : '') + '" style="width:' + h + 'px;height:' + h + 'px">' +
-novaArt('hd-nva--grad', h) + '</span>';
+return '<span class="hd-nvm hd-nova-av' + (cls ? ' ' + cls : '') +
+'" style="height:' + h + 'px" aria-hidden="true"></span>';
 }
 function go(path, replace) {
 var to = url(path);
@@ -384,7 +384,7 @@ var existing = container.querySelector('.hd-pcard-summary-out');
 if (existing) existing.remove();
 var div = document.createElement('div');
 div.className = 'hd-pcard-summary-out';
-div.innerHTML = '<p class="hd-pcard-summary-label">' + novaAv('hd-nva--grad', 20) + ' Summary</p>' +
+div.innerHTML = '<p class="hd-pcard-summary-label">' + novaAv('', 20) + ' Summary</p>' +
 '<p class="hd-pcard-summary-text">' + esc(text) + '</p>';
 container.appendChild(div);
 btn.remove();
@@ -403,7 +403,7 @@ title: '',
 html:
 '<div class="hd-look-card">' +
 '<div class="hd-look-head">' +
-'<span class="hd-look-title">' + novaAv('hd-nva--grad', 20) + ' Supernova on this profile</span>' +
+'<span class="hd-look-title">' + novaAv('', 20) + ' Supernova on this profile</span>' +
 '<div class="hd-look-actions">' +
 '<button class="nb-icon-btn" type="button" data-look-close title="Close">' + ic('x') + '</button>' +
 '</div>' +
@@ -2807,7 +2807,7 @@ title: '',
 html:
 '<div class="hd-look-card">' +
 '<div class="hd-look-head">' +
-'<span class="hd-look-title">' + novaAv('hd-nva--grad', 20) + ' Supernova on this post</span>' +
+'<span class="hd-look-title">' + novaAv('', 20) + ' Supernova on this post</span>' +
 '<div class="hd-look-actions">' +
 '<button class="nb-icon-btn" type="button" data-look-close title="Close">' + ic('x') + '</button>' +
 '</div>' +
@@ -2924,7 +2924,7 @@ var ready = await db.rpc('supernova_ready');
 if (ready.error || !ready.data) {
 col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
 '<div class="nb-card nb-card--lg hd-nova-off">' +
-novaAv('hd-nova-mark-grad', 62) +
+novaAv('', 62) +
 '<h2 class="nb-h3">Supernova is not answering yet</h2>' +
 '<p>Hereld reaches Supernova through Swiftaw, and Swiftaw has not pointed it at a model yet. ' +
 'Nothing you type would go anywhere, so there is nothing to type into.</p>' +

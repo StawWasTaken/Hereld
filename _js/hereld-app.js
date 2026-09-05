@@ -111,8 +111,7 @@
      Artwork on a transparent ground, 256 by 336, so it is never boxed,
      never stroked and never squared off into whatever slot it lands in.
      Beside other controls it goes in as a mask and takes their colour;
-     where it stands for the product itself it keeps its own.
-     The gradient overlay uses the Swiftaw brand colours. */
+     where it stands for the product itself it is white. */
 
   var MARK_W = 256, MARK_H = 336;
   function novaMark(cls) {
@@ -122,10 +121,11 @@
     return '<img class="hd-nva' + (cls ? ' ' + cls : '') + '" src="' + url('Supernova%20mark.png') +
       '" alt="" height="' + h + '" width="' + Math.round(h * MARK_W / MARK_H) + '">';
   }
-  /* The gradient avatar used in the Supernova card and ask page. */
+  /* The mark where it stands for Supernova itself: the ask page, the summary
+     labels, the byline over an answer. Plain white at the size asked for. */
   function novaAv(cls, h) {
-    return '<span class="hd-nova-av-wrap' + (cls ? ' ' + cls : '') + '" style="width:' + h + 'px;height:' + h + 'px">' +
-      novaArt('hd-nva--grad', h) + '</span>';
+    return '<span class="hd-nvm hd-nova-av' + (cls ? ' ' + cls : '') +
+      '" style="height:' + h + 'px" aria-hidden="true"></span>';
   }
   function go(path, replace) {
     var to = url(path);
@@ -537,7 +537,7 @@
       if (existing) existing.remove();
       var div = document.createElement('div');
       div.className = 'hd-pcard-summary-out';
-      div.innerHTML = '<p class="hd-pcard-summary-label">' + novaAv('hd-nva--grad', 20) + ' Summary</p>' +
+      div.innerHTML = '<p class="hd-pcard-summary-label">' + novaAv('', 20) + ' Summary</p>' +
         '<p class="hd-pcard-summary-text">' + esc(text) + '</p>';
       container.appendChild(div);
       btn.remove();
@@ -558,7 +558,7 @@
       html:
         '<div class="hd-look-card">' +
           '<div class="hd-look-head">' +
-            '<span class="hd-look-title">' + novaAv('hd-nva--grad', 20) + ' Supernova on this profile</span>' +
+            '<span class="hd-look-title">' + novaAv('', 20) + ' Supernova on this profile</span>' +
             '<div class="hd-look-actions">' +
               '<button class="nb-icon-btn" type="button" data-look-close title="Close">' + ic('x') + '</button>' +
             '</div>' +
@@ -3416,7 +3416,7 @@
       html:
         '<div class="hd-look-card">' +
           '<div class="hd-look-head">' +
-            '<span class="hd-look-title">' + novaAv('hd-nva--grad', 20) + ' Supernova on this post</span>' +
+            '<span class="hd-look-title">' + novaAv('', 20) + ' Supernova on this post</span>' +
             '<div class="hd-look-actions">' +
               '<button class="nb-icon-btn" type="button" data-look-close title="Close">' + ic('x') + '</button>' +
             '</div>' +
@@ -3545,7 +3545,7 @@
     if (ready.error || !ready.data) {
       col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
         '<div class="nb-card nb-card--lg hd-nova-off">' +
-          novaAv('hd-nova-mark-grad', 62) +
+          novaAv('', 62) +
           '<h2 class="nb-h3">Supernova is not answering yet</h2>' +
           '<p>Hereld reaches Supernova through Swiftaw, and Swiftaw has not pointed it at a model yet. ' +
           'Nothing you type would go anywhere, so there is nothing to type into.</p>' +

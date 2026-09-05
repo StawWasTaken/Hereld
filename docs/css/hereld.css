@@ -752,33 +752,8 @@ border-top: var(--nb-bd-thin); border-color: var(--nb-line);
 .hd-nova-open-t { font-size: 20px; }
 .hd-nova-go span { display: none; }
 }
-.hd-nova-av-wrap {
-position: relative; display: inline-flex; align-items: center; justify-content: center;
-flex: none;
-}
-.hd-nva--grad {
-position: relative; width: 100%; height: 100%; object-fit: contain;
-}
-.hd-nova-av-wrap::after {
-content: ''; position: absolute; inset: 0; z-index: 1;
-background: linear-gradient(135deg, #ff0033, #3ecf6e, #2caffc, #fff93e, #ff77e4);
-background-size: 300% 300%;
-mask-image: url('../Supernova%20mark.png');
-mask-size: contain; mask-repeat: no-repeat;
--webkit-mask-image: url('../Supernova%20mark.png');
--webkit-mask-size: contain; -webkit-mask-repeat: no-repeat;
-opacity: 0;
-animation: hdNovaReveal 1.8s cubic-bezier(.22,1,.36,1) forwards;
-}
-@keyframes hdNovaReveal {
-0%   { opacity: 0; background-position: 50% 150%; transform: scale(1); }
-40%  { opacity: .7; background-position: 50% 60%; transform: scale(1.06); }
-70%  { opacity: .9; background-position: 50% 20%; transform: scale(1.03); }
-100% { opacity: 1; background-position: 50% 0%; transform: scale(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-.hd-nova-av-wrap::after { animation: none; opacity: 1; }
-}
+.hd-nova-av { color: #ffffff; vertical-align: -.18em; }
+.hd-nova-by-mark { vertical-align: -.16em; }
 .hd-nova-post-card {
 padding: 18px; margin-bottom: 14px;
 border-radius: var(--nb-r);
