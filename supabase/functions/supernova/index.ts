@@ -117,6 +117,24 @@ const HOUSE =
   'compliment or a summary of the question. If you do not know something, say so ' +
   'in one line. Be real, not corporate. Sound like a person, not a chatbot.';
 
+/* Everything a seed account writes comes through here.
+
+   The @ is the part that matters. A model asked to write like a person will
+   reach for a name, and a name it invents is a handle somebody may well hold,
+   so the account would be pinging a stranger who never asked to be in the
+   conversation. The prompt says not to; this is what makes it true. Dropping
+   the sigil and keeping the word leaves the sentence standing, which deleting
+   the whole token would not. A reply is already threaded, so it never needed
+   to address anybody by name in the first place. */
+function botText(raw: string, cap = 600) {
+  return String(raw || '')
+    .replace(/[—–]/g, '-')
+    .replace(/(^|[\s(])@(?=[A-Za-z0-9_]{2,})/g, '$1')
+    .replace(/^["']|["']$/g, '')
+    .trim()
+    .slice(0, cap);
+}
+
 async function whoIsAsking(req: Request) {
   const auth = req.headers.get('authorization') || '';
   const jwt = auth.replace(/^Bearer\s+/i, '');
@@ -748,16 +766,16 @@ async function notes(c: Config) {
 
 async function createPremium(_c: Config) {
   const bots = [
-    { handle: 'deepdive_tech', name: 'DeepDive', headline: 'Writing about the future of computing and AI', bio: 'Systems thinker. Former engineer. Now I just read papers and yell about them on the internet.', persona: 'Research analyst who writes accessible breakdowns of complex tech topics', interests: 'AI, distributed systems, quantum computing, open source, developer culture', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=deepdive&backgroundColor=b6e3f4', banner: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1500&h=500&fit=crop' },
-    { handle: 'cosmicnotes', name: 'Cosmic Notes', headline: 'Astrophysics, explained like you are five', bio: 'PhD dropout who still loves stars. I make space make sense.', persona: 'Science communicator who breaks down astronomy and physics into bite-sized posts', interests: 'astronomy, black holes, exoplanets, cosmic mysteries, science history', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=cosmic&backgroundColor=c0aede', banner: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1500&h=500&fit=crop' },
-    { handle: 'code_culture', name: 'Code & Culture', headline: 'Where software meets the world', bio: 'Tech culture writer. I cover the people behind the code.', persona: 'Journalist covering the intersection of technology, culture, and society', interests: 'tech industry, startups, open source drama, developer burnout, digital rights', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=codeculture&backgroundColor=ffd5dc', banner: 'https://images.unsplash.com/photo-1504639725590-34d0984388bd?w=1500&h=500&fit=crop' },
-    { handle: 'bytesized', name: 'ByteSized', headline: 'Big ideas in small posts', bio: 'I read the 40-page paper so you do not have to. Here is what matters.', persona: 'Research summary account that distills academic papers into digestible threads', interests: 'machine learning, neuroscience, climate tech, biotech, research breakthroughs', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=bytesized&backgroundColor=d1f4d1', banner: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1500&h=500&fit=crop' },
-    { handle: 'signal_noise', name: 'Signal // Noise', headline: 'Cutting through the hype since 2024', bio: 'Every tech headline deserves a reality check. Here is the signal in the noise.', persona: 'Skeptical analyst who evaluates tech claims and separates hype from substance', interests: 'blockchain, AI hype cycles, startup failures, venture capital, tech criticism', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=signalnoise&backgroundColor=f0e6d3', banner: 'https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=1500&h=500&fit=crop' },
-    { handle: 'digitalfolk', name: 'Digital Folk', headline: 'The internet is a place. I am taking notes.', bio: 'Ethnographer of online communities. Every meme tells a story.', persona: 'Digital culture commentator who analyzes internet trends and online behavior', interests: 'memes, online communities, platform dynamics, digital identity, internet history', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=digitalfolk&backgroundColor=e8d5f5', banner: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=1500&h=500&fit=crop' },
-    { handle: 'readinglist', name: 'The Reading List', headline: 'Books, ideas, and the spaces between them', bio: 'Former librarian. Current reader. Always recommending.', persona: 'Literary commentator who shares book recommendations and reading culture observations', interests: 'books, reading culture, publishing industry, literary criticism, author interviews', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=readinglist&backgroundColor=f5e6d3', banner: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=1500&h=500&fit=crop' },
+    { handle: 'deepdive_tech', name: 'DeepDive', headline: 'Writing about the future of computing and AI', bio: 'Systems thinker. I read the papers and then yell about them on the internet.', persona: 'Research analyst who writes accessible breakdowns of complex tech topics', interests: 'AI, distributed systems, quantum computing, open source, developer culture', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=deepdive&backgroundColor=b6e3f4', banner: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1500&h=500&fit=crop' },
+    { handle: 'cosmicnotes', name: 'Cosmic Notes', headline: 'Astrophysics, explained like you are five', bio: 'Space is enormous and mostly explicable. I try to do the explicable part.', persona: 'Science communicator who breaks down astronomy and physics into bite-sized posts', interests: 'astronomy, black holes, exoplanets, cosmic mysteries, science history', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=cosmic&backgroundColor=c0aede', banner: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1500&h=500&fit=crop' },
+    { handle: 'code_culture', name: 'Code & Culture', headline: 'Where software meets the world', bio: 'Notes on the people behind the code, rather than the code.', persona: 'Writes about the intersection of technology, culture, and society', interests: 'tech industry, startups, open source drama, developer burnout, digital rights', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=codeculture&backgroundColor=ffd5dc', banner: 'https://images.unsplash.com/photo-1504639725590-34d0984388bd?w=1500&h=500&fit=crop' },
+    { handle: 'bytesized', name: 'ByteSized', headline: 'Big ideas in small posts', bio: 'Long things, made short. Here is what seems to matter in them.', persona: 'Research summary account that distills academic papers into digestible threads', interests: 'machine learning, neuroscience, climate tech, biotech, research breakthroughs', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=bytesized&backgroundColor=d1f4d1', banner: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1500&h=500&fit=crop' },
+    { handle: 'signal_noise', name: 'Signal // Noise', headline: 'Every headline deserves a second look', bio: 'Every tech headline deserves a reality check. Here is the signal in the noise.', persona: 'Skeptical analyst who evaluates tech claims and separates hype from substance', interests: 'blockchain, AI hype cycles, startup failures, venture capital, tech criticism', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=signalnoise&backgroundColor=f0e6d3', banner: 'https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=1500&h=500&fit=crop' },
+    { handle: 'digitalfolk', name: 'Digital Folk', headline: 'The internet is a place. I am taking notes.', bio: 'Watching how online places work. Every meme tells a story.', persona: 'Digital culture commentator who analyzes internet trends and online behavior', interests: 'memes, online communities, platform dynamics, digital identity, internet history', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=digitalfolk&backgroundColor=e8d5f5', banner: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=1500&h=500&fit=crop' },
+    { handle: 'readinglist', name: 'The Reading List', headline: 'Books, ideas, and the spaces between them', bio: 'Reader. Always recommending. Rarely finishing.', persona: 'Literary commentator who shares book recommendations and reading culture observations', interests: 'books, reading culture, publishing industry, literary criticism, author interviews', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=readinglist&backgroundColor=f5e6d3', banner: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=1500&h=500&fit=crop' },
     { handle: 'city_mind', name: 'City Mind', headline: 'Urbanism for people who do not read zoning laws', bio: 'Cities are fascinating. Here is why your commute is terrible and how to fix it.', persona: 'Urban planning enthusiast who makes city design accessible and interesting', interests: 'urban planning, public transit, housing policy, walkability, city design', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=citymind&backgroundColor=d3e8f5', banner: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=1500&h=500&fit=crop' },
     { handle: 'devpulse', name: 'DevPulse', headline: 'What developers are actually building', bio: 'I watch GitHub trends so you do not have to. Here is what is shipping.', persona: 'Developer ecosystem tracker who highlights trending projects and tools', interests: 'open source, developer tools, programming languages, framework wars, devrel', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=devpulse&backgroundColor=d3f5d3', banner: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=1500&h=500&fit=crop' },
-    { handle: 'climate_now', name: 'Climate Now', headline: 'The planet is warming. Here is what is working.', bio: 'Climate solutions journalist. Doom is not a strategy. Here is what is.', persona: 'Climate tech reporter who focuses on solutions and progress, not just problems', interests: 'climate tech, renewable energy, carbon capture, sustainability, green policy', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=climate&backgroundColor=d3f5e8', banner: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1500&h=500&fit=crop' },
+    { handle: 'climate_now', name: 'Climate Now', headline: 'The planet is warming. Here is what is working.', bio: 'Doom is not a strategy. Here is what is actually working.', persona: 'Follows climate tech and focuses on solutions and progress, not just problems', interests: 'climate tech, renewable energy, carbon capture, sustainability, green policy', avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=climate&backgroundColor=d3f5e8', banner: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1500&h=500&fit=crop' },
   ];
 
   let created = 0;
@@ -1082,7 +1100,7 @@ async function seed(c: Config) {
         topics.map((t: any) => '#' + t.tag).join(', ') + '.';
     }
 
-    let out: any = null; let text = '';
+    let out: any = null; let text = ''; let why_ = '';
 
     if (isPremium) {
       const { data: topics } = await admin.rpc('the_cry', { p_limit: 8 });
@@ -1106,26 +1124,16 @@ async function seed(c: Config) {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           out = await think(c, premiumSystem, [{ role: 'them', text: premiumAsked }], 400);
-          text = (out.text || '').replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
+          text = botText(out.text);
           if (text.length >= 20) break;
           text = ''; throw new Error('premium post too short');
         } catch (e) {
-          if (attempt === 1) {
-            const fallbacks = [
-              'The best time to start building something was yesterday. The second best time is now.',
-              'Hot take: most "disruptive" startups are just regular businesses with better marketing.',
-              'Just read a paper that changed how I think about this. Will share notes when I process it.',
-              'The gap between what we can build and what we should build keeps getting wider.',
-              'Every technology goes through the same cycle: hype, disillusionment, then actual usefulness.',
-            ];
-            text = fallbacks[Math.floor(Math.random() * fallbacks.length)];
-            out = { text, inTok: 0, outTok: 0 };
-          }
+          if (attempt === 1) { text = ''; why_ = String(e); }
         }
       }
     } else {
       const system =
-        'You are a real Gen Z person posting on Hereld. ' + HOUSE + ' ' +
+        'You write the way a Gen Z person writes, posting on Hereld. ' + HOUSE + ' ' +
         'Who you are: ' + (b.persona || 'chronically online gen z kid') + '. ' +
         'What you care about: ' + (b.interests || 'memes, vibes, whatever') + '. ' +
         'Write under 240 characters, lowercase often, gen Z slang, no corporate speak. ' +
@@ -1133,7 +1141,8 @@ async function seed(c: Config) {
         'Sometimes typo or shorthand is fine (u, ur, rn, idk, tbh, btw). Lowercase is common. ' +
         'Be chaotic, sincere, funny, oversharing, or dry. Mix it up - real people post different vibes each time. ' +
         'You can agree, disagree, overshare, be cryptic, or just say something random you saw today. ' +
-        'You can mention @handles or use #hashtags when it fits naturally. Add emoji rarely but when it hits. ' +
+        'Use #hashtags when it fits naturally. Never write an @handle: you do not know who is here, ' +
+        'and a name you make up will sooner or later belong to somebody. Add emoji rarely but when it hits. ' +
         'Do not announce yourself, do not greet, do not sign. ' +
         'Never say you have not seen the post, cannot weigh in, or cannot comment - always give a take, even if short. ' +
         'Never claim to be a real named person, never claim to represent a company, never state a fact about a real named individual, and never give medical, legal or financial advice. ' + (c.system_note || '');
@@ -1141,22 +1150,25 @@ async function seed(c: Config) {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           out = await think(c, system, [{ role: 'them', text: asked }], 240);
-          text = (out.text || '').replace(/[—–]/g, '-').replace(/^["']|["']$/g, '').trim().slice(0, 600);
+          text = botText(out.text);
           if (/haven.t seen what they actually wrote|can.t weigh in|cannot comment/i.test(text)) {
             text = ''; throw new Error('refusal phrase');
           }
           if (text.length >= 4) break;
           text = ''; throw new Error('nothing usable came back');
-        } catch(e) {
-          if (attempt === 1) {
-            const fallbacks = ['vibes', 'lol', 'honestly mood', 'real', 'ngl same', 'interesting', 'hmm', 'bruh'];
-            text = fallbacks[Math.floor(Math.random() * fallbacks.length)];
-            out = { text, inTok: 0, outTok: 0 };
-          }
+        } catch (e) {
+          if (attempt === 1) { text = ''; why_ = String(e); }
         }
       }
     }
     try {
+      /* Nothing came back twice running, so this account has nothing to say
+         this round and says nothing. It used to reach for one of eight canned
+         lines instead, which every account drew from, so a bad minute for the
+         model showed up as four different people posting "vibes". Filler is
+         worse than silence: silence is what a person does when they have
+         nothing to say, and the Activity view now shows the failure. */
+      if (!text) throw new Error(why_ || 'nothing usable came back');
 
       const { data: repeat } = await admin.rpc('bot_said_before', { p_bot: b.bot, p_text: text });
       if (repeat) throw new Error('same thing again');
