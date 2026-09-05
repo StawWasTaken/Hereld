@@ -653,46 +653,72 @@ mask: url(../Supernova%20mark.png) center / contain no-repeat;
 .hd-act-nvm { height: 17px; }
 .hd-nav-nvm { height: 21px; }
 .hd-nova-off { text-align: center; padding: 60px 20px; }
-.hd-nova-mark { margin: 0 auto 18px; }
 .hd-nova-off p { max-width: 54ch; margin: 12px auto 0; font-size: 14.5px; line-height: 1.65; color: var(--nb-surface-fg-muted); }
 .hd-nova-acts { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 .hd-nova { padding: 0 4px 24px; }
-.hd-nova-card { margin: 0; }
-.hd-nova-card .hd-look-chat { padding: 16px 18px; min-height: 200px; max-height: 60vh; overflow-y: auto; }
-.hd-nova-card .hd-look-follow { border-top: var(--nb-bd-thin); }
-.hd-nova-talk { display: flex; flex-direction: column; gap: 20px; }
-.hd-nova-hello {
-display: flex; align-items: flex-start; gap: 16px; text-align: left;
-padding: 20px; border-radius: var(--nb-r);
-background: var(--nb-surface-2);
-border: var(--nb-bd-thin);
+.hd-nova-card {
+margin: 0; display: flex; flex-direction: column;
+height: clamp(440px, calc(100vh - 176px), 840px);
 }
-.hd-nova-hello .hd-nova-mark { margin: 0; flex: none; }
-.hd-nova-hello p { margin: 0; font-size: 14.5px; line-height: 1.65; color: var(--nb-surface-fg-muted); }
-.hd-nova-turn { display: flex; align-items: flex-start; gap: 12px; }
-.hd-nova-turn--me { flex-direction: row-reverse; }
-.hd-nova-av { flex: none; }
-.hd-nova-turn .hd-av { flex: none; }
-.hd-nova-said {
-max-width: 78%; padding: 14px 18px; font-size: 15px; line-height: 1.65;
-border-radius: 18px; border: var(--nb-bd-thin);
+.hd-nova-talk {
+flex: 1; min-height: 0; overflow-y: auto;
+display: flex; flex-direction: column;
+padding: 4px 22px 20px;
 }
-.hd-nova-turn:not(.hd-nova-turn--me) .hd-nova-said {
-background: var(--nb-surface-2); border-color: var(--nb-line);
-border-top-left-radius: 4px;
+.hd-nova-talk > .hd-nova-open { margin: auto 0; }
+.hd-nova-talk > * { flex: none; }
+.hd-nova-q {
+display: flex; align-items: flex-start; gap: 11px;
+padding: 22px 0 0; margin-top: 22px;
+border-top: var(--nb-bd);
 }
-.hd-nova-turn--me .hd-nova-said {
-background: var(--nb-blue);
-color: var(--nb-ink); border-color: transparent;
-border-top-right-radius: 4px;
+.hd-nova-talk > .hd-nova-q:first-child { padding-top: 0; margin-top: 0; border-top: 0; }
+.hd-nova-q .hd-av { flex: none; margin-top: 1px; }
+.hd-nova-q p {
+margin: 0; flex: 1; min-width: 0;
+font-family: var(--nb-font-head); font-weight: 700;
+font-size: 17.5px; line-height: 1.45; letter-spacing: -.01em;
 }
-.hd-nova-turn--me .hd-nova-said a { color: var(--nb-ink); }
+.hd-nova-a { margin-top: 14px; }
+.hd-nova-by {
+display: flex; align-items: center; gap: 7px; margin: 0 0 8px;
+font-family: var(--nb-font-head); font-weight: 700;
+font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase;
+color: var(--nb-surface-fg-muted);
+}
+.hd-nova-said { font-size: 15.5px; line-height: 1.7; }
 .hd-nova-said a { color: var(--nb-blue); }
 .hd-nova-said img.hd-em { vertical-align: -.16em; }
+.hd-nova-open { padding: 32px 0 8px; text-align: center; }
+.hd-nova-open-mark { margin-bottom: 18px; }
+.hd-nova-open-t {
+margin: 0 auto; max-width: 22ch;
+font-family: var(--nb-font-head); font-weight: 700;
+font-size: 23px; line-height: 1.25; letter-spacing: -.02em;
+}
+.hd-nova-open-p {
+margin: 12px auto 0; max-width: 46ch;
+font-size: 14.5px; line-height: 1.65; color: var(--nb-surface-fg-muted);
+}
+.hd-nova-seeds {
+list-style: none; margin: 24px 0 0; padding: 0;
+display: flex; flex-direction: column; gap: 10px;
+}
+.hd-nova-seed {
+width: 100%; text-align: left; cursor: pointer;
+padding: 13px 16px; font: inherit; font-size: 14.5px; line-height: 1.45;
+color: var(--nb-surface-fg);
+background: var(--nb-surface-2);
+border: var(--nb-bd-thin); border-color: var(--nb-line);
+border-radius: var(--nb-r-sm);
+transition: transform var(--nb-fast), box-shadow var(--nb-fast);
+}
+.hd-nova-seed:hover { transform: translate(-2px, -3px); box-shadow: var(--nb-sh-sm); }
+.hd-nova-seed:active { transform: translate(1px, 2px); box-shadow: none; }
 .hd-nova-dots { display: inline-flex; gap: 6px; padding: 4px 0; }
 .hd-nova-dots i {
 width: 7px; height: 7px; border-radius: 50%;
-background: #fff;
+background: var(--nb-surface-fg-muted);
 animation: hdNovaDot 1.2s ease infinite;
 }
 .hd-nova-dots i:nth-child(2) { animation-delay: .18s; }
@@ -700,15 +726,31 @@ animation: hdNovaDot 1.2s ease infinite;
 @keyframes hdNovaDot { 0%, 60%, 100% { opacity: .25; transform: scale(.85); } 30% { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .hd-nova-dots i { animation: none; opacity: .55; } }
 .hd-nova-ask {
-display: flex; align-items: flex-end; gap: 10px;
-padding: 12px 18px 16px;
-border-top: var(--nb-bd-thin);
+display: flex; align-items: flex-end; gap: 12px;
+padding: 14px 22px 16px;
+border-top: var(--nb-bd);
 }
-.hd-nova-ask textarea { flex: 1; resize: none; min-height: 44px; max-height: 200px; }
-.hd-nova-ask .nb-btn { flex: none; }
-.hd-nova-ask .nb-btn svg { width: 15px; height: 15px; fill: currentColor; }
+.hd-nova-in {
+flex: 1; min-width: 0; resize: none;
+min-height: 42px; max-height: 200px;
+padding: 9px 0; font: inherit; font-size: 15.5px; line-height: 1.5;
+color: var(--nb-surface-fg); background: none; border: 0;
+}
+.hd-nova-in::placeholder { color: var(--nb-surface-fg-muted); }
+.hd-nova-in:focus { outline: none; }
+.hd-nova-go { flex: none; gap: 8px; }
+.hd-nova-go svg { width: 15px; height: 15px; fill: currentColor; }
 .hd-nova-fine {
-margin: 10px 18px 0; text-align: center; font-size: 12.5px; color: var(--nb-fg-muted);
+margin: 0; padding: 11px 22px 14px; text-align: center;
+font-size: 12.5px; color: var(--nb-surface-fg-muted);
+border-top: var(--nb-bd-thin); border-color: var(--nb-line);
+}
+@media (max-width: 620px) {
+.hd-nova-talk { padding: 4px 16px 18px; }
+.hd-nova-ask, .hd-nova-fine { padding-left: 16px; padding-right: 16px; }
+.hd-nova-q p { font-size: 16.5px; }
+.hd-nova-open-t { font-size: 20px; }
+.hd-nova-go span { display: none; }
 }
 .hd-nova-av-wrap {
 position: relative; display: inline-flex; align-items: center; justify-content: center;
@@ -726,18 +768,13 @@ mask-size: contain; mask-repeat: no-repeat;
 -webkit-mask-image: url('../Supernova%20mark.png');
 -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat;
 opacity: 0;
-animation: hdNovaReveal 1.8s cubic-bezier(.22,1,.36,1) forwards, hdNovaGrad 6s ease 1.8s infinite;
+animation: hdNovaReveal 1.8s cubic-bezier(.22,1,.36,1) forwards;
 }
 @keyframes hdNovaReveal {
 0%   { opacity: 0; background-position: 50% 150%; transform: scale(1); }
 40%  { opacity: .7; background-position: 50% 60%; transform: scale(1.06); }
 70%  { opacity: .9; background-position: 50% 20%; transform: scale(1.03); }
 100% { opacity: 1; background-position: 50% 0%; transform: scale(1); }
-}
-@keyframes hdNovaGrad {
-0%   { background-position: 0% 50%; }
-50%  { background-position: 100% 50%; }
-100% { background-position: 0% 50%; }
 }
 @media (prefers-reduced-motion: reduce) {
 .hd-nova-av-wrap::after { animation: none; opacity: 1; }
@@ -1345,23 +1382,10 @@ padding: 0 18px 16px;
 margin: 0; font-size: 15px; line-height: 1.65; color: var(--nb-surface-fg);
 }
 .hd-look-answer-text a { color: var(--nb-blue); }
-.hd-look-chat { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
-.hd-look-chat-turn { display: flex; align-items: flex-start; gap: 10px; }
-.hd-look-chat-turn--me { flex-direction: row-reverse; }
-.hd-look-chat-turn .hd-av { flex: none; }
-.hd-look-chat-said {
-max-width: 80%; padding: 10px 14px; font-size: 14px; line-height: 1.6;
-border-radius: var(--nb-r); border: var(--nb-bd-thin);
-}
-.hd-look-chat-turn:not(.hd-look-chat-turn--me) .hd-look-chat-said {
-background: var(--nb-surface-2); border-color: var(--nb-line);
-}
-.hd-look-chat-turn--me .hd-look-chat-said {
-background: var(--nb-blue);
-color: var(--nb-ink); border-color: transparent;
-}
-.hd-look-chat-turn--me .hd-look-chat-said a { color: var(--nb-ink); }
-.hd-look-chat-said a { color: var(--nb-blue); }
+.hd-look-chat { margin-top: 14px; }
+.hd-look-chat .hd-nova-q { margin-top: 18px; padding-top: 18px; }
+.hd-look-chat .hd-nova-q p { font-size: 16px; }
+.hd-look-chat .hd-nova-said { font-size: 14.5px; }
 .hd-look-follow {
 display: flex; align-items: flex-end; gap: 10px;
 padding: 12px 18px 16px;

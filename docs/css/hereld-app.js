@@ -2719,12 +2719,31 @@ twem(col);
 watchViews(col);
 }
 var novaTalk = [];
+function saidByNova(t) { return t.role === 'you'; }
 function novaTurn(t) {
-return '<div class="hd-look-chat-turn hd-look-chat-turn--' + (t.role === 'you' ? 'me' : 'nova') + '">' +
-(t.role === 'you'
-? H.avatar(my, 'hd-av--sm')
-: novaAv('hd-nova-av-grad', 26)) +
-'<div class="hd-look-chat-said">' + body(t.text) + '</div></div>';
+if (saidByNova(t)) {
+return '<div class="hd-nova-a">' +
+'<p class="hd-nova-by">' + novaAv('hd-nova-by-mark', 17) + ' Supernova</p>' +
+'<div class="hd-nova-said">' + body(t.text) + '</div></div>';
+}
+return '<div class="hd-nova-q">' + H.avatar(my, 'hd-av--sm') +
+'<p>' + body(t.text) + '</p></div>';
+}
+var NOVA_OPENERS = [
+'What is a relay, and when should I use one instead of replying?',
+'How do community notes work here?',
+'What is worth knowing before my first post?'
+];
+function novaOpenHTML() {
+return '<div class="hd-nova-open">' +
+novaAv('hd-nova-open-mark', 54) +
+'<h2 class="hd-nova-open-t">Ask about a post, a word, or anything else</h2>' +
+'<p class="hd-nova-open-p">Supernova cannot post, follow or moderate for you, ' +
+'and it will say so rather than pretend.</p>' +
+'<ul class="hd-nova-seeds">' + NOVA_OPENERS.map(function (q) {
+return '<li><button class="hd-nova-seed" type="button" data-seed="' + esc(q) + '">' +
+esc(q) + '</button></li>';
+}).join('') + '</ul></div>';
 }
 async function novaOnPost(btn) {
 if (needAccount()) return;
@@ -2865,25 +2884,23 @@ function addChatTurn(role, text) {
 var chat = ans.querySelector('.hd-look-chat');
 if (!chat) { chat = document.createElement('div'); chat.className = 'hd-look-chat'; ans.appendChild(chat); }
 var div = document.createElement('div');
-div.className = 'hd-look-chat-turn hd-look-chat-turn--' + (role === 'you' ? 'me' : 'nova');
-div.innerHTML = (role === 'you' ? H.avatar(my, 'hd-av--sm') : novaAv('hd-nova-av-grad', 26)) +
-'<div class="hd-look-chat-said">' + body(text) + '</div>';
-chat.appendChild(div);
-twem(div);
+div.innerHTML = novaTurn({ role: role, text: text });
+chat.appendChild(div.firstChild);
+twem(chat);
 ans.scrollTop = ans.scrollHeight;
 }
 sendBtn.addEventListener('click', async function () {
 var txt = input.value.trim();
 if (!txt || busy) return;
 busy = true; sendBtn.disabled = true; input.value = ''; input.style.height = 'auto';
-addChatTurn('you', txt);
+addChatTurn('them', txt);
 turns.push({ role: 'them', text: txt });
 try {
 var out = await H.fn('supernova?job=ask', { post: id, turns: turns });
-addChatTurn('me', out.text || 'Nothing came back.');
+addChatTurn('you', out.text || 'Nothing came back.');
 turns.push({ role: 'you', text: out.text || '' });
 } catch (e) {
-addChatTurn('me', 'Supernova could not answer that.');
+addChatTurn('you', 'Supernova could not answer that.');
 }
 busy = false; sendBtn.disabled = !input.value.trim();
 });
@@ -2917,23 +2934,16 @@ return;
 }
 col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
 '<div class="hd-nova">' +
-'<div class="hd-look-card hd-nova-card">' +
-'<div class="hd-look-head">' +
-'<span class="hd-look-title">' + novaAv('hd-nva--grad', 20) + ' Ask Supernova</span>' +
+'<div class="nb-card nb-card--bare hd-nova-card">' +
+'<div class="hd-nova-talk" id="novaTalk" aria-live="polite">' +
+(novaTalk.length ? novaTalk.map(novaTurn).join('') : novaOpenHTML()) +
 '</div>' +
-'<div class="hd-look-chat hd-nova-talk" id="novaTalk" aria-live="polite">' +
-(novaTalk.length ? novaTalk.map(novaTurn).join('') :
-'<div class="nb-card hd-nova-hello">' +
-novaAv('hd-nova-hello-av', 48) +
-'<p>Ask about a post, a word you have not met, or anything else. ' +
-'Supernova cannot post, follow or moderate for you, and it will say so rather than pretend.</p>' +
-'</div>') +
-'</div>' +
-'<div class="hd-look-follow hd-nova-ask" id="novaForm">' +
+'<div class="hd-nova-ask" id="novaForm">' +
 '<label class="nb-sr" for="novaIn">Ask Supernova</label>' +
-'<textarea class="nb-input" id="novaIn" rows="1" maxlength="1200" ' +
-'placeholder="Ask Supernova..."></textarea>' +
-'<button class="nb-btn nb-btn--primary" type="submit" id="novaGo">' + ic('send') + '</button>' +
+'<textarea class="hd-nova-in" id="novaIn" rows="1" maxlength="1200" ' +
+'placeholder="Type your question"></textarea>' +
+'<button class="nb-btn nb-btn--primary hd-nova-go" type="submit" id="novaGo">' +
+ic('send') + '<span>Ask</span></button>' +
 '</div>' +
 '<p class="hd-nova-fine">Answers are generated and can be wrong. Check anything that matters.</p>' +
 '</div>' +
@@ -2950,13 +2960,20 @@ box.addEventListener('keydown', function (e) {
 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go.click(); }
 });
 function paint() {
-talk.innerHTML = novaTalk.map(novaTurn).join('') +
-(busy ? '<div class="hd-look-chat-turn hd-look-chat-turn--nova">' +
-novaAv('hd-nova-av-grad', 26) +
-'<div class="hd-look-chat-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div></div>' : '');
+talk.innerHTML = (novaTalk.length ? novaTalk.map(novaTurn).join('') : novaOpenHTML()) +
+(busy ? '<div class="hd-nova-a hd-nova-a--wait">' +
+'<p class="hd-nova-by">' + novaAv('hd-nova-by-mark', 17) + ' Supernova</p>' +
+'<span class="hd-nova-dots"><i></i><i></i><i></i></span></div>' : '');
 twem(talk);
 talk.scrollTop = talk.scrollHeight;
 }
+talk.addEventListener('click', function (e) {
+var seed = e.target.closest('.hd-nova-seed');
+if (!seed) return;
+box.value = seed.getAttribute('data-seed');
+grow();
+go.click();
+});
 go.addEventListener('click', async function (e) {
 e.preventDefault();
 if (busy) return;
