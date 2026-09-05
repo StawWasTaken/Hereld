@@ -470,102 +470,313 @@ note = got.reason;
 }
 if (await call('staff_rule_verification', { p_id: id, p_status: status, p_note: note }, 'Decision recorded.')) render();
 }
+/* ── Seed accounts ────────────────────────────────────────────────────────
+   Two views on the same thing: the accounts themselves, and everything they
+   have actually done. Every button here calls an RPC or the function, and
+   every one of those checks the caller's rank in the database. */
+
+var botView = 'accounts';
+var botLogWho = '';
+var botLogBad = false;
+
+function botTierTag(t) {
+if (t === 'premium') return tag('Premium', 'blue');
+if (t === 'featured') return tag('Featured', 'ok');
+return tag('Casual');
+}
+
 async function pageBots(host) {
 host.innerHTML = box('Seed accounts',
-'Off by default. Lowering the active count deactivates accounts; it never deletes them.',
-'<div id="stfBots">' + loading() + '</div>');
+'Off by default. Lowering the count deactivates accounts; it never deletes them.',
+'<div class="hd-stf-pills" id="stfBotV">' +
+'<button class="hd-stf-pill' + (botView === 'accounts' ? ' is-on' : '') + '" type="button" data-bview="accounts">Accounts</button>' +
+'<button class="hd-stf-pill' + (botView === 'activity' ? ' is-on' : '') + '" type="button" data-bview="activity">Activity</button>' +
+'</div><div id="stfBots">' + loading() + '</div>');
+
+host.querySelector('#stfBotV').addEventListener('click', function (e) {
+var t = e.target.closest('[data-bview]');
+if (!t || t.dataset.bview === botView) return;
+botView = t.dataset.bview;
+render();
+});
+
 var node = host.querySelector('#stfBots');
+if (botView === 'activity') return botActivity(node);
+return botAccounts(node);
+}
+
+async function botAccounts(node) {
 var f = await db.from('platform_flags').select('*');
 if (f.error) { node.innerHTML = broke(why(f.error)); return; }
 var flag = {};
 f.data.forEach(function (x) { flag[x.key] = x; });
+
 var b = await db.from('bots')
 .select('*, who:profiles!bots_id_fkey(id,handle,name,avatar_url)')
 .order('created_at', { ascending: true }).limit(60);
-var total = b.error ? 0 : b.data.length;
-var live = b.error ? 0 : b.data.filter(function (x) { return x.active; }).length;
-// fetch last action per bot from bot_log
-var lastMap = {};
-try {
-  var lg = await db.from('bot_log').select('bot,kind,detail,created_at,ok').order('created_at', { ascending: false }).limit(120);
-  if (!lg.error && lg.data) lg.data.forEach(function (r) { if (!lastMap[r.bot]) lastMap[r.bot] = r; });
-} catch(e) {}
-var rows = b.error ? broke(why(b.error))
-: total ? b.data.map(function (x) {
-var last = lastMap[x.id];
-var lastLine = last ? esc(last.kind) + (last.detail ? ': ' + esc(String(last.detail).slice(0,60)) : '') + ' <span class="hd-stf-row-n">' + esc(H.when(last.created_at)) + '</span>' + (last.ok === false ? ' ' + tag('failed','bad') : '') : '<span class="hd-stf-row-n">no actions yet</span>';
-return '<div class="hd-stf-row">' + who(x.who, x.persona || 'No persona set') +
-'<span class="hd-stf-row-tags">' + (x.active ? tag('Active', 'ok') : tag('Inactive')) +
-tag(x.act_count + ' actions') + '</span>' +
-'<span class="hd-stf-row-n">' + (x.last_act_at ? 'last ' + H.when(x.last_act_at) : 'never run') + '</span>' +
-'<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-bot="' + esc(x.id) + '" data-on="' +
-(x.active ? '' : '1') + '">' + (x.active ? 'Deactivate' : 'Activate') + '</button>' +
-'<div class="hd-stf-row-last">' + lastLine + '</div>' +
-'</div>';
-}).join('')
-: empty('No seed accounts exist. None can run.');
+if (b.error) { node.innerHTML = broke(why(b.error)); return; }
+
+var total = b.data.length;
+var live = b.data.filter(function (x) { return x.active; }).length;
+var acts = b.data.reduce(function (n, x) { return n + (x.act_count || 0); }, 0);
+var count = (flag.bots_active && flag.bots_active.number) || 0;
+
+var rows = total ? b.data.map(botRow).join('')
+: empty('No seed accounts exist yet. Make one below.');
+
 node.innerHTML =
 '<div class="hd-stf-tiles hd-stf-tiles--2">' +
 '<div class="nb-card hd-stf-tile"><span class="hd-stf-tile-n">' + total + '</span>' +
-'<span class="hd-stf-tile-l">Seed accounts</span><span class="hd-stf-tile-s">Records that exist</span></div>' +
+'<span class="hd-stf-tile-l">Accounts</span><span class="hd-stf-tile-s">Records that exist</span></div>' +
 '<div class="nb-card hd-stf-tile"><span class="hd-stf-tile-n">' + live + '</span>' +
-'<span class="hd-stf-tile-l">Active now</span><span class="hd-stf-tile-s">Allowed to take part</span></div>' +
+'<span class="hd-stf-tile-l">Active</span><span class="hd-stf-tile-s">Allowed to take part</span></div>' +
+'<div class="nb-card hd-stf-tile"><span class="hd-stf-tile-n">' + num(acts) + '</span>' +
+'<span class="hd-stf-tile-l">Actions taken</span><span class="hd-stf-tile-s">Since each was made</span></div>' +
 '</div>' +
 '<form class="hd-stf-search" id="stfBotN">' +
-'<label class="nb-label" for="stfBotNi">Seed accounts (set to 0 to stop everything)</label>' +
-'<input class="nb-input" id="stfBotNi" type="number" min="0" step="1" inputmode="numeric" value="' +
-((flag.bots_active && flag.bots_active.number) || 0) + '">' +
+'<label class="nb-label" for="stfBotNi">How many may take part at once</label>' +
+'<input class="nb-input" id="stfBotNi" type="number" min="0" step="1" inputmode="numeric" value="' + count + '">' +
 '<button class="nb-btn nb-btn--primary" type="submit">Set</button>' +
 '</form>' +
-'<div class="hd-stf-row">' +
-'<button class="nb-btn nb-btn--ghost" type="button" id="stfSeedNow">Run bots now</button>' +
-'<button class="nb-btn nb-btn--ghost" type="button" id="stfSeedAll">Run ALL bots</button>' +
-'<button class="nb-btn nb-btn--ghost" type="button" id="stfMentionsNow">Run mentions now</button>' +
-'<button class="nb-btn nb-btn--primary" type="button" id="stfCreatePremium">Create premium accounts</button>' +
+'<div class="nb-alert nb-alert--' + (count > 0 ? 'info' : 'warn') + ' hd-stf-note">' +
+(count > 0
+? 'Set to 0 to stop everything at once. Nothing is deleted by that.'
+: 'Nothing runs while this is 0. Raise it and the accounts marked active start taking part.') +
+' A key has to be set under Supernova as well, or there is nothing to write with.</div>' +
+'<div class="hd-stf-botbar">' +
+'<button class="nb-btn nb-btn--primary" type="button" id="stfBotAdd">' + ic('plus') + 'New account</button>' +
+'<button class="nb-btn nb-btn--ghost" type="button" id="stfSeedNow">Run what is due</button>' +
+'<button class="nb-btn nb-btn--ghost" type="button" id="stfSeedAll">Queue and run everything</button>' +
+'<button class="nb-btn nb-btn--ghost" type="button" id="stfMentionsNow">Answer mentions</button>' +
+'<button class="nb-btn nb-btn--ghost" type="button" id="stfCreatePremium">Add the standing set</button>' +
 '</div>' +
-'<div class="nb-alert nb-alert--info hd-stf-note">Set a number above 0 to enable the bot system. ' +
-'Set to 0 to stop everything immediately. Supernova API key must also be set in the Supernova tab. ' +
-'Use the buttons above to trigger bots manually (no cron needed). ' +
-'Premium accounts post high-quality, informative content (not Gen Z spam).</div>' +
 '<h3 class="hd-stf-sub">Accounts</h3><div class="hd-stf-rows">' + rows + '</div>';
-var form = node.querySelector('#stfBotN');
-form.addEventListener('submit', async function (e) {
+
+node.querySelector('#stfBotN').addEventListener('submit', async function (e) {
 e.preventDefault();
 var n = Math.max(0, parseInt(node.querySelector('#stfBotNi').value, 10) || 0);
-if (await call('staff_set_flag', { p_key: 'bots_active', p_number: n }, 'Set. Nothing was deleted.')) render();
+if (await call('staff_set_flag', { p_key: 'bots_active', p_number: n },
+n ? 'Set. Nothing was deleted.' : 'Stopped. Nothing was deleted.')) render();
 });
-var seedBtn = node.querySelector('#stfSeedNow');
-if (seedBtn) seedBtn.addEventListener('click', async function () {
-seedBtn.disabled = true; seedBtn.textContent = 'Running...';
-try { var r = await H.fn('supernova?job=seed'); U.toast('Bots ran. ' + (r.made || 0) + ' actions taken.'); }
-catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
-seedBtn.disabled = false; seedBtn.textContent = 'Run bots now';
+
+runBtn(node, '#stfSeedNow', 'supernova?job=seed', function (r) {
+return 'Ran. ' + (r.posted || 0) + ' action' + ((r.posted || 0) === 1 ? '' : 's') + ' taken.';
 });
-var seedAllBtn = node.querySelector('#stfSeedAll');
-if (seedAllBtn) seedAllBtn.addEventListener('click', async function () {
-seedAllBtn.disabled = true; seedAllBtn.textContent = 'Running ALL...';
-try { var r = await H.fn('supernova?job=seed_all'); U.toast('All bots ran. ' + (r.posted || 0) + ' actions taken.'); }
-catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
-seedAllBtn.disabled = false; seedAllBtn.textContent = 'Run ALL bots';
+runBtn(node, '#stfSeedAll', 'supernova?job=seed_all', function (r) {
+return 'Queued and ran. ' + (r.posted || 0) + ' action' + ((r.posted || 0) === 1 ? '' : 's') + ' taken.';
 });
-var mentBtn = node.querySelector('#stfMentionsNow');
-if (mentBtn) mentBtn.addEventListener('click', async function () {
-mentBtn.disabled = true; mentBtn.textContent = 'Running...';
-try { var r = await H.fn('supernova?job=mentions'); U.toast('Mentions answered: ' + (r.answered || 0)); }
-catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
-mentBtn.disabled = false; mentBtn.textContent = 'Run mentions now';
+runBtn(node, '#stfMentionsNow', 'supernova?job=mentions', function (r) {
+return (r.answered || 0) + ' mention' + ((r.answered || 0) === 1 ? '' : 's') + ' answered.';
 });
-var premBtn = node.querySelector('#stfCreatePremium');
-if (premBtn) premBtn.addEventListener('click', async function () {
-premBtn.disabled = true; premBtn.textContent = 'Creating premium accounts...';
+
+node.querySelector('#stfBotAdd').addEventListener('click', newBotSheet);
+
+/* Ten accounts in one click is worth being asked about. It skips any handle
+   that already exists, so pressing it twice does not double anything. */
+var prem = node.querySelector('#stfCreatePremium');
+prem.addEventListener('click', async function () {
+var ok = await U.ask({
+title: 'Add the standing set',
+line: 'This makes the ten longer-form accounts that come with Hereld, skipping any that already exist. They are made inactive.',
+yes: 'Add them'
+});
+if (!ok) return;
+prem.disabled = true; prem.textContent = 'Adding...';
 try {
-var r = await H.fn('supernova?job=create_premium');
-U.toast('Premium accounts created: ' + (r.created || 0));
+var r = await H.fn('supernova?job=create_premium') || {};
+U.toast((r.created || 0) + ' added. The rest already existed.');
+} catch (e) { U.toast(String(e.message || 'That did not go through.'), 'bad'); }
+prem.disabled = false;
 render();
-} catch (e) { U.toast(String(e.message || 'Failed.'), 'bad'); }
-premBtn.disabled = false; premBtn.textContent = 'Create premium accounts';
 });
 }
+
+/* One button, one job, and it says what came back rather than a bare Done.
+   It also puts itself back if the function refuses, which the old pair of
+   handlers did by hand and the third one forgot. */
+function runBtn(node, sel, job, said) {
+var el = node.querySelector(sel);
+if (!el) return;
+var was = el.innerHTML;
+el.addEventListener('click', async function () {
+el.disabled = true;
+el.textContent = 'Running...';
+try { U.toast(said(await H.fn(job) || {})); }
+catch (e) { U.toast(String(e.message || 'That did not go through.'), 'bad'); }
+el.disabled = false;
+el.innerHTML = was;
+render();
+});
+}
+
+function botRow(x) {
+var p = x.who || {};
+return '<div class="hd-stf-botrow">' +
+'<div class="hd-stf-bot-top">' + who(p, x.persona || 'No character set') +
+'<span class="hd-stf-row-tags">' + (x.active ? tag('Active', 'ok') : tag('Inactive')) +
+botTierTag(x.tier) + tag(num(x.act_count || 0) + ' actions') + '</span></div>' +
+'<div class="hd-stf-bot-acts">' +
+'<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-bot-edit="' + esc(x.id) + '">' + ic('edit') + 'Edit</button>' +
+'<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-bot-log="' + esc(p.handle || '') + '">' + ic('clock') + 'Activity</button>' +
+'<button class="nb-btn nb-btn--' + (x.active ? 'ghost' : 'green') + ' nb-btn--sm" type="button" data-bot="' + esc(x.id) + '" data-on="' +
+(x.active ? '' : '1') + '">' + (x.active ? 'Deactivate' : 'Activate') + '</button>' +
+'</div>' +
+'<p class="hd-stf-bot-last">' +
+(x.last_act_at ? 'Last acted ' + esc(H.when(x.last_act_at)) : 'Has never run') +
+' <span class="hd-dot">&middot;</span> waits ' + num(x.cooldown_min || 90) + ' minutes between actions' +
+(x.interests ? ' <span class="hd-dot">&middot;</span> ' + esc(x.interests) : '') +
+'</p></div>';
+}
+
+/* Editing one. The RPC clears whatever it was queued to say, because that was
+   decided under the character it had before. */
+function botEditSheet(x) {
+var p = x.who || {};
+U.sheet({
+title: 'Edit ' + ((p.handle && '@' + p.handle) || 'this account'),
+html:
+'<p class="hd-ask-line">Who this account is meant to be, and what it talks about. Anything it was already lined up to say is dropped when you save.</p>' +
+'<label class="nb-label" for="stfBotP">Character</label>' +
+'<textarea class="nb-textarea" id="stfBotP" rows="3" maxlength="400" data-focus ' +
+'placeholder="Second year architecture student, posts at night, sarcastic">' + esc(x.persona || '') + '</textarea>' +
+'<label class="nb-label" for="stfBotI">What it cares about</label>' +
+'<textarea class="nb-textarea" id="stfBotI" rows="2" maxlength="300" ' +
+'placeholder="Brutalism, transit, bad coffee">' + esc(x.interests || '') + '</textarea>' +
+'<label class="nb-label" for="stfBotC">Minutes between actions</label>' +
+'<input class="nb-input" id="stfBotC" type="number" min="15" step="5" inputmode="numeric" value="' + (x.cooldown_min || 90) + '">' +
+'<span class="nb-hint">Fifteen is the floor. Below that this stops being a person and starts being a firehose.</span>' +
+'<div class="hd-ask-foot">' +
+'<button class="nb-btn nb-btn--ghost" type="button" data-no>Cancel</button>' +
+'<button class="nb-btn nb-btn--primary" type="button" data-yes>Save</button>' +
+'</div>',
+wire: function (api) {
+api.q('[data-no]').addEventListener('click', api.close);
+api.q('[data-yes]').addEventListener('click', async function () {
+var done = await call('staff_bot_edit', {
+p_id: x.id,
+p_persona: api.q('#stfBotP').value.trim(),
+p_interests: api.q('#stfBotI').value.trim(),
+p_cooldown: Math.max(15, parseInt(api.q('#stfBotC').value, 10) || 90)
+}, 'Saved.');
+if (!done) return;
+api.close();
+render();
+});
+}
+});
+}
+
+/* Making one needs a row in auth, which only the function can write. */
+function newBotSheet() {
+U.sheet({
+title: 'New seed account',
+html:
+'<p class="hd-ask-line">It is made inactive. Give it a character, then switch it on when you are happy with it.</p>' +
+'<label class="nb-label" for="stfNbH">Handle</label>' +
+'<input class="nb-input" id="stfNbH" type="text" maxlength="20" data-focus placeholder="marlow_builds" autocapitalize="off" spellcheck="false">' +
+'<span class="nb-hint">Three to twenty characters: letters, numbers and underscores.</span>' +
+'<label class="nb-label" for="stfNbN">Display name</label>' +
+'<input class="nb-input" id="stfNbN" type="text" maxlength="50" placeholder="Marlow">' +
+'<label class="nb-label" for="stfNbP">Character</label>' +
+'<textarea class="nb-textarea" id="stfNbP" rows="3" maxlength="400" placeholder="Second year architecture student, posts at night, sarcastic"></textarea>' +
+'<label class="nb-label" for="stfNbI">What it cares about</label>' +
+'<textarea class="nb-textarea" id="stfNbI" rows="2" maxlength="300" placeholder="Brutalism, transit, bad coffee"></textarea>' +
+'<label class="nb-label" for="stfNbC">Minutes between actions</label>' +
+'<input class="nb-input" id="stfNbC" type="number" min="15" step="5" inputmode="numeric" value="90">' +
+'<div class="hd-ask-foot">' +
+'<button class="nb-btn nb-btn--ghost" type="button" data-no>Cancel</button>' +
+'<button class="nb-btn nb-btn--primary" type="button" data-yes>Make it</button>' +
+'</div>',
+wire: function (api) {
+api.q('[data-no]').addEventListener('click', api.close);
+var go_ = api.q('[data-yes]');
+go_.addEventListener('click', async function () {
+var handle = api.q('#stfNbH').value.trim().toLowerCase().replace(/^@/, '');
+if (!/^[a-z0-9_]{3,20}$/.test(handle)) {
+U.toast('A handle is three to twenty characters: letters, numbers and underscores.', 'bad');
+return;
+}
+go_.disabled = true; go_.textContent = 'Making it...';
+try {
+await H.fn('supernova?job=bot_new', {
+handle: handle,
+name: api.q('#stfNbN').value.trim(),
+persona: api.q('#stfNbP').value.trim(),
+interests: api.q('#stfNbI').value.trim(),
+cooldown: Math.max(15, parseInt(api.q('#stfNbC').value, 10) || 90)
+});
+U.toast('@' + handle + ' exists and is switched off.');
+api.close();
+render();
+} catch (e) {
+U.toast(String(e.message || 'That account could not be made.'), 'bad');
+go_.disabled = false; go_.textContent = 'Make it';
+}
+});
+}
+});
+}
+
+/* ── What they actually did ───────────────────────────────────────────────
+   The row on the accounts view says when one last acted. This says what all
+   of them have been doing, including the attempts that failed, which is the
+   half you need when nothing is appearing. */
+
+async function botActivity(node) {
+var known = await db.from('bots').select('id, who:profiles!bots_id_fkey(handle)').limit(60);
+var byId = {}, byHandle = {};
+if (!known.error) known.data.forEach(function (x) {
+var h = (x.who && x.who.handle) || '';
+byId[x.id] = h;
+if (h) byHandle[h] = x.id;
+});
+
+var opts = Object.keys(byHandle).sort().map(function (h) {
+return '<option value="' + esc(h) + '"' + (botLogWho === h ? ' selected' : '') + '>@' + esc(h) + '</option>';
+}).join('');
+
+node.innerHTML =
+'<form class="hd-stf-search" id="stfBlF">' +
+'<label class="nb-label" for="stfBlW">Account</label>' +
+'<select class="nb-select" id="stfBlW"><option value="">Every account</option>' + opts + '</select>' +
+'<button class="nb-btn nb-btn--' + (botLogBad ? 'primary' : 'ghost') + '" type="button" id="stfBlB">' +
+(botLogBad ? 'Showing failures' : 'Only failures') + '</button>' +
+'</form>' +
+'<div id="stfBlRows">' + loading() + '</div>';
+
+node.querySelector('#stfBlW').addEventListener('change', function (e) {
+botLogWho = e.target.value; render();
+});
+node.querySelector('#stfBlB').addEventListener('click', function () {
+botLogBad = !botLogBad; render();
+});
+
+var rowsNode = node.querySelector('#stfBlRows');
+var q = db.from('bot_log').select('*').order('created_at', { ascending: false }).limit(80);
+if (botLogWho && byHandle[botLogWho]) q = q.eq('bot', byHandle[botLogWho]);
+if (botLogBad) q = q.eq('ok', false);
+
+var r = await q;
+if (r.error) { rowsNode.innerHTML = broke(why(r.error)); return; }
+if (!r.data.length) {
+rowsNode.innerHTML = empty(botLogBad ? 'Nothing has failed.' : 'Nothing has run yet.');
+return;
+}
+
+rowsNode.innerHTML = '<div class="hd-stf-log">' + r.data.map(function (x) {
+var h = x.bot ? byId[x.bot] : '';
+return '<div class="hd-stf-log-i">' +
+'<span class="hd-stf-log-k">' + esc(String(x.kind || 'ran').replace(/_/g, ' ')) + '</span>' +
+'<span class="hd-stf-log-b">' +
+(h ? '<b>@' + esc(h) + '</b> ' : x.bot ? '<b>an account since removed</b> ' : '') +
+'<span class="hd-stf-log-r">' + esc(x.detail || '') + '</span>' +
+(x.ok === false ? ' ' + tag('failed', 'bad') : '') +
+'</span>' +
+'<span class="hd-stf-log-t">' + esc(stamp(x.created_at)) + '</span>' +
+'</div>';
+}).join('') + '</div>';
+}
+
 var PROVIDERS = [
 ['anthropic', 'Anthropic'],
 ['openai', 'OpenAI'],
@@ -853,6 +1064,20 @@ var key = fl.dataset.flag;
 call('staff_set_flag', { p_key: key, p_on: on }, 'Saved.').then(function (done) { if (done) render(); });
 return;
 }
+var be = t.closest('[data-bot-edit]');
+if (be) {
+db.from('bots').select('*, who:profiles!bots_id_fkey(id,handle,name,avatar_url)')
+.eq('id', be.dataset.botEdit).maybeSingle()
+.then(function (r) {
+if (r.error || !r.data) { U.toast(r.error ? why(r.error) : 'That account is no longer there.', 'bad'); return; }
+botEditSheet(r.data);
+});
+return;
+}
+
+var bl = t.closest('[data-bot-log]');
+if (bl) { botLogWho = bl.dataset.botLog; botLogBad = false; botView = 'activity'; render(); return; }
+
 var b = t.closest('[data-bot]');
 if (b) {
 call('staff_bot_state', { p_id: b.dataset.bot, p_active: b.dataset.on === '1' }, 'Saved. The account still exists.')
