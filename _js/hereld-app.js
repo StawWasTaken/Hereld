@@ -529,48 +529,54 @@
       wide: true,
       title: '',
       html:
-        '<div class="hd-grok-card">' +
-          '<div class="hd-grok-head">' +
-            '<span class="hd-grok-title">' + novaAv('hd-nva--grad', 20) + ' Analysing profile...</span>' +
-            '<div class="hd-grok-actions">' +
-              '<button class="nb-icon-btn" type="button" data-grok-close title="Close">' + ic('x') + '</button>' +
+        '<div class="hd-look-card">' +
+          '<div class="hd-look-head">' +
+            '<span class="hd-look-title">' + novaAv('hd-nva--grad', 20) + ' Supernova on this profile</span>' +
+            '<div class="hd-look-actions">' +
+              '<button class="nb-icon-btn" type="button" data-look-close title="Close">' + ic('x') + '</button>' +
             '</div>' +
           '</div>' +
-          '<div class="hd-grok-post">' +
-            '<div class="hd-grok-post-inner">' +
-              '<a href="' + url('profile/' + handle) + '" data-r class="hd-grok-post-av">' + avatar + '</a>' +
-              '<div class="hd-grok-post-who">' +
-                '<a href="' + url('profile/' + handle) + '" data-r class="hd-grok-post-name">' + esc(who) + badges(p) + '</a>' +
-                '<span class="hd-grok-post-handle">' + H.tag(handle) + '</span>' +
+          '<div class="hd-look-post">' +
+            '<div class="hd-look-post-inner">' +
+              '<a href="' + url('profile/' + handle) + '" data-r class="hd-look-post-av">' + avatar + '</a>' +
+              '<div class="hd-look-post-who">' +
+                '<a href="' + url('profile/' + handle) + '" data-r class="hd-look-post-name">' + esc(who) + badges(p) + '</a>' +
+                '<span class="hd-look-post-handle">' + H.tag(handle) + '</span>' +
               '</div>' +
             '</div>' +
-            (p.headline ? '<p class="hd-grok-post-head">' + esc(p.headline) + '</p>' : '') +
-            (p.bio ? '<p class="hd-grok-post-body">' + body(p.bio) + '</p>' : '') +
+            (p.headline ? '<p class="hd-look-post-head">' + esc(p.headline) + '</p>' : '') +
+            (p.bio ? '<p class="hd-look-post-body">' + body(p.bio) + '</p>' : '') +
           '</div>' +
-          '<div class="hd-grok-loading" id="grokLoad">' +
-            '<span class="hd-nova-dots"><i></i><i></i><i></i></span> Thinking about your request' +
+          '<div class="hd-look-loading" id="lookLoad">' +
+            '<span class="hd-nova-dots"><i></i><i></i><i></i></span> Reading it' +
           '</div>' +
-          '<div class="hd-grok-answer" id="grokAns" hidden></div>' +
+          '<div class="hd-look-answer" id="lookAns" hidden></div>' +
         '</div>',
       wire: function (api) {
-        api.q('[data-grok-close]').addEventListener('click', api.close);
+        api.q('[data-look-close]').addEventListener('click', api.close);
         twem(api.body);
         H.fn('supernova?job=profile_summary', { handle: handle }).then(function (got) {
           var text = (got && got.text || '').trim();
-          var load = api.q('#grokLoad');
-          var ans = api.q('#grokAns');
+          var load = api.q('#lookLoad');
+          var ans = api.q('#lookAns');
           if (!text) { if (load) load.innerHTML = 'Nothing came back.'; return; }
           if (load) load.hidden = true;
           if (ans) { ans.hidden = false; ans.innerHTML = '<p>' + esc(text) + '</p>'; twem(ans); }
         }).catch(function (e) {
-          var load = api.q('#grokLoad');
+          var load = api.q('#lookLoad');
           if (load) load.innerHTML = '<span class="hd-nova-bad">' + esc(e.message || 'Could not generate summary.') + '</span>';
         });
       }
     });
   }
 
+  /* The capsule watches the column scroll, and a feed view can be entered any
+     number of times in one session. Without this the listeners stack up for the
+     life of the page. */
+  var newPostsScroll = null;
+
   function wireNewPosts(rpcName) {
+    if (newPostsScroll) { col.removeEventListener('scroll', newPostsScroll); newPostsScroll = null; }
     var capsule = col.querySelector('[data-new-posts]');
     var avsEl = col.querySelector('[data-new-avs]');
     var tEl = col.querySelector('[data-new-t]');
@@ -582,7 +588,10 @@
       if (firstPost) firstId = firstPost.getAttribute('data-post');
     }
     var queue = [];
-    var isExplore = !!col.querySelector('#feed') && col.innerHTML.indexOf('Latest') !== -1 && rpcName === 'feed_latest';
+    /* Ask the route which view this is. Reading it out of the markup meant
+       serialising the whole column and then matching the word Latest against
+       everything anybody had posted. */
+    var isExplore = parts()[0] === 'explore';
     function renderQueue() {
       if (!queue.length) return;
       if (!col.querySelector('[data-new-posts]')) return;
@@ -603,12 +612,13 @@
       tEl.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg> ' + esc(who);
     }
     var lastScroll = 0;
-    col.addEventListener('scroll', function () {
+    newPostsScroll = function () {
       var st = col.scrollTop;
       var scrollingUp = st < lastScroll - 30;
       lastScroll = st;
       if (scrollingUp && !capsule.hidden) capsule.hidden = true;
-    });
+    };
+    col.addEventListener('scroll', newPostsScroll);
     capsule.onclick = function () {
       capsule.hidden = true;
       queue = [];
@@ -1197,7 +1207,12 @@
     function preview() {
       var t = ta.value;
       if (!t.trim()) { seen.innerHTML = ''; return; }
-      seen.innerHTML = body(t, { keepMedia: true });
+      var out = body(t, { keepMedia: true });
+      /* If the only thing the renderer did was keep the line breaks, the
+         preview is the post typed out a second time. Most posts are plain, so
+         without this the composer answers you with your own words all day. */
+      if (out.replace(/<br\s*\/?>/gi, '').indexOf('<') < 0) { seen.innerHTML = ''; return; }
+      seen.innerHTML = out;
       twem(seen);
     }
 
@@ -2181,7 +2196,7 @@
           e.preventDefault();
           var txt = ta.value.trim();
           if (!txt) return U.toast('Post cannot be empty.', 'bad');
-          if (txt.length > 600) return U.toast('Too long — 600 max.', 'bad');
+          if (txt.length > 600) return U.toast('Too long. 600 is the limit.', 'bad');
           btn.disabled = true; btn.textContent = 'Saving…';
           var res = await db.from('posts').update({ body: txt, edited_at: new Date().toISOString() }).eq('id', id);
           if (res.error) { U.toast(H.trouble(res.error, 'Could not save.'), 'bad'); btn.disabled = false; btn.textContent = 'Save'; return; }
@@ -2701,7 +2716,7 @@
     { key: 'all', label: 'All' },
     { key: 'endorse', label: 'Likes' },
     { key: 'reply', label: 'Replies' },
-    { key: 'relay', label: 'Reposts' },
+    { key: 'relay', label: 'Relays' },
     { key: 'follow', label: 'Follows' },
     { key: 'mention', label: 'Mentions' }
   ];
@@ -3224,11 +3239,11 @@
   var novaTalk = [];
 
   function novaTurn(t) {
-    return '<div class="hd-grok-chat-turn hd-grok-chat-turn--' + (t.role === 'you' ? 'me' : 'nova') + '">' +
+    return '<div class="hd-look-chat-turn hd-look-chat-turn--' + (t.role === 'you' ? 'me' : 'nova') + '">' +
       (t.role === 'you'
         ? H.avatar(my, 'hd-av--sm')
         : novaAv('hd-nova-av-grad', 26)) +
-      '<div class="hd-grok-chat-said">' + body(t.text) + '</div></div>';
+      '<div class="hd-look-chat-said">' + body(t.text) + '</div></div>';
   }
 
   /* The mark on a post. It opens a card with the post above the answer, so
@@ -3281,7 +3296,7 @@
         }).join('\n')
       : '';
     var repostsText = reposts.length
-      ? '\n\nReposts (' + (p.relay_count || 0) + ' total, showing ' + reposts.length + '):\n' +
+      ? '\n\nRelays (' + (p.relay_count || 0) + ' total, showing ' + reposts.length + '):\n' +
         reposts.map(function (r) {
           var ra = r.author || {};
           return '- @' + (ra.handle || '?') + (r.body ? ': ' + String(r.body).replace(/\s+/g, ' ').slice(0, 200) : ' (plain repost)');
@@ -3291,7 +3306,7 @@
     var turns = [{ role: 'them', text:
       'Explain this post from Hereld in plain language, in under 120 words. ' +
       'Say what it is about and anything a reader would need to know to follow it. ' +
-      'Include context from replies and reposts if they help explain the discussion. ' +
+      'Include context from replies and relays if they help explain the discussion. ' +
       'If it is too short or too vague to explain, say that instead of guessing.\n\n' +
       who + ' posted:\n' + String(p.body || '') + mediaText + repliesText + repostsText }];
 
@@ -3299,71 +3314,71 @@
       wide: true,
       title: '',
       html:
-        '<div class="hd-grok-card">' +
-          '<div class="hd-grok-head">' +
-            '<span class="hd-grok-title">' + novaAv('hd-nva--grad', 20) + ' Analysing Post...</span>' +
-            '<div class="hd-grok-actions">' +
-              '<button class="nb-icon-btn" type="button" data-grok-close title="Close">' + ic('x') + '</button>' +
+        '<div class="hd-look-card">' +
+          '<div class="hd-look-head">' +
+            '<span class="hd-look-title">' + novaAv('hd-nva--grad', 20) + ' Supernova on this post</span>' +
+            '<div class="hd-look-actions">' +
+              '<button class="nb-icon-btn" type="button" data-look-close title="Close">' + ic('x') + '</button>' +
             '</div>' +
           '</div>' +
-          '<div class="hd-grok-post">' +
-            '<div class="hd-grok-post-inner">' +
-              '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-grok-post-av">' + avatar + '</a>' +
-              '<div class="hd-grok-post-who">' +
-                '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-grok-post-name">' + esc(who) + verified + company + '</a>' +
-                '<span class="hd-grok-post-handle">' + H.tag(a.handle || '') + '</span>' +
+          '<div class="hd-look-post">' +
+            '<div class="hd-look-post-inner">' +
+              '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-look-post-av">' + avatar + '</a>' +
+              '<div class="hd-look-post-who">' +
+                '<a href="' + url('profile/' + (a.handle || '')) + '" data-r class="hd-look-post-name">' + esc(who) + verified + company + '</a>' +
+                '<span class="hd-look-post-handle">' + H.tag(a.handle || '') + '</span>' +
               '</div>' +
             '</div>' +
-            '<p class="hd-grok-post-body">' + body(p.body) + '</p>' +
-            (mediaList.length ? '<div class="hd-grok-post-media">' + mediaList.map(function (m) {
+            '<p class="hd-look-post-body">' + body(p.body) + '</p>' +
+            (mediaList.length ? '<div class="hd-look-post-media">' + mediaList.map(function (m) {
               return '<img src="' + esc(m.url) + '" alt="' + esc(m.alt_text || '') + '" loading="lazy">';
             }).join('') + '</div>' : '') +
-            '<div class="hd-grok-post-meta">' +
+            '<div class="hd-look-post-meta">' +
               '<span>' + esc(H.when(p.created_at)) + '</span>' +
               '<span class="hd-dot">&middot;</span>' +
               '<span>' + num(p.endorse_count || 0) + ' likes</span>' +
               '<span class="hd-dot">&middot;</span>' +
               '<span>' + num(p.reply_count || 0) + ' replies</span>' +
               '<span class="hd-dot">&middot;</span>' +
-              '<span>' + num(p.relay_count || 0) + ' reposts</span>' +
+              '<span>' + num(p.relay_count || 0) + ' relays</span>' +
             '</div>' +
-            (replies.length ? '<div class="hd-grok-replies">' +
-              '<p class="hd-grok-replies-title">Recent replies</p>' +
+            (replies.length ? '<div class="hd-look-replies">' +
+              '<p class="hd-look-replies-title">Recent replies</p>' +
               replies.map(function (r) {
                 var ra = r.author || {};
-                return '<div class="hd-grok-reply">' +
-                  '<span class="hd-grok-reply-handle">@' + esc(ra.handle || '?') + '</span> ' +
-                  '<span class="hd-grok-reply-body">' + esc(String(r.body || '').replace(/\s+/g, ' ').slice(0, 160)) + '</span>' +
+                return '<div class="hd-look-reply">' +
+                  '<span class="hd-look-reply-handle">@' + esc(ra.handle || '?') + '</span> ' +
+                  '<span class="hd-look-reply-body">' + esc(String(r.body || '').replace(/\s+/g, ' ').slice(0, 160)) + '</span>' +
                 '</div>';
               }).join('') +
             '</div>' : '') +
-            (reposts.length ? '<div class="hd-grok-reposts">' +
-              '<p class="hd-grok-replies-title">Reposts</p>' +
+            (reposts.length ? '<div class="hd-look-relays">' +
+              '<p class="hd-look-replies-title">Relays</p>' +
               reposts.map(function (r) {
                 var ra = r.author || {};
-                return '<div class="hd-grok-reply">' +
-                  '<span class="hd-grok-reply-handle">@' + esc(ra.handle || '?') + '</span> ' +
-                  (r.body ? '<span class="hd-grok-reply-body">' + esc(String(r.body).replace(/\s+/g, ' ').slice(0, 160)) + '</span>' : '<span class="hd-grok-reply-body hd-muted">reposted</span>') +
+                return '<div class="hd-look-reply">' +
+                  '<span class="hd-look-reply-handle">@' + esc(ra.handle || '?') + '</span> ' +
+                  (r.body ? '<span class="hd-look-reply-body">' + esc(String(r.body).replace(/\s+/g, ' ').slice(0, 160)) + '</span>' : '<span class="hd-look-reply-body hd-muted">relayed</span>') +
                 '</div>';
               }).join('') +
             '</div>' : '') +
           '</div>' +
-          '<div class="hd-grok-loading" id="grokLoad">' +
-            '<span class="hd-nova-dots"><i></i><i></i><i></i></span> Thinking about your request' +
+          '<div class="hd-look-loading" id="lookLoad">' +
+            '<span class="hd-nova-dots"><i></i><i></i><i></i></span> Reading it' +
           '</div>' +
-          '<div class="hd-grok-answer" id="grokAns" hidden></div>' +
-          '<div class="hd-grok-follow" id="grokFollow" hidden>' +
-            '<textarea class="nb-input" rows="1" placeholder="Ask follow-up..." id="novaExplainInput"></textarea>' +
+          '<div class="hd-look-answer" id="lookAns" hidden></div>' +
+          '<div class="hd-look-follow" id="lookFollow" hidden>' +
+            '<textarea class="nb-input" rows="1" placeholder="Ask something else" id="novaExplainInput"></textarea>' +
             '<button class="nb-btn nb-btn--primary" type="button" id="novaExplainSend" disabled>' + ic('send') + '</button>' +
           '</div>' +
         '</div>',
       wire: function (api) {
-        api.q('[data-grok-close]').addEventListener('click', api.close);
+        api.q('[data-look-close]').addEventListener('click', api.close);
         twem(api.body);
 
-        var load = api.q('#grokLoad');
-        var ans = api.q('#grokAns');
-        var follow = api.q('#grokFollow');
+        var load = api.q('#lookLoad');
+        var ans = api.q('#lookAns');
+        var follow = api.q('#lookFollow');
         var input = api.q('#novaExplainInput');
         var sendBtn = api.q('#novaExplainSend');
         var busy = false;
@@ -3378,12 +3393,12 @@
         });
 
         function addChatTurn(role, text) {
-          var chat = ans.querySelector('.hd-grok-chat');
-          if (!chat) { chat = document.createElement('div'); chat.className = 'hd-grok-chat'; ans.appendChild(chat); }
+          var chat = ans.querySelector('.hd-look-chat');
+          if (!chat) { chat = document.createElement('div'); chat.className = 'hd-look-chat'; ans.appendChild(chat); }
           var div = document.createElement('div');
-          div.className = 'hd-grok-chat-turn hd-grok-chat-turn--' + (role === 'you' ? 'me' : 'nova');
+          div.className = 'hd-look-chat-turn hd-look-chat-turn--' + (role === 'you' ? 'me' : 'nova');
           div.innerHTML = (role === 'you' ? H.avatar(my, 'hd-av--sm') : novaAv('hd-nova-av-grad', 26)) +
-            '<div class="hd-grok-chat-said">' + body(text) + '</div>';
+            '<div class="hd-look-chat-said">' + body(text) + '</div>';
           chat.appendChild(div);
           twem(div);
           ans.scrollTop = ans.scrollHeight;
@@ -3408,7 +3423,7 @@
         H.fn('supernova?job=ask', { post: id, turns: turns }).then(function (out) {
           var text = out.text || 'Nothing came back.';
           if (load) load.hidden = true;
-          if (ans) { ans.hidden = false; ans.innerHTML = '<p class="hd-grok-answer-text">' + esc(text) + '</p>'; }
+          if (ans) { ans.hidden = false; ans.innerHTML = '<p class="hd-look-answer-text">' + body(text) + '</p>'; }
           if (follow) follow.hidden = false;
           turns.push({ role: 'you', text: text });
           twem(ans);
@@ -3438,11 +3453,11 @@
 
     col.innerHTML = head('Ask Supernova', 'Swiftaw&rsquo;s assistant, built into Hereld.') +
       '<div class="hd-nova">' +
-        '<div class="hd-grok-card hd-nova-card">' +
-          '<div class="hd-grok-head">' +
-            '<span class="hd-grok-title">' + novaAv('hd-nva--grad', 20) + ' Ask Supernova</span>' +
+        '<div class="hd-look-card hd-nova-card">' +
+          '<div class="hd-look-head">' +
+            '<span class="hd-look-title">' + novaAv('hd-nva--grad', 20) + ' Ask Supernova</span>' +
           '</div>' +
-          '<div class="hd-grok-chat hd-nova-talk" id="novaTalk" aria-live="polite">' +
+          '<div class="hd-look-chat hd-nova-talk" id="novaTalk" aria-live="polite">' +
             (novaTalk.length ? novaTalk.map(novaTurn).join('') :
               '<div class="nb-card hd-nova-hello">' +
                 novaAv('hd-nova-hello-av', 48) +
@@ -3450,7 +3465,7 @@
                 'Supernova cannot post, follow or moderate for you, and it will say so rather than pretend.</p>' +
               '</div>') +
           '</div>' +
-          '<div class="hd-grok-follow hd-nova-ask" id="novaForm">' +
+          '<div class="hd-look-follow hd-nova-ask" id="novaForm">' +
             '<label class="nb-sr" for="novaIn">Ask Supernova</label>' +
             '<textarea class="nb-input" id="novaIn" rows="1" maxlength="1200" ' +
               'placeholder="Ask Supernova..."></textarea>' +
@@ -3476,9 +3491,9 @@
 
     function paint() {
       talk.innerHTML = novaTalk.map(novaTurn).join('') +
-        (busy ? '<div class="hd-grok-chat-turn hd-grok-chat-turn--nova">' +
+        (busy ? '<div class="hd-look-chat-turn hd-look-chat-turn--nova">' +
           novaAv('hd-nova-av-grad', 26) +
-          '<div class="hd-grok-chat-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div></div>' : '');
+          '<div class="hd-look-chat-said"><span class="hd-nova-dots"><i></i><i></i><i></i></span></div></div>' : '');
       twem(talk);
       talk.scrollTop = talk.scrollHeight;
     }

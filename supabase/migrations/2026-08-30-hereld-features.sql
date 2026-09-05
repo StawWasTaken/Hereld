@@ -149,7 +149,7 @@ begin
       end if;
 
     elsif r < 0.67 then
-      -- Like: endorse a post — HEAVY for boosting, prioritises newest posts (30%)
+      -- Like: endorse a post. Weighted heavily, and prefers newer posts (30%)
       select p.id into target
         from posts p
        where not p.hidden

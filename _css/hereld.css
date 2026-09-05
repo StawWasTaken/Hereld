@@ -816,8 +816,8 @@ body.hd-wide .hd-aside { display: none; }
 /* The chat. */
 .hd-nova { padding: 0 4px 24px; }
 .hd-nova-card { margin: 0; }
-.hd-nova-card .hd-grok-chat { padding: 16px 18px; min-height: 200px; max-height: 60vh; overflow-y: auto; }
-.hd-nova-card .hd-grok-follow { border-top: var(--nb-bd-thin); }
+.hd-nova-card .hd-look-chat { padding: 16px 18px; min-height: 200px; max-height: 60vh; overflow-y: auto; }
+.hd-nova-card .hd-look-follow { border-top: var(--nb-bd-thin); }
 .hd-nova-talk { display: flex; flex-direction: column; gap: 20px; }
 
 .hd-nova-hello {
@@ -1558,102 +1558,102 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
 
 /* ── GROK-STYLE ANALYSING CARD ────────────────────────────────────────────
    Dark card for explain & profile summary, inspired by Grok. */
-.hd-grok-card {
+.hd-look-card {
   background: var(--nb-surface); border-radius: var(--nb-r); overflow: hidden;
   border: var(--nb-bd-thin);
 }
-.hd-grok-head {
+.hd-look-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 18px 12px;
   border-bottom: var(--nb-bd-thin);
 }
-.hd-grok-title {
+.hd-look-title {
   display: flex; align-items: center; gap: 8px;
   font-family: var(--nb-font-head); font-weight: 700; font-size: 15px;
   color: var(--nb-surface-fg);
 }
-.hd-grok-title svg { width: 18px; height: 18px; fill: currentColor; }
-.hd-grok-actions { display: flex; gap: 4px; }
-.hd-grok-actions .nb-icon-btn { color: var(--nb-fg-muted); }
-.hd-grok-post {
+.hd-look-title svg { width: 18px; height: 18px; fill: currentColor; }
+.hd-look-actions { display: flex; gap: 4px; }
+.hd-look-actions .nb-icon-btn { color: var(--nb-fg-muted); }
+.hd-look-post {
   padding: 16px 18px; margin: 0;
   border-bottom: var(--nb-bd-thin);
 }
-.hd-grok-post-inner { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.hd-grok-post-av { text-decoration: none; color: inherit; }
-.hd-grok-post-av .hd-av { border-color: var(--nb-line); }
-.hd-grok-post-who { flex: 1; min-width: 0; }
-.hd-grok-post-name {
+.hd-look-post-inner { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.hd-look-post-av { text-decoration: none; color: inherit; }
+.hd-look-post-av .hd-av { border-color: var(--nb-line); }
+.hd-look-post-who { flex: 1; min-width: 0; }
+.hd-look-post-name {
   display: flex; align-items: center; gap: 4px;
   font-family: var(--nb-font-head); font-weight: 700; font-size: 14px;
   text-decoration: none; color: var(--nb-surface-fg);
 }
-.hd-grok-post-name:hover { text-decoration: underline; }
-.hd-grok-post-handle { display: block; font-size: 13px; color: var(--nb-fg-muted); }
-.hd-grok-post-head { margin: 0 0 6px; font-size: 13.5px; color: var(--nb-fg-muted); }
-.hd-grok-post-body { margin: 0 0 10px; font-size: 15px; line-height: 1.6; }
-.hd-grok-post-body a { color: var(--nb-blue); }
-.hd-grok-post-media { display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; }
-.hd-grok-post-media img { height: 120px; border-radius: var(--nb-r-sm); object-fit: cover; border: var(--nb-bd-thin); }
-.hd-grok-post-meta {
+.hd-look-post-name:hover { text-decoration: underline; }
+.hd-look-post-handle { display: block; font-size: 13px; color: var(--nb-fg-muted); }
+.hd-look-post-head { margin: 0 0 6px; font-size: 13.5px; color: var(--nb-fg-muted); }
+.hd-look-post-body { margin: 0 0 10px; font-size: 15px; line-height: 1.6; }
+.hd-look-post-body a { color: var(--nb-blue); }
+.hd-look-post-media { display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; }
+.hd-look-post-media img { height: 120px; border-radius: var(--nb-r-sm); object-fit: cover; border: var(--nb-bd-thin); }
+.hd-look-post-meta {
   display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
   font-size: 12.5px; color: var(--nb-fg-muted);
 }
-.hd-grok-loading {
+.hd-look-loading {
   padding: 16px 18px; display: flex; align-items: center; gap: 10px;
   font-size: 14px; color: var(--nb-fg-muted);
 }
-.hd-grok-loading[hidden] { display: none; }
-.hd-grok-answer {
+.hd-look-loading[hidden] { display: none; }
+.hd-look-answer {
   padding: 0 18px 16px;
 }
-.hd-grok-answer[hidden] { display: none; }
-.hd-grok-answer-text {
+.hd-look-answer[hidden] { display: none; }
+.hd-look-answer-text {
   margin: 0; font-size: 15px; line-height: 1.65; color: var(--nb-surface-fg);
 }
-.hd-grok-answer-text a { color: var(--nb-blue); }
-.hd-grok-chat { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
-.hd-grok-chat-turn { display: flex; align-items: flex-start; gap: 10px; }
-.hd-grok-chat-turn--me { flex-direction: row-reverse; }
-.hd-grok-chat-turn .hd-av { flex: none; }
-.hd-grok-chat-said {
+.hd-look-answer-text a { color: var(--nb-blue); }
+.hd-look-chat { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.hd-look-chat-turn { display: flex; align-items: flex-start; gap: 10px; }
+.hd-look-chat-turn--me { flex-direction: row-reverse; }
+.hd-look-chat-turn .hd-av { flex: none; }
+.hd-look-chat-said {
   max-width: 80%; padding: 10px 14px; font-size: 14px; line-height: 1.6;
   border-radius: var(--nb-r); border: var(--nb-bd-thin);
 }
-.hd-grok-chat-turn:not(.hd-grok-chat-turn--me) .hd-grok-chat-said {
+.hd-look-chat-turn:not(.hd-look-chat-turn--me) .hd-look-chat-said {
   background: var(--nb-surface-2); border-color: var(--nb-line);
 }
-.hd-grok-chat-turn--me .hd-grok-chat-said {
+.hd-look-chat-turn--me .hd-look-chat-said {
   background: var(--nb-blue);
   color: var(--nb-ink); border-color: transparent;
 }
-.hd-grok-chat-turn--me .hd-grok-chat-said a { color: var(--nb-ink); }
-.hd-grok-chat-said a { color: var(--nb-blue); }
-.hd-grok-follow {
+.hd-look-chat-turn--me .hd-look-chat-said a { color: var(--nb-ink); }
+.hd-look-chat-said a { color: var(--nb-blue); }
+.hd-look-follow {
   display: flex; align-items: flex-end; gap: 10px;
   padding: 12px 18px 16px;
   border-top: var(--nb-bd-thin);
 }
-.hd-grok-follow[hidden] { display: none; }
-.hd-grok-follow textarea { flex: 1; resize: none; min-height: 40px; max-height: 120px; }
-.hd-grok-follow .nb-btn { flex: none; }
+.hd-look-follow[hidden] { display: none; }
+.hd-look-follow textarea { flex: 1; resize: none; min-height: 40px; max-height: 120px; }
+.hd-look-follow .nb-btn { flex: none; }
 
-.hd-grok-replies, .hd-grok-reposts {
+.hd-look-replies, .hd-look-relays {
   padding: 12px 18px; border-top: var(--nb-bd-thin);
 }
-.hd-grok-replies-title {
+.hd-look-replies-title {
   margin: 0 0 8px; font-size: 12.5px; font-weight: 700; color: var(--nb-fg-muted);
   text-transform: uppercase; letter-spacing: .5px;
 }
-.hd-grok-reply {
+.hd-look-reply {
   display: flex; gap: 6px; padding: 6px 0; font-size: 13.5px; line-height: 1.5;
 }
-.hd-grok-reply + .hd-grok-reply { border-top: var(--nb-bd-thin); }
-.hd-grok-reply-handle {
+.hd-look-reply + .hd-look-reply { border-top: var(--nb-bd-thin); }
+.hd-look-reply-handle {
   flex: none; font-weight: 700; color: var(--nb-blue); font-size: 13px;
 }
-.hd-grok-reply-body { color: var(--nb-fg-muted); min-width: 0; }
-.hd-grok-reply-body.hd-muted { font-style: italic; opacity: .7; }
+.hd-look-reply-body { color: var(--nb-fg-muted); min-width: 0; }
+.hd-look-reply-body.hd-muted { font-style: italic; opacity: .7; }
 
 /* ── THE CARD THAT APPEARS ON A NAME ──────────────────────────────────────
    Rested on, not clicked. It is positioned against the name it belongs to,
