@@ -310,11 +310,23 @@ esc(new Date(p.scheduled_for).toLocaleString(undefined,
 { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) +
 '. Only you can see it until then.</p>'
 : '') +
-(said ? '<p class="hd-post-body">' + said + (p.edited_at ? ' <span class="hd-edited">· edited</span>' : '') + '</p>' : '') +
+(said ? '<p class="hd-post-body' + (bigSaid(p, o, shots, quoted, note) ? ' hd-post-body--big' : '') + '">' +
+said + (p.edited_at ? ' <span class="hd-edited">· edited</span>' : '') + '</p>' : '') +
 shots + pollHTML(p) + quoted + note +
-scopeNote(p) + '<div class="hd-repliers" data-repliers="' + p.id + '"></div>' +
+scopeNote(p) + repliersHTML(p) +
 acts(p) +
 '</article>';
+}
+function bigSaid(p, o, shots, quoted, note) {
+if (o.sub) return false;
+if (shots || quoted || note || p.poll || p.has_poll || p.scheduled_for) return false;
+var t = String(p.body || '').trim();
+return t.length > 0 && t.length <= 90 && t.indexOf('\n') < 0 && !/https?:\/\//i.test(t);
+}
+function repliersHTML(p) {
+var n = p.reply_count || 0;
+if (n < 1) return '';
+return '<div class="hd-repliers" data-repliers="' + p.id + '" data-n="' + n + '"></div>';
 }
 function discHTML(list) {
 if (!list || !list.length) return '';
@@ -542,14 +554,25 @@ if (r.error || !r.data) { box.remove(); continue; }
 box.innerHTML = pollBars(r.data, id);
 }
 }
+function repliersLine(list, total) {
+var names = list.slice(0, 2).map(function (u) {
+return '<b>' + esc(u.name || u.handle) + '</b>';
+});
+var rest = total - names.length;
+if (rest > 0) names.push(rest === 1 ? 'one other' : num(rest) + ' others');
+var said = names.length > 1
+? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+: names[0];
+return said + ' replied';
+}
 async function paintRepliers(root) {
 var boxes = [].slice.call((root || document).querySelectorAll('[data-repliers]:not([data-done])'));
-for (var i = 0; i < boxes.length; i++) {
-var box = boxes[i];
-var id = box.getAttribute('data-repliers');
-var r = await db.rpc('post_repliers', { p_post_id: id, p_limit: 3 });
-if (r.error || !r.data || !r.data.length) { box.remove(); continue; }
+await Promise.all(boxes.map(async function (box) {
 box.setAttribute('data-done', '1');
+var r = await db.rpc('post_repliers', {
+p_post_id: box.getAttribute('data-repliers'), p_limit: 3
+});
+if (r.error || !r.data || !r.data.length) return;
 var avs = r.data.map(function (u) {
 return '<a class="hd-av-btn" href="#/' + esc(u.handle) + '" data-r>' +
 '<span class="hd-av hd-av--sm">' +
@@ -558,10 +581,10 @@ return '<a class="hd-av-btn" href="#/' + esc(u.handle) + '" data-r>' +
 : '<span class="hd-av-n">' + esc((u.name || u.handle || '?')[0]).toUpperCase() + '</span>') +
 '</span></a>';
 }).join('');
-var count = r.data.length;
+var total = Math.max(parseInt(box.getAttribute('data-n'), 10) || 0, r.data.length);
 box.innerHTML = '<div class="hd-repliers-av">' + avs + '</div>' +
-'<span class="hd-repliers-t">' + count + (count === 1 ? ' person' : ' people') + ' replied</span>';
-}
+'<span class="hd-repliers-t">' + repliersLine(r.data, total) + '</span>';
+}));
 }
 async function answerPoll(box, id, choice) {
 box.classList.add('is-busy');
@@ -2678,7 +2701,7 @@ mayReply = ok.error ? true : ok.data !== false;
 }
 if (token !== painting) return;
 el('feed').innerHTML =
-(parent ? card(parent) + '<div class="hd-thread-line"></div>' : '') +
+(parent ? card(parent, { sub: true }) + '<div class="hd-thread-line"></div>' : '') +
 card(main, { lead: true }) +
 (my && mayReply ? '<div class="nb-card hd-compose-card">' + composerHTML({
 replyTo: id, toHandle: (main.author || {}).handle, label: 'Reply', placeholder: 'Write a reply'
@@ -2687,7 +2710,7 @@ replyTo: id, toHandle: (main.author || {}).handle, label: 'Reply', placeholder: 
 ? '<div class="nb-card hd-shut">' + ic(scopeOf(main.reply_scope).i) +
 '<p>' + esc(scopeOf(main.reply_scope).t) + ' can reply to this. You can still pass it on.</p></div>'
 : '') +
-(replies.length ? feedHTML(replies)
+(replies.length ? feedHTML(replies, { sub: true })
 : '<div class="hd-sep-say">' + (my && mayReply ? 'No replies yet. Yours would be the first.' : 'No replies yet.') + '</div>');
 if (my && mayReply) {
 wireComposer(col.querySelector('.hd-compose'), { replyTo: id, label: 'Reply', after: function () { viewThread(id); } });

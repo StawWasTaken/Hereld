@@ -436,11 +436,38 @@
             { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) +
           '. Only you can see it until then.</p>'
         : '') +
-      (said ? '<p class="hd-post-body">' + said + (p.edited_at ? ' <span class="hd-edited">· edited</span>' : '') + '</p>' : '') +
+      (said ? '<p class="hd-post-body' + (bigSaid(p, o, shots, quoted, note) ? ' hd-post-body--big' : '') + '">' +
+        said + (p.edited_at ? ' <span class="hd-edited">· edited</span>' : '') + '</p>' : '') +
       shots + pollHTML(p) + quoted + note +
-      scopeNote(p) + '<div class="hd-repliers" data-repliers="' + p.id + '"></div>' +
+      scopeNote(p) + repliersHTML(p) +
       acts(p) +
     '</article>';
+  }
+
+  /* A short post, alone in the card, is set larger. Six words at the size of
+     six paragraphs sit lost in the middle of all that border, and a column
+     where every card is the same block of 15px type is the same card nine
+     times over however different the words are.
+
+     Only when the words are all there is: a picture, a ballot, a quote or a
+     note gives the card its own shape already, and a link blown up to 22px is
+     a URL blown up to 22px. Not in a thread either, where the post being
+     answered is the one that should carry the weight. */
+  function bigSaid(p, o, shots, quoted, note) {
+    if (o.sub) return false;
+    if (shots || quoted || note || p.poll || p.has_poll || p.scheduled_for) return false;
+    var t = String(p.body || '').trim();
+    return t.length > 0 && t.length <= 90 && t.indexOf('\n') < 0 && !/https?:\/\//i.test(t);
+  }
+
+  /* Who answered. Only where somebody did: the strip went on every post, then
+     made a request, then removed itself, so a column of quiet posts was a
+     column of round trips spent drawing nothing. reply_count is on the row
+     already and is what the reply button counts, so the question is free. */
+  function repliersHTML(p) {
+    var n = p.reply_count || 0;
+    if (n < 1) return '';
+    return '<div class="hd-repliers" data-repliers="' + p.id + '" data-n="' + n + '"></div>';
   }
 
   /* What the account said this post is. Drawn before the words, because
@@ -693,14 +720,41 @@
     }
   }
 
+  /* Reads the way you would say it: two names and how many others. The reply
+     button beside it already carries the number, so a strip that only counted
+     was the same figure twice on one card and the same sentence on every card
+     in the column. Names are what the button cannot show and what differs post
+     to post.
+
+     The old line was wrong as well as duplicated. It printed the length of the
+     face list, and the face list is asked for three, so anything with three or
+     more answers said "3 people replied" however many there were. The total
+     comes off the post's own count now.
+
+     One request per post either way, but all at once rather than one after the
+     other. Awaiting them in a loop made a column of twenty posts twenty round
+     trips end to end, with the faces arriving down the page for as long as it
+     took. */
+  function repliersLine(list, total) {
+    var names = list.slice(0, 2).map(function (u) {
+      return '<b>' + esc(u.name || u.handle) + '</b>';
+    });
+    var rest = total - names.length;
+    if (rest > 0) names.push(rest === 1 ? 'one other' : num(rest) + ' others');
+    var said = names.length > 1
+      ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+      : names[0];
+    return said + ' replied';
+  }
+
   async function paintRepliers(root) {
     var boxes = [].slice.call((root || document).querySelectorAll('[data-repliers]:not([data-done])'));
-    for (var i = 0; i < boxes.length; i++) {
-      var box = boxes[i];
-      var id = box.getAttribute('data-repliers');
-      var r = await db.rpc('post_repliers', { p_post_id: id, p_limit: 3 });
-      if (r.error || !r.data || !r.data.length) { box.remove(); continue; }
+    await Promise.all(boxes.map(async function (box) {
       box.setAttribute('data-done', '1');
+      var r = await db.rpc('post_repliers', {
+        p_post_id: box.getAttribute('data-repliers'), p_limit: 3
+      });
+      if (r.error || !r.data || !r.data.length) return;
       var avs = r.data.map(function (u) {
         return '<a class="hd-av-btn" href="#/' + esc(u.handle) + '" data-r>' +
           '<span class="hd-av hd-av--sm">' +
@@ -709,10 +763,13 @@
             : '<span class="hd-av-n">' + esc((u.name || u.handle || '?')[0]).toUpperCase() + '</span>') +
           '</span></a>';
       }).join('');
-      var count = r.data.length;
+      /* The count is the post's own. It can only be short of the faces if a
+         reply landed between the row being read and this answering, so the
+         faces are the floor. */
+      var total = Math.max(parseInt(box.getAttribute('data-n'), 10) || 0, r.data.length);
       box.innerHTML = '<div class="hd-repliers-av">' + avs + '</div>' +
-        '<span class="hd-repliers-t">' + count + (count === 1 ? ' person' : ' people') + ' replied</span>';
-    }
+        '<span class="hd-repliers-t">' + repliersLine(r.data, total) + '</span>';
+    }));
   }
 
   async function answerPoll(box, id, choice) {
@@ -3211,7 +3268,7 @@
     if (token !== painting) return;
 
     el('feed').innerHTML =
-      (parent ? card(parent) + '<div class="hd-thread-line"></div>' : '') +
+      (parent ? card(parent, { sub: true }) + '<div class="hd-thread-line"></div>' : '') +
       card(main, { lead: true }) +
       (my && mayReply ? '<div class="nb-card hd-compose-card">' + composerHTML({
         replyTo: id, toHandle: (main.author || {}).handle, label: 'Reply', placeholder: 'Write a reply'
@@ -3220,7 +3277,7 @@
         ? '<div class="nb-card hd-shut">' + ic(scopeOf(main.reply_scope).i) +
           '<p>' + esc(scopeOf(main.reply_scope).t) + ' can reply to this. You can still pass it on.</p></div>'
         : '') +
-      (replies.length ? feedHTML(replies)
+      (replies.length ? feedHTML(replies, { sub: true })
         : '<div class="hd-sep-say">' + (my && mayReply ? 'No replies yet. Yours would be the first.' : 'No replies yet.') + '</div>');
 
     if (my && mayReply) {
