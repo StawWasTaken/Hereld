@@ -69,31 +69,6 @@
 }
 .hd-splash.is-done { opacity: 0; pointer-events: none; transition: opacity .34s var(--nb-ease); }
 
-/* ── LANDING ───────────────────────────────────────────────────────────── */
-
-.hd-hero { position: relative; overflow: hidden; padding: clamp(54px, 7vw, 104px) 0 clamp(40px, 5vw, 76px); }
-.hd-hero-grid {
-  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
-  gap: clamp(28px, 4vw, 64px); align-items: center;
-}
-@media (max-width: 940px) { .hd-hero-grid { grid-template-columns: 1fr; } }
-.hd-hero h1 { margin: 16px 0 20px; font-size: clamp(38px, 5.4vw, 74px); }
-.hd-hero h1 em { font-style: normal; color: var(--nb-blue); }
-.hd-hero-lede { max-width: 46ch; margin-bottom: 28px; font-size: clamp(16px, 1.5vw, 18px); line-height: 1.62; }
-.hd-hero-acts { display: flex; flex-wrap: wrap; gap: 14px; }
-.hd-hero-note { margin-top: 20px; font-size: 13px; line-height: 1.6; }
-.hd-deco-1 { top: 92px; right: 5%; --nb-rot: 11deg; }
-.hd-deco-2 { bottom: 40px; right: 13%; --nb-rot: -15deg; }
-@media (max-width: 1080px) { .hd-deco-1, .hd-deco-2 { display: none; } }
-.hd-peek { transform: rotate(-1.3deg); }
-.hd-peek .hd-post { pointer-events: none; }
-.hd-peek-head {
-  display: flex; align-items: center; gap: 9px; margin-bottom: 14px;
-  font-family: var(--nb-font-head); font-weight: 700; font-size: 12px;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--nb-fg-muted);
-}
-.hd-peek-note { margin: 16px 0 0; font-size: 13px; line-height: 1.6; max-width: 44ch; }
-
 /* ── THE SHELL ─────────────────────────────────────────────────────────── */
 
 body.hd-app { background: var(--nb-bg); }

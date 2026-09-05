@@ -554,58 +554,6 @@ font-size: 13.5px; color: var(--nb-surface-fg-muted);
 .nb-rainbaw > i:nth-child(4) { background: var(--nb-yellow); }
 .nb-rainbaw > i:nth-child(5) { background: var(--nb-pink); }
 .nb-rainbaw--tall { height: 14px; }
-.nb-deco { position: absolute; pointer-events: none; z-index: 0; }
-.nb-deco-img { max-width: 100%; height: auto; }
-.nb-shape { display: block; border: var(--nb-bd); }
-.nb-shape--sq     { width: 54px; height: 54px; background: var(--nb-yellow); }
-.nb-shape--circle { width: 54px; height: 54px; border-radius: 50%; background: var(--nb-blue); }
-.nb-shape--tri {
-width: 0; height: 0; border: 0;
-border-left: 30px solid transparent; border-right: 30px solid transparent;
-border-bottom: 52px solid var(--nb-green);
-filter: drop-shadow(0 0 0 var(--nb-ink));
-}
-.nb-dots {
-background-image: radial-gradient(var(--nb-ink) 1.6px, transparent 1.6px);
-background-size: 14px 14px;
-}
-.nb-hatch {
-background-image: repeating-linear-gradient(
-45deg, var(--nb-ink) 0 2px, transparent 2px 9px);
-}
-.nb-poke, .nb-float, .nb-magnet {
-transform: translate(var(--nb-tx, 0px), var(--nb-ty, 0px))
-rotate(calc(var(--nb-rot, 0deg) + var(--nb-spin, 0deg)))
-scale(var(--nb-scale, 1));
-}
-.nb-float, .nb-magnet { transition: transform .4s var(--nb-ease); will-change: transform; }
-.nb-poke {
-pointer-events: auto;
-cursor: pointer; -webkit-tap-highlight-color: transparent;
-transition: transform var(--nb-med), background var(--nb-fast),
-border-bottom-color var(--nb-fast);
-}
-.nb-poke:hover  { --nb-spin: 15deg; --nb-scale: 1.09; }
-.nb-poke:active { --nb-spin: -10deg; --nb-scale: .93; }
-.nb-poke:focus-visible { outline: 3px solid var(--nb-blue); outline-offset: 4px; }
-.nb-wobble { transition: transform var(--nb-med); }
-.nb-card:hover .nb-wobble { transform: rotate(-6deg) translateY(-3px); }
-.nb-press {
-cursor: pointer;
-box-shadow: var(--nb-sh-sm);
-transition: transform var(--nb-fast), box-shadow var(--nb-fast);
-}
-.nb-press:hover  { transform: translate(-1px, -1px); box-shadow: var(--nb-sh); }
-.nb-press:active { transform: translate(3px, 4px); box-shadow: none; }
-@media (prefers-reduced-motion: reduce) {
-.nb-poke, .nb-float, .nb-magnet, .nb-wobble, .nb-press {
-transition: none;
---nb-tx: 0px; --nb-ty: 0px; --nb-spin: 0deg; --nb-scale: 1;
-}
-}
-@media (hover: none) {
-.nb-float, .nb-magnet { --nb-tx: 0px; --nb-ty: 0px; }
-}
 .nb-marquee {
 overflow: hidden; border-top: var(--nb-bd); border-bottom: var(--nb-bd);
 background: var(--nb-yellow); color: var(--nb-ink);
