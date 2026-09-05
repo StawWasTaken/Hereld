@@ -4406,13 +4406,38 @@
 
   /* The splash stays up for a beat whether or not the boot needed one. A
      mark that appears and vanishes inside a frame reads as a flicker; two
-     and a half seconds reads as the application opening. */
+     and a half seconds reads as the application opening.
+
+     Counted from when the mark can be seen rather than from when the page
+     arrived. It is drawn as a mask, so before its artwork decodes there is
+     nothing on the screen, and holding from page load spent the whole beat
+     on a plain dark rectangle whenever the fetch was slow. __hdSplashArt is
+     set by the page when the image loads, or to -1 when it will not come.
+
+     SPLASH_CAP is the ceiling. A fetch that never resolves either way must
+     not hold the door shut, and by then the application behind it is ready. */
   var SPLASH_HOLD = 2300;
+  var SPLASH_CAP = 4200;
   function splashOff() {
     var s = el('splash');
     if (!s) return;
     var up = window.__hdSplashAt || 0;
-    var wait = up ? Math.max(0, SPLASH_HOLD - (Date.now() - up)) : 0;
+    if (!up) return drop(s, 0);
+
+    (function settle() {
+      var since = Date.now() - up;
+      var art = window.__hdSplashArt || 0;
+      /* Nothing to wait for: the artwork failed, so the name is up in words
+         and has been since the moment we knew. */
+      if (art < 0) return drop(s, Math.max(0, SPLASH_HOLD - since));
+      if (art > 0) return drop(s, Math.min(Math.max(0, SPLASH_HOLD - (Date.now() - art)),
+                                           Math.max(0, SPLASH_CAP - since)));
+      if (since >= SPLASH_CAP) return drop(s, 0);
+      setTimeout(settle, 60);
+    })();
+  }
+
+  function drop(s, wait) {
     setTimeout(function () {
       s.classList.add('is-done');
       setTimeout(function () { s.remove(); }, 620);

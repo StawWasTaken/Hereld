@@ -39,6 +39,12 @@
   -webkit-mask: url('HereldAt.png') center / contain no-repeat;
   mask: url('HereldAt.png') center / contain no-repeat;
 }
+/* Put up in place of the mark when its artwork does not arrive. A mask with
+   no image draws nothing, so without this the screen would simply be empty. */
+.hd-splash-word {
+  font: 700 34px/1 'Syne', system-ui, sans-serif;
+  letter-spacing: .04em; color: var(--nb-blue, #2CAFFC);
+}
 </style>
 </head>
 <body class="hd-app">
@@ -49,17 +55,37 @@
 <script>
 /* Shown when somebody arrives at Hereld, not every time they open a page
    inside it. The flag is read before the first paint, so a return visit
-   never flashes. The time it went up is kept so the boot can hold it there
-   long enough to be read rather than blinked. */
+   never flashes.
+
+   The clock starts when the mark is on the screen, not when the page is.
+   The mark is a mask, so until the artwork has decoded there is nothing
+   there at all, and holding from page load meant a slow fetch bought a
+   plain dark screen for the whole two and a half seconds. __hdSplashArt is
+   the moment it can be seen; the boot holds from there.
+
+   A mask whose image never arrives hides its element completely, which is
+   the failure found in .hd-nova-av-wrap::after. So a fetch that fails puts
+   the name up in words instead, and says so, rather than holding an empty
+   screen and then opening on nothing. */
 (function () {
+  var arrived = false;
   try {
-    if (sessionStorage.getItem('hd-arrived')) {
-      document.getElementById('splash').hidden = true;
-    } else {
-      window.__hdSplashAt = Date.now();
-    }
+    arrived = !!sessionStorage.getItem('hd-arrived');
     sessionStorage.setItem('hd-arrived', '1');
-  } catch (e) { window.__hdSplashAt = Date.now(); }
+  } catch (e) {}
+
+  var s = document.getElementById('splash');
+  if (arrived) { if (s) s.hidden = true; return; }
+  window.__hdSplashAt = Date.now();
+
+  var art = new Image();
+  art.onload = function () { window.__hdSplashArt = Date.now(); };
+  art.onerror = function () {
+    window.__hdSplashArt = -1;
+    var m = s && s.querySelector('.hd-splash-mark');
+    if (m) { m.className = 'hd-splash-word'; m.textContent = 'Hereld'; }
+  };
+  art.src = 'HereldAt.png';
 })();
 </script>
 

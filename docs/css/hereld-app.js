@@ -3690,11 +3690,23 @@ if (b && !b.error && b.data === 'superadmin') staffRole = 'superadmin';
 }
 }
 var SPLASH_HOLD = 2300;
+var SPLASH_CAP = 4200;
 function splashOff() {
 var s = el('splash');
 if (!s) return;
 var up = window.__hdSplashAt || 0;
-var wait = up ? Math.max(0, SPLASH_HOLD - (Date.now() - up)) : 0;
+if (!up) return drop(s, 0);
+(function settle() {
+var since = Date.now() - up;
+var art = window.__hdSplashArt || 0;
+if (art < 0) return drop(s, Math.max(0, SPLASH_HOLD - since));
+if (art > 0) return drop(s, Math.min(Math.max(0, SPLASH_HOLD - (Date.now() - art)),
+Math.max(0, SPLASH_CAP - since)));
+if (since >= SPLASH_CAP) return drop(s, 0);
+setTimeout(settle, 60);
+})();
+}
+function drop(s, wait) {
 setTimeout(function () {
 s.classList.add('is-done');
 setTimeout(function () { s.remove(); }, 620);
