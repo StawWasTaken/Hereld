@@ -1349,10 +1349,30 @@ html.hd-locked, html.hd-locked body { overflow: hidden; }
   padding: 13px 0; border-bottom: var(--nb-bd-thin);
 }
 .hd-stf-switch > div { flex: 1; min-width: 180px; }
-.hd-stf-switch b { display: block; font-size: 14px; text-transform: capitalize; }
+/* Titles are written now rather than derived from the column name, so
+   capitalising every word turns "Notes on one post" into a headline. */
+.hd-stf-switch b { display: block; font-size: 14px; }
 .hd-stf-switch small { display: block; font-size: 12.5px; line-height: 1.5; color: var(--nb-surface-fg-muted); }
 .hd-stf-switch--bad b { color: var(--nb-red); }
 .hd-stf-when { margin: 0 0 12px; font-size: 11.5px; color: var(--nb-surface-fg-muted); }
+
+/* A flag that holds a number. The field is narrow on purpose: none of these
+   goes past three digits, and a wide box invites a value the input then
+   refuses. */
+.hd-stf-num { display: inline-flex; align-items: center; gap: 9px; flex: none; }
+.hd-stf-num .nb-input { width: 84px; text-align: center; }
+.hd-stf-num > small {
+  display: block; font-size: 12.5px; color: var(--nb-surface-fg-muted); white-space: nowrap;
+}
+.hd-stf-sub {
+  margin: 26px 0 4px; font-family: var(--nb-font-head); font-weight: 700;
+  font-size: 15px; letter-spacing: -.01em;
+}
+.hd-stf-sub:first-child { margin-top: 6px; }
+.hd-stf-sublead {
+  margin: 0 0 6px; max-width: 66ch;
+  font-size: 12.5px; line-height: 1.6; color: var(--nb-surface-fg-muted);
+}
 .hd-stf-note { margin: 14px 0 0; font-size: 13px; line-height: 1.55; }
 
 /* A seed account carries more than a plain row does: who it is, what it is,

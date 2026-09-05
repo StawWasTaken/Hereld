@@ -920,16 +920,61 @@ return '<div class="hd-stf-row">' + who(x, 'joined ' + H.when(x.created_at)) +
 '<button class="nb-btn nb-btn--ghost nb-btn--sm" type="button" data-open-user="' + esc(x.id) + '">Open</button></div>';
 }).join('');
 }
+function numberRow(key, title, line, f, unit) {
+return '<div class="hd-stf-switch">' +
+'<div><b>' + esc(title) + '</b><small>' + esc(line) + '</small></div>' +
+'<span class="hd-stf-num">' +
+'<label class="nb-sr" for="fl-' + esc(key) + '">' + esc(title) + '</label>' +
+'<input class="nb-input" id="fl-' + esc(key) + '" type="number" min="0" max="999" ' +
+'value="' + (f && f.number != null ? +f.number : 0) + '" data-num-flag="' + esc(key) + '">' +
+(unit ? '<small>' + esc(unit) + '</small>' : '') +
+'<button class="nb-btn nb-btn--sm nb-btn--primary" type="button" data-num-save="' + esc(key) + '">Save</button>' +
+'</span></div>';
+}
+var FLAG_UNITS = {
+bots_max_per_day: 'a day',
+bots_min_gap_min: 'minutes',
+bots_notes_per_post: 'per post'
+};
+var FLAG_TITLES = {
+bots_active: 'Seed accounts running',
+bots_enabled: 'Seed accounts at all',
+bots_emergency: 'Emergency stop',
+bots_quiet_hours: 'Quiet hours',
+bots_max_per_day: 'Ceiling per account',
+bots_min_gap_min: 'Least gap between actions',
+bots_notes_per_post: 'Notes on one post',
+signups_open: 'Signups open'
+};
+function flagRow(x) {
+var raw = x.key.replace(/_/g, ' ');
+var title = FLAG_TITLES[x.key] || raw.charAt(0).toUpperCase() + raw.slice(1);
+var row = FLAG_UNITS[x.key]
+? numberRow(x.key, title, x.text_value, x, FLAG_UNITS[x.key])
+: switchRow(x.key, title, x.text_value, x, x.key === 'bots_emergency');
+return row + '<p class="hd-stf-when">Last changed ' + esc(stamp(x.updated_at)) + '</p>';
+}
 async function pageSettings(host) {
 host.innerHTML = box('Platform settings', 'These are read by Hereld itself, not by a member.',
 '<div id="stfFlags">' + loading() + '</div>');
 var node = host.querySelector('#stfFlags');
 var f = await db.from('platform_flags').select('*').order('key');
 if (f.error) { node.innerHTML = broke(why(f.error)); return; }
-node.innerHTML = f.data.map(function (x) {
-return switchRow(x.key, x.key.replace(/_/g, ' '), x.text_value, x, x.key === 'bots_emergency') +
-'<p class="hd-stf-when">Last changed ' + esc(stamp(x.updated_at)) + '</p>';
-}).join('');
+var seed = f.data.filter(function (x) { return x.key.indexOf('bots_') === 0; });
+var rest = f.data.filter(function (x) { return x.key.indexOf('bots_') !== 0; });
+var out = '';
+if (seed.length) {
+out += '<h3 class="hd-stf-sub">Seed accounts</h3>' +
+'<p class="hd-stf-sublead">These hold whichever way the accounts are run, by the schedule ' +
+'or by a button on the Seed accounts page. A ceiling of 0 means no ceiling. ' +
+'The least gap is a floor under each account’s own cooldown and cannot loosen one ' +
+'that is already longer.</p>' +
+seed.map(flagRow).join('');
+}
+if (rest.length) {
+out += '<h3 class="hd-stf-sub">Everything else</h3>' + rest.map(flagRow).join('');
+}
+node.innerHTML = out;
 }
 async function pageLog(host) {
 host.innerHTML = box('Audit log', 'Every staff action, including a superadmin\'s. Nothing writes here except the console.',
@@ -1014,6 +1059,17 @@ if (fl) {
 var on = fl.dataset.next === '1';
 var key = fl.dataset.flag;
 call('staff_set_flag', { p_key: key, p_on: on }, 'Saved.').then(function (done) { if (done) render(); });
+return;
+}
+var ns = t.closest('[data-num-save]');
+if (ns) {
+var nkey = ns.dataset.numSave;
+var nin = col.querySelector('[data-num-flag="' + nkey + '"]');
+var raw = (nin && nin.value || '').trim();
+if (!/^\d+$/.test(raw)) { U.toast('Type a number first.', 'bad'); return; }
+var nv = Math.max(0, Math.min(999, parseInt(raw, 10)));
+call('staff_set_flag', { p_key: nkey, p_number: nv }, 'Saved.')
+.then(function (done) { if (done) render(); });
 return;
 }
 var be = t.closest('[data-bot-edit]');
