@@ -158,8 +158,12 @@ begin
   return new_id;
 end $$;
 
-revoke all on function public.bot_create_premium_internal(text,text,text,text,text,text,text) from public;
-revoke all on function public.bot_create_premium_internal(text,text,text,text,text,text,text) from anon, authenticated;
+-- Nine arguments, not seven. Both lines named a signature that does not
+-- exist, so both raised `function does not exist` and the script stopped
+-- here: everything below this point, the staff-checked creator included, has
+-- never been created in any database this file was run against.
+revoke all on function public.bot_create_premium_internal(text,text,text,text,text,text,text,text,text) from public;
+revoke all on function public.bot_create_premium_internal(text,text,text,text,text,text,text,text,text) from anon, authenticated;
 
 -- 3) APP-FACING CREATOR (STAFF CHECK KEPT)
 create or replace function public.bot_create_premium(
